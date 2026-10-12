@@ -100,6 +100,12 @@ object KineticaConstants {
     const val HELD_DOUBLE_BOOST = 2f
 
     /**
+     * Share of the learned per-thumb, per-key touch offset ([TouchModel]) applied to a tap before
+     * decoding. Swept on the developer's traces with the model learning online, line by line.
+     */
+    const val TOUCH_MODEL_STRENGTH = 1f
+
+    /**
      * Whether two-thumb overlapped input is decoded on one timeline
      * ([Interleave]). Measured end to end on the developer's practice traces
      * (replay harness, 2026-10-02): words with two swipes overlapping in time

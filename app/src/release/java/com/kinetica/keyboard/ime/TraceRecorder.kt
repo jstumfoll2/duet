@@ -24,4 +24,6 @@ object TraceRecorder {
     fun label(how: String) = Unit
 
     fun correction(from: String, to: String) = Unit
+
+    fun key(name: String, t: Long) = Unit
 }

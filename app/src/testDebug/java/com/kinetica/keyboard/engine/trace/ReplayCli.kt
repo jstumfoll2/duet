@@ -28,6 +28,7 @@ object ReplayCli {
     fun main(args: Array<String>) {
         val a = args.toMutableList()
         val cmd = a.removeFirstOrNull() ?: usage()
+        forceTouch = a.remove("--touchforce")
         val assets = File(opt(a, "--assets") ?: defaultAssets())
         when (cmd) {
             "replay" -> {
@@ -36,12 +37,15 @@ object ReplayCli {
                 val beta = opt(a, "--beta")?.toFloat() ?: 0f
                 val depth = opt(a, "--depth")?.toInt() ?: ReplayHarness.DEFAULT_DEEP_K
                 val ilw = opt(a, "--ilw")?.toFloat()
+                // --touch S: the per-user touch model, learning online at strength S (0 = off).
+                val touch = touchModel(opt(a, "--touch"))
                 if (a.isEmpty()) usage()
-                val harness = if (ilw == null) {
-                    ReplayHarness(assets, k, ctc, beta, depth)
-                } else {
-                    ReplayHarness(assets, k, ctc, beta, depth, interleave = ilw > 0f, interleaveWeight = ilw)
-                }
+                val harness = ReplayHarness(
+                    assets, k, ctc, beta, depth,
+                    interleave = ilw?.let { it > 0f } ?: KineticaConstants.INTERLEAVE_ENABLED,
+                    interleaveWeight = ilw ?: KineticaConstants.INTERLEAVE_WEIGHT,
+                    touch = touch,
+                )
                 val report = run(harness, a.map { File(it) })
                 println(report.format())
                 if (ctc == null && report.exact < report.comparable) System.exit(1)
@@ -64,6 +68,7 @@ object ReplayCli {
                 val hdms = opt(a, "--hdms")?.toLong() ?: KineticaConstants.HELD_DOUBLE_MS
                 val hdend = opt(a, "--hdend")?.toLong() ?: KineticaConstants.HELD_DOUBLE_END_MS
                 val hdmiss = opt(a, "--hdmiss")?.toFloat() ?: 1f
+                val touch = touchModel(opt(a, "--touch"))
                 if (a.isEmpty()) usage()
                 val h = ReplayHarness(
                     assets,
@@ -71,6 +76,7 @@ object ReplayCli {
                     interleaveWeight = ilw ?: KineticaConstants.INTERLEAVE_WEIGHT,
                     heldDoubleBoost = hdb, heldDoubleMs = hdms, heldDoubleEndMs = hdend,
                     heldDoubleMissKeep = hdmiss,
+                    touch = touch,
                 )
                 val sink = ReplayReport(h.deepK)
                 for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
@@ -146,6 +152,7 @@ object ReplayCli {
                     when (val l = SwipeTrace.decodeLine(line)) {
                         is SwipeTrace.Line.WordLine -> words.add(i + 1 to l.word)
                         is SwipeTrace.Line.Discard -> words.removeLastOrNull()
+                        is SwipeTrace.Line.Key -> Unit
                         is SwipeTrace.Line.Correction -> {
                             val k = words.indexOfLast { it.second.committed.equals(l.from, ignoreCase = true) }
                             if (k >= 0) {
@@ -278,6 +285,16 @@ object ReplayCli {
         sb.appendLine("--- beta $best ---")
         sb.append(eval(best, testSet).format())
         return sb.toString()
+    }
+
+    private var forceTouch = false
+
+    /** A fresh online-learning touch model at strength [s], or null when [s] is absent or 0. */
+    private fun touchModel(s: String?): com.kinetica.keyboard.engine.TouchModel? {
+        val v = s?.toFloat() ?: return null
+        if (v <= 0f) return null
+        // --touchforce: apply the offsets without the model's own self-check, for sweeps.
+        return com.kinetica.keyboard.engine.TouchModel().also { it.strength = v; it.force = forceTouch }
     }
 
     private fun opt(a: MutableList<String>, name: String): String? {

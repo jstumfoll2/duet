@@ -166,6 +166,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     /** Which resident language is being typed, with no primary language. Main thread. */
     private val momentum = LanguageMomentum()
 
+    /**
+     * Where this user's thumbs land against the keys they mean, learned from tapped words and
+     * kept on the device only. It applies itself only once it beats the raw key on the user's
+     * own taps (see TouchModel).
+     */
+    private val touchModel = com.kinetica.keyboard.engine.TouchModel()
+    private var touchModelSaved = 0
+
     // Language of each candidate currently on offer, keyed by its display form
     // (lowercased). The bar and the commit path work in strings, so this is how
     // a picked or committed word finds the dictionary it came from.
@@ -422,6 +430,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     override fun onCreate() {
         super.onCreate()
+        touchModel.restore(getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).getString(TOUCH_MODEL_KEY, null))
+        touchModelSaved = touchModel.learned
         // Decode tracing, developer build only. Two-thumb gestures cannot be reproduced on
         // the JVM, so a capture of the real token buffer is the evidence for them. The
         // release source set's TraceRecorder is a stub that installs nothing.
@@ -654,6 +664,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                             reranker = reranker, rerankDepth = depth,
                         )
                     }
+                    p.touchModel = touchModel
                     predictor = p
                     val altCounts = ConcurrentHashMap<String, Int>(altRows.size * 2)
                     for (row in altRows) altCounts[row.word] = row.frequency
@@ -682,6 +693,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     composer = WordComposer(
                         p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
                     ).also {
+                        secondaryPredictor?.touchModel = touchModel
+                        extraPredictor?.touchModel = touchModel
+                        it.touchModel = touchModel
                         it.alternatePredictor = secondaryPredictor
                         TraceRecorder.attachComposer(it)
                         it.extraPredictor = extraPredictor
@@ -1061,6 +1075,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     override fun onFinishInput() {
         abandonWord()
         composer?.reset()
+        saveTouchModel()
         // A notice belongs to the field it was shown in, not to the next one.
         clearSpacebarNotice()
         super.onFinishInput()
@@ -1449,6 +1464,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private val keyboardListener = object : KeyboardView.Listener {
         override fun onKeyTap(key: Key) {
             when (key.type) {
+                KeyType.SPACE -> "space"
+                KeyType.BACKSPACE -> "backspace"
+                KeyType.ENTER -> "enter"
+                KeyType.CHAR -> "punct"
+                else -> null
+            }?.let { TraceRecorder.key(it, android.os.SystemClock.uptimeMillis()) }
+            when (key.type) {
                 KeyType.CHAR -> if (!markApostrophe(key)) onPunctuation(key.output)
                 KeyType.SPACE -> onSpace()
                 KeyType.BACKSPACE -> onBackspace()
@@ -1492,7 +1514,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             )
         }
 
-        override fun onDeleteChar() = onBackspace()
+        override fun onDeleteChar() {
+            TraceRecorder.key("backspace", android.os.SystemClock.uptimeMillis())
+            onBackspace()
+        }
 
         override fun onStageDelete(units: Int, chars: Boolean) = stageDeletion(units, chars)
 
@@ -4025,8 +4050,19 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         keyboardView?.setShiftUppercase(shift.isShifted)
     }
 
+    /** Writes the touch model to its own private file when it learned since the last write. */
+    private fun saveTouchModel() {
+        if (touchModel.learned == touchModelSaved) return
+        touchModelSaved = touchModel.learned
+        getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).edit().putString(TOUCH_MODEL_KEY, touchModel.save()).apply()
+    }
+
     private companion object {
         const val TAG = "KineticaIME"
+
+        // Its own file, not the settings: per-key averages, kept out of a settings backup.
+        const val TOUCH_MODEL_PREFS = "touch_model"
+        const val TOUCH_MODEL_KEY = "model"
         const val USER_DICT_LIMIT = 5000
         const val USER_PAIR_LIMIT = 5000
         // Undone autocorrects remembered at once: more distinct words than one session undoes.

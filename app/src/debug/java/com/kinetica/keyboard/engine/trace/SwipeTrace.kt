@@ -273,11 +273,21 @@ object SwipeTrace {
     fun encodeDiscard(): String =
         JsonWriter().beginObject().key("v").value(VERSION).key("type").value("discard").endObject().toString()
 
-    /** A line of any type: a [Word], a correction as (from, to), or a discard. */
+    /**
+     * A non-letter key the user pressed (`space`, `backspace`, `enter`, or `punct`) at uptime [t]
+     * ms, the clock the gesture samples use. Lets a reader see what happened between two words:
+     * a stray letter followed by a space that nobody meant shows up as two spaces 200 ms apart.
+     */
+    fun encodeKey(name: String, t: Long): String =
+        JsonWriter().beginObject().key("v").value(VERSION).key("type").value("key")
+            .key("k").value(name).key("t").value(t).endObject().toString()
+
+    /** A line of any type: a [Word], a correction as (from, to), a discard, or a key press. */
     sealed class Line {
         data class WordLine(val word: Word) : Line()
         data class Correction(val from: String, val to: String) : Line()
         object Discard : Line()
+        data class Key(val name: String, val t: Long) : Line()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -291,6 +301,10 @@ object SwipeTrace {
             "discard" -> {
                 require((o["v"] as JsonNum).toInt() == VERSION) { "unsupported trace version ${o["v"]}" }
                 Line.Discard
+            }
+            "key" -> {
+                require((o["v"] as JsonNum).toInt() == VERSION) { "unsupported trace version ${o["v"]}" }
+                Line.Key(o["k"] as String, (o["t"] as JsonNum).toLong())
             }
             else -> Line.WordLine(decode(o))
         }

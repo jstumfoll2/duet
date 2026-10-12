@@ -139,6 +139,11 @@ object TraceRecorder {
         words.recorder?.onCorrection(from, to)
     }
 
+    /** A space, backspace, enter or punctuation key pressed, at uptime [t] ms (see SwipeTrace.encodeKey). */
+    fun key(name: String, t: Long) {
+        words.key(name, t)
+    }
+
     class WordTraces {
         private val lock = Any()
         private var prefs: android.content.SharedPreferences? = null
@@ -165,6 +170,7 @@ object TraceRecorder {
         }
 
         internal fun attach(engine: GestureEngine, info: TraceInfo) {
+            this.info = info
             val r = SwipeTraceRecorder(
                 {
                     val beta = NeuralRerank.liveBeta
@@ -181,6 +187,15 @@ object TraceRecorder {
             r.compare = NeuralRerank::compare
             recorder = r
             engine.observer = r
+        }
+
+        private var info: TraceInfo? = null
+
+        /** Records a non-letter key press while word traces are recording. */
+        fun key(name: String, t: Long) {
+            val i = info ?: return
+            if (!(enabled || practiceTarget != null) || i.suppressed()) return
+            append(SwipeTrace.encodeKey(name, t))
         }
 
         /** Withdraws the most recent word line (the practice screen's "bad swipe"). */

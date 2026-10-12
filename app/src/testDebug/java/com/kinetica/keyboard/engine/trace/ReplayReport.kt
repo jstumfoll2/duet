@@ -30,6 +30,17 @@ class ReplayReport(private val deepK: Int) {
     }
 
     val all = Tally()
+
+    /**
+     * The scorecard: lines by who chose the label. `practice` is the prompted word; `you typed`
+     * is what the user committed by hand (typed, picked, accepted autocorrect, or corrected
+     * later); `space commit` is a decode the space bar committed, so its label is the keyboard's
+     * own answer and flatters any replay that changes nothing. `as typed` scores the hand-chosen
+     * lines again, counting a non-dictionary word tapped letter for letter as right.
+     */
+    val bySource = LinkedHashMap<String, Tally>().apply { for (s in SOURCES) put(s, Tally()) }
+    var asTypedHits = 0
+
     val byBucket = LinkedHashMap<String, Tally>().apply { for (b in ReplayHarness.BUCKETS) put(b, Tally()) }
     var lines = 0
     var unlabelled = 0
@@ -66,6 +77,13 @@ class ReplayReport(private val deepK: Int) {
         }
         all.add(r)
         for (b in r.buckets) byBucket.getValue(b).add(r)
+        val source = when {
+            r.word.target != null -> "practice"
+            r.word.how == "tentative" -> "space commit"
+            else -> "you typed"
+        }
+        bySource.getValue(source).add(r)
+        if (source == "you typed" && (r.rank == 1 || r.typedAsIs)) asTypedHits++
     }
 
     fun error(lineNo: Int, e: Exception) {
@@ -86,6 +104,18 @@ class ReplayReport(private val deepK: Int) {
         )
         row("all", all)
         for ((b, t) in byBucket) if (t.n > 0) row(b, t)
+        appendLine()
+        appendLine("by label source")
+        for ((b, t) in bySource) if (t.n > 0) row(b, t)
+        val typed = bySource.getValue("you typed")
+        if (typed.n > 0) {
+            appendLine(
+                String.format(
+                    Locale.ROOT, "%-18s %6d %7s   (non-dictionary words tapped letter for letter count as right)",
+                    "as typed", typed.n, String.format(Locale.ROOT, "%.1f%%", 100.0 * asTypedHits / typed.n),
+                ),
+            )
+        }
         if (micros.isNotEmpty()) {
             val sorted = micros.sorted()
             fun pct(p: Double) = sorted[((sorted.size - 1) * p).toInt()] / 1000.0
@@ -123,6 +153,8 @@ class ReplayReport(private val deepK: Int) {
     }
 
     private companion object {
+        val SOURCES = listOf("practice", "you typed", "space commit")
+
         const val MAX_EXAMPLES = 10
     }
 }

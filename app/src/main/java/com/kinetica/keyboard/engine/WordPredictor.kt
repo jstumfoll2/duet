@@ -77,6 +77,13 @@ class WordPredictor(
     /** The letters this predictor's trie and geometry are spelled in. */
     val alphabet: Alphabet get() = trie.alphabet
 
+    /**
+     * This user's learned touch offsets ([TouchModel]), applied to taps before they are
+     * decoded. Null or empty leaves taps where they landed. Shared by every predictor on the
+     * same board; the model publishes immutable snapshots, so the decode thread may read it.
+     */
+    @Volatile var touchModel: TouchModel? = null
+
     private val dtw = DtwMatcher()
     private val heapDepth = if (reranker != null) maxOf(topK, rerankDepth) else topK
 
@@ -440,7 +447,8 @@ class WordPredictor(
         // A board in another script, for the moment a language switch leaves them apart.
         if (g.alphabet !== trie.alphabet) return emptyList()
         // Two thumbs the touchscreen briefly merged into one contact, split back.
-        val tokens = ContactRepair.repair(input)
+        val repaired = ContactRepair.repair(input)
+        val tokens = touchModel?.apply(repaired, g) ?: repaired
         if (tokens.isEmpty() || tokens.size > KineticaConstants.MAX_WORD_LEN) return emptyList()
         // Timed only under a trace sink, so a release build pays nothing for it.
         val startNs = if (DecodeTrace.enabled) System.nanoTime() else 0L
