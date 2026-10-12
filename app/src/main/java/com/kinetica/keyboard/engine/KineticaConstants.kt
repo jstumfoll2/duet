@@ -407,6 +407,11 @@ object KineticaConstants {
     // boost everywhere (bm^b) reaches two rows only at b ~ 0.1, which deletes context prediction.
     const val BIGRAM_BOOST_MAX = 1.0f
 
+    // Two-word context boost (TrigramTable, English only, from Tatoeba sentences): the same
+    // shape as the bigram, 1 + TRIGRAM_BOOST_MAX * byte/255 normalised per word pair, applied on
+    // top of it after the search and faded by the fit through appliedBoost.
+    const val TRIGRAM_BOOST_MAX = 0.5f
+
     // GrammarCheck's confusion sets (your/you're, its/it's, there/their...). Boost bytes are log
     // counts against the previous word's commonest pair, so a byte gap is a count ratio. Set on
     // the Tatoeba table and the 2,131 sentence-internal words of the owner's 2026-10 traces: at

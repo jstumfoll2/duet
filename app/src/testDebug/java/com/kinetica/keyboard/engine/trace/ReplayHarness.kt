@@ -58,8 +58,14 @@ class ReplayHarness(
      * taught, then teaches its own label, as the keyboard learns from each commit. Null is off.
      */
     val touch: com.kinetica.keyboard.engine.TouchModel? = null,
+    /** Cap of the two-word context boost; 0 decodes without the trigram table. */
+    private val trigramBoost: Float = com.kinetica.keyboard.engine.KineticaConstants.TRIGRAM_BOOST_MAX,
 ) {
-    private class Dict(val d: LoadedDictionary, val bigrams: BigramTable)
+    private class Dict(
+        val d: LoadedDictionary,
+        val bigrams: BigramTable,
+        val trigrams: com.kinetica.keyboard.engine.TrigramTable,
+    )
 
     private val dicts = HashMap<Pair<String, Boolean>, Dict>()
 
@@ -74,7 +80,13 @@ class ReplayHarness(
             DictionaryLoader.load(it, spellingSwaps = swaps)
         }
         val b = File(dir, "${lang}_bigrams.txt").bufferedReader().use { DictionaryLoader.loadBigrams(it, d.trie) }
-        Dict(d, b)
+        val tf = File(dir, "${lang}_trigrams.txt")
+        val t = if (tf.exists()) {
+            tf.bufferedReader().use { DictionaryLoader.loadTrigrams(it, d.trie) }
+        } else {
+            com.kinetica.keyboard.engine.TrigramTable.EMPTY
+        }
+        Dict(d, b, t)
     }
 
     /** The bundled trie for [lang], as replay loads it. */
@@ -95,8 +107,11 @@ class ReplayHarness(
             reranker = r, rerankDepth = rerankDepth,
             interleave = interleave, interleaveWeight = interleaveWeight,
             heldDoubleBoost = heldDoubleBoost, heldDoubleMs = heldDoubleMs, heldDoubleEndMs = heldDoubleEndMs,
-            heldDoubleMissKeep = heldDoubleMissKeep,
-        ).also { it.touchModel = touch }
+            heldDoubleMissKeep = heldDoubleMissKeep, trigramBoostMax = trigramBoost,
+        ).also {
+            it.touchModel = touch
+            it.trigrams = d.trigrams
+        }
     }
 
     /** One replayed line. [rank] and [deepRank] are 1-based, 0 when the label is absent. */

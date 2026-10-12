@@ -167,4 +167,23 @@ object DictionaryLoader {
         }
         return BigramTable.build(entries)
     }
+
+    /**
+     * Lines of "w1&lt;TAB&gt;w2&lt;TAB&gt;w3&lt;TAB&gt;count", keyed and folded like [loadBigrams];
+     * triples with any word missing from [trie] are dropped.
+     */
+    fun loadTrigrams(reader: BufferedReader, trie: Trie): TrigramTable {
+        val entries = ArrayList<IntArray>(120_000)
+        val counts = ArrayList<Long>(120_000)
+        reader.forEachLine { line ->
+            val f = line.split('\t')
+            if (f.size != 4) return@forEachLine
+            val count = f[3].trim().toLongOrNull() ?: return@forEachLine
+            val ids = IntArray(3) { trie.nodeFor(AccentFolder.fold(f[it])) }
+            if (ids.any { it == -1 }) return@forEachLine
+            entries.add(ids)
+            counts.add(count)
+        }
+        return TrigramTable.build(entries, counts.toLongArray())
+    }
 }

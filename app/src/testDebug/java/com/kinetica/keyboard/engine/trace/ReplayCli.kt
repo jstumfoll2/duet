@@ -37,6 +37,8 @@ object ReplayCli {
                 val beta = opt(a, "--beta")?.toFloat() ?: 0f
                 val depth = opt(a, "--depth")?.toInt() ?: ReplayHarness.DEFAULT_DEEP_K
                 val ilw = opt(a, "--ilw")?.toFloat()
+                // --tri B: the two-word context boost cap (0 = off).
+                val tri = opt(a, "--tri")?.toFloat() ?: KineticaConstants.TRIGRAM_BOOST_MAX
                 // --touch S: the per-user touch model, learning online at strength S (0 = off).
                 val touch = touchModel(opt(a, "--touch"))
                 if (a.isEmpty()) usage()
@@ -45,6 +47,7 @@ object ReplayCli {
                     interleave = ilw?.let { it > 0f } ?: KineticaConstants.INTERLEAVE_ENABLED,
                     interleaveWeight = ilw ?: KineticaConstants.INTERLEAVE_WEIGHT,
                     touch = touch,
+                    trigramBoost = tri,
                 )
                 val report = run(harness, a.map { File(it) })
                 println(report.format())
@@ -64,6 +67,8 @@ object ReplayCli {
                 // ranks [--ilw W] [--hdb B] [--hdms MS] [--hdend MS] [--hdmiss K] FILE...: one tab-separated
                 // row per scored line, for slicing. --hd* set the held-double-letter terms.
                 val ilw = opt(a, "--ilw")?.toFloat()
+                // --tri B: the two-word context boost cap (0 = off).
+                val tri = opt(a, "--tri")?.toFloat() ?: KineticaConstants.TRIGRAM_BOOST_MAX
                 val hdb = opt(a, "--hdb")?.toFloat() ?: KineticaConstants.HELD_DOUBLE_BOOST
                 val hdms = opt(a, "--hdms")?.toLong() ?: KineticaConstants.HELD_DOUBLE_MS
                 val hdend = opt(a, "--hdend")?.toLong() ?: KineticaConstants.HELD_DOUBLE_END_MS
@@ -77,6 +82,7 @@ object ReplayCli {
                     heldDoubleBoost = hdb, heldDoubleMs = hdms, heldDoubleEndMs = hdend,
                     heldDoubleMissKeep = hdmiss,
                     touch = touch,
+                    trigramBoost = tri,
                 )
                 val sink = ReplayReport(h.deepK)
                 for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
@@ -341,7 +347,7 @@ object ReplayCli {
 
     private fun usage(): Nothing {
         System.err.println(
-            "usage: replay [--assets DIR] [--k N] [--ctc MODEL --beta B --depth D] TRACE.jsonl...\n" +
+            "usage: replay [--assets DIR] [--k N] [--ctc MODEL --beta B --depth D] [--tri B] TRACE.jsonl...\n" +
                 "       tune --ctc MODEL [--betas LIST] [--depth D] TRACE.jsonl...\n" +
                 "       synth [--assets DIR] [--words N] [--alt LANG] [--noise X] [--seed S] OUT.jsonl",
         )

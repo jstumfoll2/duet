@@ -585,6 +585,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 val bigrams = assets.open(bigramsAsset(lang)).bufferedReader().use {
                     DictionaryLoader.loadBigrams(it, dict.trie)
                 }
+                // Only some languages ship a two-word table; a missing asset means none.
+                val trigrams = try {
+                    assets.open("dictionaries/${lang}_trigrams.txt").bufferedReader().use {
+                        DictionaryLoader.loadTrigrams(it, dict.trie)
+                    }
+                } catch (e: java.io.IOException) {
+                    com.kinetica.keyboard.engine.TrigramTable.EMPTY
+                }
                 // The other enabled language stays resident so swipe decodes consult both
                 // dictionaries, with its own personal counts: both lists rank together, and
                 // one-sided weighting favoured the active language by up to 1.83x on device.
@@ -665,6 +673,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         )
                     }
                     p.touchModel = touchModel
+                    p.trigrams = trigrams
                     predictor = p
                     val altCounts = ConcurrentHashMap<String, Int>(altRows.size * 2)
                     for (row in altRows) altCounts[row.word] = row.frequency
