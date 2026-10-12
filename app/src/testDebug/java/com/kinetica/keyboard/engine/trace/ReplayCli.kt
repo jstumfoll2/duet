@@ -84,6 +84,34 @@ object ReplayCli {
                     println("${f.name}\t$n\t${r.word.label}\t${r.rank}\t${r.buckets.joinToString(",")}\t${r.shipping.firstOrNull()?.word ?: ""}")
                 }
             }
+            "features" -> {
+                // features FILE...: one JSON object per scored line, the shipping list with each
+                // candidate's score factors, for fitting score weights offline.
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
+                    val label = w.label?.lowercase() ?: continue
+                    val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
+                    val src = when { w.target != null -> "practice"; w.how == "tentative" -> "space"; else -> "typed" }
+                    val sb = StringBuilder()
+                    sb.append("{\"f\":\"").append(f.name).append("\",\"n\":").append(n)
+                        .append(",\"label\":\"").append(label.replace("\"", "")).append("\",\"src\":\"").append(src)
+                        .append("\",\"asis\":").append(r.typedAsIs)
+                        .append(",\"b\":\"").append(r.buckets.joinToString(",")).append("\",\"ctx\":\"")
+                        .append(w.context.joinToString(" ").replace("\"", "")).append("\",\"c\":[")
+                    r.shipping.forEachIndexed { i, c ->
+                        if (i > 0) sb.append(',')
+                        sb.append("[\"").append(c.word.replace("\"", "")).append("\",").append(c.score).append(',')
+                            .append(c.dtwDistance).append(',').append(c.frequencyWeight).append(',').append(c.bigramMultiplier)
+                            .append(',').append(c.personalBoost).append(',').append(c.contactKeep).append(',')
+                            .append(c.personalBigram).append(",\"").append(c.source.name).append("\",\"")
+                            .append(c.language).append("\"]")
+                    }
+                    sb.append("]}")
+                    println(sb)
+                }
+            }
             "trace" -> {
                 // trace FILE N [N...]: replay those lines with DecodeTrace on.
                 if (a.size < 2) usage()
