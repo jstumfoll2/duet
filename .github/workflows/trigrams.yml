@@ -1,0 +1,48 @@
+name: Count English trigrams
+
+# Counts en_trigrams.txt from the Tatoeba English sentences with
+# tools/count_trigrams.py, over the vocabulary of the shipped en_wordlist.txt.
+# The development environment cannot reach Tatoeba, so the table is built here
+# and pushed to the `assets/en-trigrams` branch (the asset and the log only), the
+# same route dictionary.yml uses. Nothing here commits to the branch under review.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-4iy5qw]
+    paths:
+      - tools/count_trigrams.py
+      - .github/workflows/trigrams.yml
+
+permissions:
+  contents: write
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Count
+        run: |
+          mkdir -p out
+          python tools/count_trigrams.py --lang en \
+            --wordlist app/src/main/assets/dictionaries/en_wordlist.txt \
+            --out out/en_trigrams.txt 2>&1 | tee out/count.log
+          head -40 out/en_trigrams.txt | tee -a out/count.log
+
+      - name: Publish to the assets/en-trigrams branch
+        run: |
+          cd out
+          git init -q -b assets/en-trigrams
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          printf 'English trigrams counted by .github/workflows/trigrams.yml from %s.\n' "$GITHUB_SHA" > README.md
+          git add -A
+          git commit -qm "en trigrams from $GITHUB_SHA"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" assets/en-trigrams
