@@ -52,7 +52,11 @@ class SyntheticSession(
     private fun predictor(lang: String): WordPredictor {
         val d = File(dir, "${lang}_wordlist.txt").bufferedReader().use { DictionaryLoader.load(it) }
         val b = File(dir, "${lang}_bigrams.txt").bufferedReader().use { DictionaryLoader.loadBigrams(it, d.trie) }
-        return WordPredictor(d.trie, b, geometry, d.forms, language = lang)
+        // The two-word table where the language ships one, as the keyboard and replay load it.
+        val tf = File(dir, "${lang}_trigrams.txt")
+        return WordPredictor(d.trie, b, geometry, d.forms, language = lang).also { p ->
+            if (tf.exists()) p.trigrams = tf.bufferedReader().use { DictionaryLoader.loadTrigrams(it, d.trie) }
+        }
     }
 
     /** Frequent a-z words of 1..10 letters, every [step]th, up to [n]. */
