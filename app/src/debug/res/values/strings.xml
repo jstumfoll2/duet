@@ -19,7 +19,7 @@
     <string name="trace_cleared">Trace cleared</string>
 
     <string name="trace_words_recording">Recording word traces (replayable)</string>
-    <string name="trace_words_explain">Word traces keep every touch sample of each word together with the word that was committed, so the decoder can be replayed and measured off the device. They are off until switched on here, except in practice mode, which records while it is open. Private fields and fields that ask for no learning are never recorded. Nothing leaves the device unless you export it.</string>
+    <string name="trace_words_explain">Word traces keep every touch sample of each word together with the word that was committed, so the decoder can be replayed and measured off the device. They are on by default in this developer build and can be switched off here; practice mode records while it is open either way. Private fields and fields that ask for no learning are never recorded. Nothing leaves the device unless you export it.</string>
     <string name="trace_words_export">Export word traces</string>
     <string name="trace_words_clear">Clear word traces</string>
     <string name="practice_open">Practice mode</string>

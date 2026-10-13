@@ -42,6 +42,8 @@ class TraceActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The keyboard may not have run yet in this process; the switches and exports need this.
+        TraceRecorder.install(applicationContext)
         title = getString(R.string.trace_title)
         val pad = (16 * resources.displayMetrics.density).toInt()
 
