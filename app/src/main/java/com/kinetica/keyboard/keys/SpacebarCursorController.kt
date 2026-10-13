@@ -44,6 +44,7 @@ class SpacebarCursorController(
     private var startX = 0f
     private var anchorX = 0f
     private var cursorMode = false
+    private var stepped = false
     private var inSpacelessZone = false
 
     /** Whether this touch has become a cursor slide, which ends it as a chord trigger. */
@@ -68,6 +69,7 @@ class SpacebarCursorController(
         startX = x
         anchorX = x
         cursorMode = false
+        stepped = false
         inSpacelessZone =
             spacelessZone && keyWidth > 0f && x < keyLeft + keyWidth * SPACELESS_FRACTION
     }
@@ -80,10 +82,12 @@ class SpacebarCursorController(
         if (!cursorMode) return
         val step = effectiveStepDp() * density
         while (x - anchorX >= step) {
+            stepped = true
             onCursorMove(1, wordMode)
             anchorX += step
         }
         while (anchorX - x >= step) {
+            stepped = true
             onCursorMove(-1, wordMode)
             anchorX -= step
         }
@@ -93,11 +97,13 @@ class SpacebarCursorController(
      * What the lift was.
      *
      * The slide always wins: a touch that starts in the spaceless zone and travels past the enter
-     * threshold is a cursor slide, since the zone only refines a tap.
+     * threshold is a cursor slide, since the zone only refines a tap. A slide that never moved
+     * the cursor is still a tap: a fast thumb drifts past the 8dp threshold on its way off the
+     * key, and reading that as a slide swallowed the space with nothing to show for it.
      */
     fun onUp(nowMs: Long = 0L): Lift {
         val lift = when {
-            cursorMode -> Lift.SLIDE
+            cursorMode && stepped -> Lift.SLIDE
             inSpacelessZone -> Lift.SPACELESS
             doubleSpacePeriod && lastSpaceAt != 0L && nowMs - lastSpaceAt <= DOUBLE_TAP_MS ->
                 Lift.DOUBLE

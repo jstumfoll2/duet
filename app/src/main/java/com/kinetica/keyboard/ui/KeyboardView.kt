@@ -434,6 +434,8 @@ class KeyboardView @JvmOverloads constructor(
     private var popup: PopupState? = null
     private var popupPointer = -1
     private var pendingHoldPid = -1
+    /** When a pointer that typed into the engine last lifted; see [letterHoldAllowed]. */
+    private var lastEngineUpTime = Long.MIN_VALUE / 2
     private var pendingHoldKeyIdx = -1
     private var popupWindow: PopupWindow? = null
     private var popupStrip: PopupStripView? = null
@@ -476,6 +478,8 @@ class KeyboardView @JvmOverloads constructor(
     private var spaceHoldDownTime = 0L
     private var spaceHoldMoved = false
     private var spaceChordFired = false
+    /** The held space was already typed when the next letter landed; see [rollSpace]. */
+    private var spaceRolled = false
     private val chordTriggerByPointer = arrayOfNulls<ChordTrigger>(MAX_POINTERS)
     private val holdHandler = Handler(Looper.getMainLooper())
     private val holdRunnable = Runnable { onHoldTimerFired() }
@@ -982,6 +986,7 @@ class KeyboardView @JvmOverloads constructor(
             armedTriggers(t).firstOrNull { listener?.hasChord(it, c) == true }
         }
         chordTriggerByPointer[pid] = chord
+        if (chord == null && key?.isLetter == true) rollSpace(pid, t)
         routeByPointer[pid] = when {
             // The engine never takes a symbol or a digit, so those wait for their lift here.
             chord != null && key?.isLetter != true -> ROUTE_CHORD
@@ -1004,6 +1009,7 @@ class KeyboardView @JvmOverloads constructor(
                 spaceHoldDownTime = t
                 spaceHoldMoved = false
                 spaceChordFired = false
+                spaceRolled = false
                 val r = keyRects.getOrNull(keyIdx)
                 spaceController.onDown(x, r?.left ?: 0f, r?.width() ?: 0f)
                 ROUTE_SPACE
@@ -1015,8 +1021,14 @@ class KeyboardView @JvmOverloads constructor(
             }
             else -> ROUTE_SPECIAL
         }
+        // A second thumb landing mid-hold means the first is parked inside a word, not asking
+        // for its accents: the menu would cancel that thumb's letters.
+        if (pendingHoldPid != -1 && pendingHoldPid != pid && routeByPointer[pendingHoldPid] == ROUTE_ENGINE) {
+            cancelHold()
+        }
         val holdCapable = key != null &&
-            (key.type == KeyType.MODE_SYMBOLS || key.alternates.isNotEmpty())
+            (key.type == KeyType.MODE_SYMBOLS || key.alternates.isNotEmpty()) &&
+            (routeByPointer[pid] != ROUTE_ENGINE || letterHoldAllowed(pid, t))
         // A chord candidate's own menu would open mid-chord and cancel the key.
         if (holdCapable && chord == null && popup == null && pendingHoldPid == -1) {
             scheduleHold(pid, keyIdx)
@@ -1067,6 +1079,44 @@ class KeyboardView @JvmOverloads constructor(
             ChordTrigger.SPACE -> {
                 spaceChordFired = true
                 listener?.onChordTriggered(trigger, c, t - spaceHoldDownTime)
+            }
+        }
+    }
+
+    /**
+     * Whether a letter pressed at [t] may open its alternates menu: only when it starts a hold
+     * on its own, with no other thumb down and none lifted from a letter in the last
+     * [ALT_HOLD_IDLE_MS]. A two-thumb typist rests one thumb on a letter while the other swipes
+     * (owner traces, 2026-10-13), and the menu opening there cancelled the resting thumb's
+     * letters and wrecked the word. A deliberate accent is a lone, unhurried hold.
+     */
+    private fun letterHoldAllowed(pid: Int, t: Long): Boolean {
+        if (t - lastEngineUpTime < ALT_HOLD_IDLE_MS) return false
+        for (other in 0 until MAX_POINTERS) {
+            if (other != pid && routeByPointer[other] != ROUTE_NONE) return false
+        }
+        return true
+    }
+
+    /**
+     * Types a held space the moment the other thumb lands a letter, instead of at the space's
+     * own lift. Two thumbs roll: the next word's first letter often goes down, and even lifts,
+     * before the space thumb is up, and a space sent at its lift then arrives after that letter,
+     * so the letter joined the word before it and the space felt late (owner report,
+     * 2026-10-13). Only a space still a plain tap rolls: one that is sliding the cursor, or has
+     * fired a chord, keeps its own lift. A letter that is itself a chord candidate does not
+     * roll the space either; [handleDown] checks that before calling.
+     */
+    private fun rollSpace(pid: Int, t: Long) {
+        val sp = spacePointer
+        if (sp == -1 || sp == pid || spaceRolled || spaceChordFired || spaceController.sliding) return
+        spaceRolled = true
+        spaceController.onUp(t).let { lift ->
+            when (lift) {
+                SpacebarCursorController.Lift.SPACE -> dispatchTap(sp, t)
+                SpacebarCursorController.Lift.SPACELESS -> listener?.onSpacelessSpace()
+                SpacebarCursorController.Lift.DOUBLE -> listener?.onDoubleSpace()
+                SpacebarCursorController.Lift.SLIDE -> Unit
             }
         }
     }
@@ -1382,7 +1432,7 @@ class KeyboardView @JvmOverloads constructor(
                     addTrailPoint(e, pid, x, y, ev.eventTime)
                 }
                 // After a spacebar chord the touch is spent: it neither slides nor arms again.
-                ROUTE_SPACE -> if (!spaceChordFired) {
+                ROUTE_SPACE -> if (!spaceChordFired && !spaceRolled) {
                     spaceController.onMove(x)
                     if (spaceController.sliding) spaceHoldMoved = true
                 }
@@ -1452,9 +1502,12 @@ class KeyboardView @JvmOverloads constructor(
                 } else {
                     engine?.onPointerUp(pid, x, y, t)
                 }
+                lastEngineUpTime = t
             }
             ROUTE_SPACE -> {
-                if (spaceChordFired) spaceController.consume() else when (spaceController.onUp(t)) {
+                if (spaceRolled) {
+                    Unit
+                } else if (spaceChordFired) spaceController.consume() else when (spaceController.onUp(t)) {
                     SpacebarCursorController.Lift.SPACE -> dispatchTap(pid, t)
                     SpacebarCursorController.Lift.SPACELESS -> listener?.onSpacelessSpace()
                     SpacebarCursorController.Lift.DOUBLE -> listener?.onDoubleSpace()
@@ -1463,6 +1516,7 @@ class KeyboardView @JvmOverloads constructor(
                 spacePointer = -1
                 spaceHoldMoved = false
                 spaceChordFired = false
+                spaceRolled = false
             }
             ROUTE_BACKSPACE -> {
                 if (shortcut != null) {
@@ -1595,6 +1649,7 @@ class KeyboardView @JvmOverloads constructor(
         spacePointer = -1
         spaceHoldMoved = false
         spaceChordFired = false
+        spaceRolled = false
         backspacePointer = -1
         java.util.Arrays.fill(routeByPointer, ROUTE_NONE)
         java.util.Arrays.fill(chordTriggerByPointer, null)
@@ -1628,6 +1683,8 @@ class KeyboardView @JvmOverloads constructor(
 
         /** How long a letter's menu rests still before it opens for editing: well past a slow pick. */
         const val EDIT_HOLD_MS = 1200L
+        /** How long after a letter lifts before a held letter may open its accents again. */
+        const val ALT_HOLD_IDLE_MS = 400L
 
     }
 }

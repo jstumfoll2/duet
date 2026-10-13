@@ -34,6 +34,17 @@ class SpacebarCursorControllerTest {
     }
 
     @Test
+    fun aDriftThatMovedNoCursorIsStillASpace() {
+        // Past the enter threshold but short of a step: nothing moved, so the space must land.
+        val r = Recorder()
+        r.controller.onDown(100f)
+        r.controller.onMove(115f)
+        assertTrue(r.controller.sliding)
+        assertEquals(SpacebarCursorController.Lift.SPACE, r.controller.onUp())
+        assertEquals(emptyList<Int>(), r.directions)
+    }
+
+    @Test
     fun theDefaultStepIsUnchanged() {
         // 20dp per step from a moving anchor set where cursor mode armed, i.e. at +8.
         val r = Recorder()
