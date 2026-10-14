@@ -100,6 +100,12 @@ object KineticaConstants {
     const val HELD_DOUBLE_BOOST = 2f
 
     /**
+     * Share of the learned per-thumb, per-key touch offset ([TouchModel]) applied to a tap before
+     * decoding. Swept on the developer's traces with the model learning online, line by line.
+     */
+    const val TOUCH_MODEL_STRENGTH = 1f
+
+    /**
      * Whether two-thumb overlapped input is decoded on one timeline
      * ([Interleave]). Measured end to end on the developer's practice traces
      * (replay harness, 2026-10-02): words with two swipes overlapping in time
@@ -400,6 +406,11 @@ object KineticaConstants {
     // better fit (ScoreWeightingTest.theBoostConditionNeverFavoursTheWorseFit). Compressing the
     // boost everywhere (bm^b) reaches two rows only at b ~ 0.1, which deletes context prediction.
     const val BIGRAM_BOOST_MAX = 1.0f
+
+    // Two-word context boost (TrigramTable, English only, from Tatoeba sentences): the same
+    // shape as the bigram, 1 + TRIGRAM_BOOST_MAX * byte/255 normalised per word pair, applied on
+    // top of it after the search and faded by the fit through appliedBoost.
+    const val TRIGRAM_BOOST_MAX = 0.5f
 
     // GrammarCheck's confusion sets (your/you're, its/it's, there/their...). Boost bytes are log
     // counts against the previous word's commonest pair, so a byte gap is a count ratio. Set on

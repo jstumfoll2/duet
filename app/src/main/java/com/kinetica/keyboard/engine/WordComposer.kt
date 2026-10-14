@@ -192,7 +192,26 @@ class WordComposer(
     fun seed(seedTokens: List<InputToken>) {
         tokens.clear()
         tokens.addAll(seedTokens)
+        seeded = seedTokens.size
         requestDecode()
+    }
+
+    /**
+     * This user's touch model ([TouchModel]): every word committed from taps the engine made
+     * teaches it. A buffer seeded from committed text is never taught, since its letters were
+     * placed at key centres, not touched. Main thread.
+     */
+    var touchModel: TouchModel? = null
+
+    // Tokens at the head of the buffer that came from [seed], not from a touch.
+    private var seeded = 0
+
+    private fun teachTouch(word: String) {
+        val m = touchModel ?: return
+        if (seeded > 0 || tokens.isEmpty()) return
+        val g = predictor.geometry ?: return
+        val codes = predictor.alphabet.encode(AccentFolder.fold(word.lowercase())) ?: return
+        m.learn(codes, tokens, g)
     }
 
     fun literal(): String = buildLiteral(tokens)
@@ -200,11 +219,13 @@ class WordComposer(
     /** Word committed to the editor: becomes bigram context, buffer resets. */
     fun commitWord(word: String) {
         if (DecodeTrace.enabled) traceCommitMiss(word)
+        teachTouch(word)
         endBuffer(word)
         previousBuffer = if (tokens.isEmpty()) previousBuffer else ArrayList(tokens)
         context.addLast(word)
         while (context.size > 2) context.removeFirst()
         tokens.clear()
+        seeded = 0
         generation.incrementAndGet()
     }
 
@@ -287,6 +308,7 @@ class WordComposer(
         if (tokens.isNotEmpty()) previousBuffer = ArrayList(tokens)
         endBuffer(null)
         tokens.clear()
+        seeded = 0
         generation.incrementAndGet()
     }
 

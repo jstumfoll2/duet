@@ -43,7 +43,16 @@ object TraceRecorder {
     @Volatile
     var recording: Boolean = true
 
+    /**
+     * Idempotent: the keyboard and the trace screen both call it, and whichever runs first in a
+     * fresh process sets things up. Before the screen called it, a screen opened before the
+     * keyboard (right after a reinstall, or after the process was killed) showed word traces off
+     * and dropped the switch, because there were no preferences to write it to, and exported
+     * nothing.
+     */
+    @Synchronized
     fun install(context: Context) {
+        if (file != null) return
         val dir = File(context.filesDir, DIR)
         val f = File(dir, NAME)
         file = f
@@ -112,11 +121,11 @@ object TraceRecorder {
 
     /**
      * The v1 word trace: every raw touch sample and the committed word, one JSON
-     * line per word (see SwipeTrace). Separate from the decode log above and,
-     * unlike it, OFF until switched on in the trace screen: a v1 line is a
-     * complete, replayable record of what was typed, which is exactly what makes
-     * it worth recording and exactly why it needs a yes first. Practice mode
-     * records regardless, because opening practice is that yes.
+     * line per word (see SwipeTrace). Separate from the decode log above but, like
+     * it, on by default in this developer build: the build exists to collect these,
+     * and each new CI build must be installed fresh (its debug key changes), which
+     * cleared a switch that defaulted off and lost whole batches. The trace screen
+     * says what is recorded and turns it off. Practice mode records regardless.
      */
     val words = WordTraces()
 
@@ -139,6 +148,11 @@ object TraceRecorder {
         words.recorder?.onCorrection(from, to)
     }
 
+    /** A space, backspace, enter or punctuation key pressed, at uptime [t] ms (see SwipeTrace.encodeKey). */
+    fun key(name: String, t: Long) {
+        words.key(name, t)
+    }
+
     class WordTraces {
         private val lock = Any()
         private var prefs: android.content.SharedPreferences? = null
@@ -155,7 +169,7 @@ object TraceRecorder {
         var practiceTarget: String? = null
 
         var enabled: Boolean
-            get() = prefs?.getBoolean(PREF_ENABLED, false) == true
+            get() = prefs?.getBoolean(PREF_ENABLED, true) != false
             set(on) { prefs?.edit()?.putBoolean(PREF_ENABLED, on)?.apply() }
 
         internal fun install(context: Context, f: File) {
@@ -165,6 +179,7 @@ object TraceRecorder {
         }
 
         internal fun attach(engine: GestureEngine, info: TraceInfo) {
+            this.info = info
             val r = SwipeTraceRecorder(
                 {
                     val beta = NeuralRerank.liveBeta
@@ -181,6 +196,15 @@ object TraceRecorder {
             r.compare = NeuralRerank::compare
             recorder = r
             engine.observer = r
+        }
+
+        private var info: TraceInfo? = null
+
+        /** Records a non-letter key press while word traces are recording. */
+        fun key(name: String, t: Long) {
+            val i = info ?: return
+            if (!(enabled || practiceTarget != null) || i.suppressed()) return
+            append(SwipeTrace.encodeKey(name, t))
         }
 
         /** Withdraws the most recent word line (the practice screen's "bad swipe"). */

@@ -51,7 +51,8 @@ THE SOFTWARE.
    Ukrainian sentences. In the accented languages, which spellings with
    the accents left off a wordlist keeps is decided the same way.
 
-Word-pair counts derived from the Tatoeba sentence corpora:
+Word-pair counts, and the English word-triple counts (en_trigrams.txt),
+derived from the Tatoeba sentence corpora:
 https://tatoeba.org
 
 License: Creative Commons Attribution 2.0 France (CC BY 2.0 FR)

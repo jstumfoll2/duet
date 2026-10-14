@@ -53,8 +53,19 @@ class ReplayHarness(
     private val heldDoubleMs: Long = KineticaConstants.HELD_DOUBLE_MS,
     private val heldDoubleEndMs: Long = KineticaConstants.HELD_DOUBLE_END_MS,
     private val heldDoubleMissKeep: Float = 1f,
+    /**
+     * A per-user touch model learning online: each line decodes with what the lines before it
+     * taught, then teaches its own label, as the keyboard learns from each commit. Null is off.
+     */
+    val touch: com.kinetica.keyboard.engine.TouchModel? = null,
+    /** Cap of the two-word context boost; 0 decodes without the trigram table. */
+    private val trigramBoost: Float = com.kinetica.keyboard.engine.KineticaConstants.TRIGRAM_BOOST_MAX,
 ) {
-    private class Dict(val d: LoadedDictionary, val bigrams: BigramTable)
+    private class Dict(
+        val d: LoadedDictionary,
+        val bigrams: BigramTable,
+        val trigrams: com.kinetica.keyboard.engine.TrigramTable,
+    )
 
     private val dicts = HashMap<Pair<String, Boolean>, Dict>()
 
@@ -69,7 +80,13 @@ class ReplayHarness(
             DictionaryLoader.load(it, spellingSwaps = swaps)
         }
         val b = File(dir, "${lang}_bigrams.txt").bufferedReader().use { DictionaryLoader.loadBigrams(it, d.trie) }
-        Dict(d, b)
+        val tf = File(dir, "${lang}_trigrams.txt")
+        val t = if (tf.exists()) {
+            tf.bufferedReader().use { DictionaryLoader.loadTrigrams(it, d.trie) }
+        } else {
+            com.kinetica.keyboard.engine.TrigramTable.EMPTY
+        }
+        Dict(d, b, t)
     }
 
     /** The bundled trie for [lang], as replay loads it. */
@@ -90,8 +107,11 @@ class ReplayHarness(
             reranker = r, rerankDepth = rerankDepth,
             interleave = interleave, interleaveWeight = interleaveWeight,
             heldDoubleBoost = heldDoubleBoost, heldDoubleMs = heldDoubleMs, heldDoubleEndMs = heldDoubleEndMs,
-            heldDoubleMissKeep = heldDoubleMissKeep,
-        )
+            heldDoubleMissKeep = heldDoubleMissKeep, trigramBoostMax = trigramBoost,
+        ).also {
+            it.touchModel = touch
+            it.trigrams = d.trigrams
+        }
     }
 
     /** One replayed line. [rank] and [deepRank] are 1-based, 0 when the label is absent. */
@@ -107,6 +127,11 @@ class ReplayHarness(
         val buckets: Set<String>,
         /** Wall time of the shipping decode on this JVM; a relative figure, not a phone timing. */
         val micros: Long,
+        /**
+         * The label is not a dictionary word and the taps spell it letter for letter: the
+         * keyboard typed exactly what was tapped, which is right even with no list entry.
+         */
+        val typedAsIs: Boolean = false,
     )
 
     fun replay(w: SwipeTrace.Word): Result {
@@ -124,12 +149,19 @@ class ReplayHarness(
         val deep = deepDecode(deepActive, deepAlt, tokens, w.context, w.apostropheMark)
 
         val label = w.label?.lowercase()
+        if (touch != null && label != null) {
+            val codes = active.alphabet.encode(com.kinetica.keyboard.engine.AccentFolder.fold(label))
+            if (codes != null) touch.learn(codes, tokens, g)
+        }
         val exact = if (w.comparable) sameList(shipping, w.shown.candidates) else null
+        val typedAsIs = label != null && tokens.isNotEmpty() && tokens.all { it is TapToken } &&
+            !active.isWord(label) &&
+            tokens.sortedBy { it.tStart }.joinToString("") { active.alphabet.charOf((it as TapToken).code).toString() } == label
         return Result(
             w, tokens, shipping, deep,
             rankOf(label, shipping), rankOf(label, deep), exact,
             if (label == null) emptySet() else buckets(tokens, label),
-            micros,
+            micros, typedAsIs,
         )
     }
 

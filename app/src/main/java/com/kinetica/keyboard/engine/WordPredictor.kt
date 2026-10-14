@@ -73,9 +73,24 @@ class WordPredictor(
      * shipping value) charges nothing; below 1 is for the replay harness to measure the cost.
      */
     private val heldDoubleMissKeep: Float = 1f,
+    /** Cap of the two-word context boost ([TrigramTable.multiplier]); 0 is off. */
+    private val trigramBoostMax: Float = KineticaConstants.TRIGRAM_BOOST_MAX,
 ) {
     /** The letters this predictor's trie and geometry are spelled in. */
     val alphabet: Alphabet get() = trie.alphabet
+
+    /**
+     * This user's learned touch offsets ([TouchModel]), applied to taps before they are
+     * decoded. Null or empty leaves taps where they landed. Shared by every predictor on the
+     * same board; the model publishes immutable snapshots, so the decode thread may read it.
+     */
+    @Volatile var touchModel: TouchModel? = null
+
+    /**
+     * Two-word context boosts, applied after the search to the finished list ([withTrigrams]).
+     * Empty until the IME loads the language's table, which only English ships.
+     */
+    @Volatile var trigrams: TrigramTable = TrigramTable.EMPTY
 
     private val dtw = DtwMatcher()
     private val heapDepth = if (reranker != null) maxOf(topK, rerankDepth) else topK
@@ -320,9 +335,9 @@ class WordPredictor(
         beam: Boolean = true,
         apostrophe: Boolean = false,
     ): List<WordCandidate> {
-        val letters = decodeLetters(input, context, beam)
         val prevWord = context.lastOrNull()?.let { AccentFolder.fold(it.lowercase()) }
         val prevWordId = prevWord?.let { trie.nodeFor(it) } ?: -1
+        val letters = withTrigrams(decodeLetters(input, context, beam), context, prevWordId)
         val held = if (heldDoubleBoost == 1f) IntArray(0) else HeldDoubles.heldKeys(input, heldDoubleMs, heldDoubleEndMs)
         val missCharged = heldDoubleMissKeep != 1f && input.any { it is SwipeToken }
         val ranked = if (held.isEmpty() && !missCharged) letters else preferHeldDoubles(letters, held, prevWordId).also { out ->
@@ -332,6 +347,32 @@ class WordPredictor(
         val out = preferApostrophe(ranked, prevWordId)
         DecodeTrace.log { "apostrophe$langTag: " + out.take(5).joinToString(" ") { it.word } }
         return out
+    }
+
+    /**
+     * [list] with each word scored up by how often it follows the last two words of [context]
+     * ([TrigramTable]), then re-sorted. The boost goes through [KineticaConstants.appliedBoost]
+     * like the bigram, on the candidate's whole distance (the shape fit is not kept on the
+     * candidate; the whole distance is never smaller, so this only ever fades the boost more).
+     * An unseen triple, a context shorter than two words, or an unknown first word is a no-op.
+     */
+    private fun withTrigrams(list: List<WordCandidate>, context: List<String>, prevWordId: Int): List<WordCandidate> {
+        val table = trigrams
+        if (trigramBoostMax <= 0f || table.size == 0 || context.size < 2 || prevWordId == -1 || list.size < 2) return list
+        val firstId = trie.nodeFor(AccentFolder.fold(context[context.size - 2].lowercase()))
+        if (firstId == -1) return list
+        var changed = false
+        val out = list.map { c ->
+            val raw = table.multiplier(firstId, prevWordId, c.wordId, trigramBoostMax)
+            if (raw == 1f) c else {
+                changed = true
+                c.copy(score = c.score * KineticaConstants.appliedBoost(raw, c.dtwDistance))
+            }
+        }
+        if (!changed) return list
+        val sorted = out.sortedByDescending { it.score }
+        DecodeTrace.log { "trigram$langTag: " + sorted.take(5).joinToString(" ") { it.word } }
+        return sorted
     }
 
     /**
@@ -440,7 +481,8 @@ class WordPredictor(
         // A board in another script, for the moment a language switch leaves them apart.
         if (g.alphabet !== trie.alphabet) return emptyList()
         // Two thumbs the touchscreen briefly merged into one contact, split back.
-        val tokens = ContactRepair.repair(input)
+        val repaired = ContactRepair.repair(input)
+        val tokens = touchModel?.apply(repaired, g) ?: repaired
         if (tokens.isEmpty() || tokens.size > KineticaConstants.MAX_WORD_LEN) return emptyList()
         // Timed only under a trace sink, so a release build pays nothing for it.
         val startNs = if (DecodeTrace.enabled) System.nanoTime() else 0L
