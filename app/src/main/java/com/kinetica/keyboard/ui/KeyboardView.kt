@@ -736,9 +736,10 @@ class KeyboardView @JvmOverloads constructor(
             spacebarNotice?.let { drawSpacebarNotice(c, it, inset) }
             languageLabel?.let {
                 // Bottom-center so it coexists with the autospace dot (top) and
-                // never collides with the cursor-slide affordance.
-                hintPaint.alpha = 102
-                hintPaint.textSize = inset.height() * 0.24f
+                // never collides with the cursor-slide affordance. Brighter than the other
+                // hints: typing a whole sentence in the wrong language went unnoticed at 40%.
+                hintPaint.alpha = 170
+                hintPaint.textSize = inset.height() * 0.26f
                 hintPaint.textAlign = Paint.Align.CENTER
                 c.drawText(it, inset.centerX(), inset.bottom - 4f * density, hintPaint)
                 hintPaint.textAlign = Paint.Align.RIGHT

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The keyboard's own spell checker (KineticaSpellChecker). It answers in the languages
+     enabled on the keyboard whatever locale is asked; the subtypes only let the system list it. -->
+<spell-checker xmlns:android="http://schemas.android.com/apk/res/android"
+    android:label="@string/spell_checker_name"
+    android:settingsActivity="com.kinetica.keyboard.settings.SettingsActivity">
+    <subtype
+        android:label="@string/subtype_en_us"
+        android:subtypeLocale="en_US" />
+    <subtype
+        android:label="@string/subtype_it_it"
+        android:subtypeLocale="it_IT" />
+    <subtype
+        android:label="@string/subtype_es_es"
+        android:subtypeLocale="es_ES" />
+    <subtype
+        android:label="@string/subtype_pl_pl"
+        android:subtypeLocale="pl_PL" />
+    <subtype
+        android:label="@string/subtype_cs_cz"
+        android:subtypeLocale="cs_CZ" />
+    <subtype
+        android:label="@string/subtype_nl_nl"
+        android:subtypeLocale="nl_NL" />
+    <subtype
+        android:label="@string/subtype_de_de"
+        android:subtypeLocale="de_DE" />
+    <subtype
+        android:label="@string/subtype_fr_fr"
+        android:subtypeLocale="fr_FR" />
+    <subtype
+        android:label="@string/subtype_nb_no"
+        android:subtypeLocale="nb_NO" />
+    <subtype
+        android:label="@string/subtype_ru_ru"
+        android:subtypeLocale="ru_RU" />
+    <subtype
+        android:label="@string/subtype_uk_ua"
+        android:subtypeLocale="uk_UA" />
+    <subtype
+        android:label="@string/subtype_he_il"
+        android:subtypeLocale="iw_IL" />
+    <subtype
+        android:label="@string/subtype_ar"
+        android:subtypeLocale="ar" />
+</spell-checker>

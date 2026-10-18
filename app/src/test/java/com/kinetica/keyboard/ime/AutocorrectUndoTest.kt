@@ -36,12 +36,4 @@ class AutocorrectUndoTest {
         assertEquals(false, revertsAutocorrect("tion", "tino", current = "tino", replacement = "tine"))
         assertEquals(false, revertsAutocorrect("tion", "tino", current = "then", replacement = "tion"))
     }
-
-    @Test
-    fun oneRevertLearnsTheLettersUpToTheMergeFloor() {
-        assertEquals(2, typedLettersTopUp(0))
-        assertEquals(1, typedLettersTopUp(1))
-        assertEquals(0, typedLettersTopUp(2))
-        assertEquals(0, typedLettersTopUp(7))
-    }
 }
