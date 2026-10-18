@@ -51,6 +51,7 @@ class InputContainerView(
     private val bottomGap = View(context)
     private var dragStartRawY = 0f
     private var dragStartHeight = 0
+    private var inlineStrip: View? = null
 
     init {
         orientation = VERTICAL
@@ -114,8 +115,6 @@ class InputContainerView(
             inlineStrip?.requestLayout()
         }
     }
-
-    private var inlineStrip: View? = null
 
     /**
      * Shows [strip] (the autofill chips) in the suggestion bar's place, at its height, until
