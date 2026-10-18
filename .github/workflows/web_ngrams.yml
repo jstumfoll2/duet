@@ -1,0 +1,91 @@
+name: Count English web n-grams
+
+# Counts word, word-pair and word-triple frequencies over a slice of C4 (AllenAI's
+# cleaned English Common Crawl, ODC-BY 1.0) with tools/web_ngrams.py, over a
+# candidate vocabulary: the shipped en_wordlist.txt, SCOWL words up to size 70,
+# and the full FrequencyWords list down to 20 uses. tools/build_en_lexicon.py
+# turns the result into the shipped en_wordlist, en_bigrams and en_trigrams.
+#
+# The development environment cannot reach Hugging Face, so the counts are
+# pushed to the `assets/en-web-ngrams` branch (gzipped tables and the log only),
+# the route dictionary.yml and trigrams.yml use. Nothing here commits to the
+# branch under review.
+
+on:
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: "C4 shards to count (about 115M words each)"
+        default: "6"
+  push:
+    branches: [claude/project-thread-yaylf1]
+    paths:
+      - tools/web_ngrams.py
+      - .github/workflows/web_ngrams.yml
+
+permissions:
+  contents: write
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download SCOWL and the full FrequencyWords list
+        run: |
+          pip install numpy
+          mkdir -p src
+          curl -sSL -o src/scowl.tar.gz https://downloads.sourceforge.net/wordlist/scowl-2020.12.07.tar.gz
+          tar xzf src/scowl.tar.gz -C src
+          curl -sSL -o src/en_full.txt https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/en/en_full.txt
+
+      - name: Candidate vocabulary
+        run: |
+          python - <<'PY'
+          import re, sys
+          sys.path.insert(0, "tools")
+          from pathlib import Path
+          from generate_assets import scowl_sizes, CONTRACTIONS
+          word = re.compile(r"^[a-z]+(?:'[a-z]+)*$")
+          vocab = {l.split("\t", 1)[0] for l in open("app/src/main/assets/dictionaries/en_wordlist.txt", encoding="utf-8") if l.strip()}
+          vocab |= set(CONTRACTIONS["en"].values())
+          for w, kinds in scowl_sizes(Path("src/scowl-2020.12.07")).items():
+              if min(kinds.values()) <= 70:
+                  vocab.add(w)
+          for line in open("src/en_full.txt", encoding="utf-8"):
+              parts = line.split()
+              if len(parts) != 2 or not parts[1].isdigit():
+                  continue
+              if int(parts[1]) < 20:
+                  break
+              vocab.add(parts[0].lower())
+          vocab = sorted(w for w in vocab if word.match(w) and len(w) <= 20)
+          Path("vocab.txt").write_text("\n".join(vocab) + "\n", encoding="utf-8")
+          print(len(vocab), "candidate words")
+          PY
+
+      - name: Count
+        run: |
+          mkdir -p out
+          python tools/web_ngrams.py --vocab vocab.txt --shards "${{ github.event.inputs.shards || '6' }}" \
+            --workers 2 --out-dir out 2>&1 | tee out/count.log
+          zcat out/trigrams.tsv.gz | head -40 | tee -a out/count.log
+          ls -la out
+
+      - name: Publish to the assets/en-web-ngrams branch
+        run: |
+          cp vocab.txt out/
+          cd out
+          git init -q -b assets/en-web-ngrams
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          printf 'English web n-grams counted by .github/workflows/web_ngrams.yml from %s.\n' "$GITHUB_SHA" > README.md
+          git add -A
+          git commit -qm "en web n-grams from $GITHUB_SHA"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" assets/en-web-ngrams
