@@ -324,6 +324,12 @@ class KeyboardView @JvmOverloads constructor(
 
     private var layout: KeyboardLayout? = null
     private val keyRects = ArrayList<RectF>()
+
+    // The strip between the numbers row's digits and the top letter row, in view pixels, or
+    // empty (top >= bottom) when the row is off or has no gap. See [letterUnderGap].
+    private var numberGapTop = 0f
+    private var numberGapBottom = 0f
+
     private val keyInsets = ArrayList<RectF>()
     private var uppercase = false
     private var staticLayer: Bitmap? = null
@@ -733,10 +739,33 @@ class KeyboardView @JvmOverloads constructor(
             keyRects.add(rect)
             keyInsets.add(insetRect(rect))
         }
+        measureNumberRowGap(l)
         buildGeometry(l)
         renderStaticLayer()
         invalidate()
     }
+
+    private fun measureNumberRowGap(l: KeyboardLayout) {
+        var digitsBottom = -1f
+        var lettersTop = Float.MAX_VALUE
+        for (i in l.keys.indices) {
+            val k = l.keys[i]
+            when {
+                LayoutMutations.isNumberRowKey(k) -> digitsBottom = maxOf(digitsBottom, keyRects[i].bottom)
+                k.isLetter -> lettersTop = minOf(lettersTop, keyRects[i].top)
+            }
+        }
+        numberGapTop = digitsBottom
+        numberGapBottom = if (digitsBottom >= 0f && lettersTop != Float.MAX_VALUE) lettersTop else digitsBottom
+    }
+
+    /**
+     * [y], or the top of the letter rows when [y] lands in the gap under the numbers row
+     * ([LayoutMutations.withNumberRow]): the gap is the top letters' margin, so a thumb reaching
+     * high for `o` types `o`, and neither the letter keys nor the decoder's geometry move.
+     */
+    private fun letterUnderGap(y: Float): Float =
+        if (y >= numberGapTop && y < numberGapBottom) numberGapBottom else y
 
     private fun buildGeometry(l: KeyboardLayout) {
         val rects = ArrayList<FloatArray>()
@@ -1063,8 +1092,9 @@ class KeyboardView @JvmOverloads constructor(
         return true
     }
 
-    private fun handleDown(pid: Int, x: Float, y: Float, t: Long) {
+    private fun handleDown(pid: Int, x: Float, touchY: Float, t: Long) {
         val l = layout ?: return
+        val y = letterUnderGap(touchY)
         val keyIdx = keyIndexAt(x, y)
         downKeyByPointer[pid] = keyIdx
         downXByPointer[pid] = x

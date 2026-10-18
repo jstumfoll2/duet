@@ -4,11 +4,15 @@ import android.Manifest
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.drawable.ColorDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
 import android.view.View
@@ -43,22 +47,22 @@ import com.kinetica.keyboard.ui.SizePreviewView
 class KeyboardPrefsFragment : PreferenceFragmentCompat() {
 
     // The keyboard is a service and cannot ask for a permission, so the switch that needs one
-    // asks here; a refusal turns the switch back off rather than leaving it on and doing nothing.
+    // asks here; a refusal turns the switch back off rather than leaving it on and doing nothing,
+    // and says where the permission is allowed by hand.
     private val smsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) return@registerForActivityResult
         findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.isChecked = false
-        context?.let { Toast.makeText(it, R.string.pref_sms_codes_denied, Toast.LENGTH_LONG).show() }
+        showSmsDenied()
     }
+
+    // Set when the user leaves for the app's system page from the SMS dialogs: coming back with
+    // the permission allowed turns the switch on, as it would have been.
+    private var smsAwaitingSettings = false
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.keyboard_prefs, rootKey)
         findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.setOnPreferenceChangeListener { _, on ->
-            val ctx = context
-            if (on == true && ctx != null &&
-                ctx.checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED
-            ) {
-                smsPermission.launch(Manifest.permission.READ_SMS)
-            }
+            if (on == true && !smsAllowed()) explainSmsPermission()
             true
         }
         if (rootKey == SettingsSynonyms.LONGPRESS_GROUP) addLetterRows()
@@ -80,6 +84,10 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         // A search result asks for its row before this fragment has a list to scroll, so
         // the request is held and spent here, once, whichever way it arrived.
         applyReveal()
+        if (smsAwaitingSettings) {
+            smsAwaitingSettings = false
+            if (smsAllowed()) findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.isChecked = true
+        }
         if (sizePreview() != null) {
             preferenceManager.sharedPreferences?.registerOnSharedPreferenceChangeListener(sizeListener)
             refreshSizePreview()
@@ -96,6 +104,61 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
     override fun onPause() {
         preferenceManager.sharedPreferences?.unregisterOnSharedPreferenceChangeListener(sizeListener)
         super.onPause()
+    }
+
+    // ------------------------------------------------------------------ text-message codes
+
+    private fun smsAllowed(): Boolean =
+        context?.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Says what is about to be asked, and why Android may refuse it without asking. Android 13
+     * and later treats reading text messages as a restricted setting for an app installed from
+     * a file rather than a store: the request is denied with "App was denied access to SMS", and
+     * only the app's own system page, after "Allow restricted settings" in its menu, can allow it.
+     */
+    private fun explainSmsPermission() {
+        val ctx = context ?: return
+        val restricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        AlertDialog.Builder(ctx)
+            .setTitle(R.string.pref_sms_codes_ask_title)
+            .setMessage(if (restricted) R.string.pref_sms_codes_ask_restricted else R.string.pref_sms_codes_ask)
+            .setPositiveButton(R.string.pref_sms_codes_ask_continue) { _, _ ->
+                smsPermission.launch(Manifest.permission.READ_SMS)
+            }
+            .setNeutralButton(R.string.pref_sms_codes_open_settings) { _, _ -> openAppSettings() }
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.isChecked = false
+            }
+            .setOnCancelListener {
+                if (!smsAllowed()) findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.isChecked = false
+            }
+            .show()
+    }
+
+    /** After a refusal: the steps to allow it by hand, and a button to the page they start on. */
+    private fun showSmsDenied() {
+        val ctx = context ?: return
+        val restricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        AlertDialog.Builder(ctx)
+            .setTitle(R.string.pref_sms_codes_denied_title)
+            .setMessage(if (restricted) R.string.pref_sms_codes_denied_restricted else R.string.pref_sms_codes_denied)
+            .setPositiveButton(R.string.pref_sms_codes_open_settings) { _, _ -> openAppSettings() }
+            .setNegativeButton(R.string.pref_sms_codes_not_now, null)
+            .show()
+    }
+
+    /** This app's page in system settings, where its permissions and restricted settings live. */
+    private fun openAppSettings() {
+        val ctx = context ?: return
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null))
+        try {
+            smsAwaitingSettings = true
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            smsAwaitingSettings = false
+            Toast.makeText(ctx, R.string.pref_sms_codes_denied, Toast.LENGTH_LONG).show()
+        }
     }
 
     // ------------------------------------------------------------------ size preview

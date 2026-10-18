@@ -197,4 +197,12 @@ class PersonalWordRowsTest {
         assertEquals(PersonalWordRows.RowState.BELOW_FLOOR, PersonalWordRows.rowState(floor - 1))
         assertEquals(PersonalWordRows.RowState.TAKEN_BACK, PersonalWordRows.rowState(0))
     }
+
+    @Test
+    fun theLearnedListLeavesOutWordsTheDictionaryAlreadyHas() {
+        val dictionary = PersonalWordRows.dictionaryWords(sequenceOf("the\t100", "Haus\t5", "to\t90"))
+        assertEquals(setOf("the", "haus", "to"), dictionary)
+        val rows = listOf("the" to 40, "duet" to 3, "Haus" to 2, "qd" to 1)
+        assertEquals(listOf("duet" to 3, "qd" to 1), PersonalWordRows.learnedOnly(rows, dictionary))
+    }
 }

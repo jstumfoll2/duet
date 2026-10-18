@@ -52,6 +52,12 @@ object LayoutMutations {
      */
     const val APOSTROPHE_HOME_ROW_SHIFT = 0.015f
 
+    /** The apostrophe key's narrowest width, as a share of a letter key: half, its original size. */
+    const val APOSTROPHE_MIN_WIDTH = 0.5f
+
+    /** A letter key's width on the ten-key rows, as a share of the board. */
+    private const val LETTER_KEY_W = 0.1f
+
     /**
      * Optional apostrophe key: a narrow, chromeless (no key background,
      * Nintype-style) CHAR key at the right of the home row, so "'" is reachable
@@ -66,21 +72,33 @@ object LayoutMutations {
      * [APOSTROPHE_HOME_ROW_SHIFT] so the key sits apart from "L". Applied in the
      * alpha-layout chain only; idempotent (the appended key guards re-entry, so
      * the nudge is never doubled).
+     *
+     * [width] is the key's width as a share of a letter key, from
+     * [APOSTROPHE_MIN_WIDTH] (half a key, flush with the edge, as it always was) to 1 (a
+     * full key). The extra width comes out of the home row, which moves left with it until
+     * `a` reaches the board's left edge; the gap to "L" closes as the key grows, since a full
+     * key in a row of nine letters leaves no room for both.
      */
-    fun withApostropheKey(layout: KeyboardLayout): KeyboardLayout {
+    fun withApostropheKey(layout: KeyboardLayout, width: Float = APOSTROPHE_MIN_WIDTH): KeyboardLayout {
         if (layout.keys.any { it.id == APOSTROPHE_KEY_ID }) return layout
         // The slot it takes is QWERTY's; a board in another script fills its rows.
         if (layout.alphabet != Alphabet.LATIN) return layout
+        val homeRow = layout.keys.filter { kotlin.math.abs(it.y - 0.25f) < 0.01f }
+        val w = LETTER_KEY_W * width.coerceIn(APOSTROPHE_MIN_WIDTH, 1f)
+        // Half a key gives today's shift exactly; past it the row moves with the key, never past
+        // the left edge.
+        val room = homeRow.minOfOrNull { it.x } ?: 0f
+        val shift = minOf(APOSTROPHE_HOME_ROW_SHIFT + (w - LETTER_KEY_W * APOSTROPHE_MIN_WIDTH), maxOf(room, APOSTROPHE_HOME_ROW_SHIFT))
         val shifted = layout.keys.map { k ->
             if (kotlin.math.abs(k.y - 0.25f) < 0.01f) {
-                k.copy(x = k.x - APOSTROPHE_HOME_ROW_SHIFT)
+                k.copy(x = k.x - shift)
             } else {
                 k
             }
         }
         val apos = Key(
             id = APOSTROPHE_KEY_ID, type = KeyType.CHAR, label = "'", output = "'",
-            x = 0.95f, y = 0.25f, w = 0.05f, h = 0.25f, chromeless = true,
+            x = 1f - w, y = 0.25f, w = w, h = 0.25f, chromeless = true,
         )
         return layout.copy(keys = shifted + apos)
     }
@@ -461,16 +479,45 @@ object LayoutMutations {
      * and every distance in key widths is unchanged. A digit is not a letter key, so
      * no gesture starts on it: taps only.
      */
-    fun withNumberRow(layout: KeyboardLayout): KeyboardLayout {
+    fun withNumberRow(layout: KeyboardLayout, gap: Float = 0f): KeyboardLayout {
         val scale = 1f / NUMBER_ROW_GROWTH
         val moved = layout.keys.map { it.copy(y = (it.y + NUMBER_ROW_H) * scale, h = it.h * scale) }
+        val h = NUMBER_ROW_H * scale * (1f - gap.coerceIn(0f, MAX_NUMBER_ROW_GAP))
         val digits = "1234567890".mapIndexed { i, c ->
             Key(
                 id = NUMBER_ROW_ID_PREFIX + c, type = KeyType.CHAR, label = c.toString(), output = c.toString(),
-                x = i * 0.1f, y = 0f, w = 0.1f, h = NUMBER_ROW_H * scale,
+                x = i * 0.1f, y = 0f, w = 0.1f, h = h,
             )
         }
         return layout.copy(keys = digits + moved)
+    }
+
+    /**
+     * The most of the digits' height [withNumberRow]'s gap may take. The gap is the bottom of the
+     * digits' row: a touch there is no digit, and the keyboard view gives it to the letter
+     * below (`KeyboardView.letterUnderGap`), so a thumb reaching high for `o` types `o`, not `9`.
+     * The letter keys and the decoder's geometry do not move.
+     */
+    const val MAX_NUMBER_ROW_GAP = 0.5f
+
+    /**
+     * Each numbers-row digit and the letter under its middle in the top letter row: `9` over
+     * `o` on QWERTY, over `i` on AZERTY's shifted rows if they ever differ. Empty without the
+     * row. For reading a digit typed inside a word as the letter meant ([com.kinetica.keyboard
+     * .engine.DigitSlips]).
+     */
+    fun digitLetters(layout: KeyboardLayout): Map<Char, Char> {
+        val digits = layout.keys.filter { isNumberRowKey(it) }
+        val letters = layout.keys.filter { it.isLetter }
+        val topY = letters.minOfOrNull { it.y } ?: return emptyMap()
+        val top = letters.filter { kotlin.math.abs(it.y - topY) < 0.01f }
+        val out = HashMap<Char, Char>()
+        for (d in digits) {
+            val mid = d.x + d.w / 2f
+            val under = top.firstOrNull { mid >= it.x && mid < it.x + it.w } ?: continue
+            out[d.output[0]] = under.output[0]
+        }
+        return out
     }
 
     private const val NUMBER_ROW_ID_PREFIX = "num_"

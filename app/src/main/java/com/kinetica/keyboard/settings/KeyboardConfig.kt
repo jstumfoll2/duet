@@ -57,6 +57,8 @@ data class KeyboardConfig(
     val spaceChordArmMs: Long,
     val retypeAvoidsRejected: Boolean,
     val autocorrectConfidence: Float?,   // null = autocorrect off
+    /** Short-word and numbers-row slips are fixed too, while autocorrect is on ([Prefs.SLIP_CORRECTION]). */
+    val slipCorrection: Boolean = Prefs.DEFAULT_SLIP_CORRECTION,
     val language: String,
     val reinforceIncrement: Int,
     val emojiKey: Boolean,
@@ -141,6 +143,8 @@ data class KeyboardConfig(
     val letterAlternates: Map<Char, List<String>>,
     /** Optional apostrophe key in the home-row right padding. */
     val apostropheKey: Boolean,
+    /** Its width as a percent of a letter key, 50 to 100. */
+    val apostropheWidthPct: Int = Prefs.DEFAULT_APOSTROPHE_WIDTH_PCT,
     /** Comma-key role (pre-coerced: char/text without a custom fall to keep). */
     val commaMode: String,
     val commaCustom: String,
@@ -171,6 +175,8 @@ data class KeyboardConfig(
     val recentWords: Boolean,
     /** Digits in their own row above the letters. */
     val numberRow: Boolean,
+    /** Percent of the digits' row given to the letters below, 0 to 50. */
+    val numberRowGapPct: Int = Prefs.DEFAULT_NUMBER_ROW_GAP_PCT,
     /** Enabled languages in canonical cycle order; always contains [language]. */
     val enabledLanguages: List<String>,
     /** "Mix enabled languages": swiped and tapped words also decode against a second one. */
@@ -374,6 +380,8 @@ data class KeyboardConfig(
             apostropheKey = prefs.getBoolean(
                 Prefs.APOSTROPHE_KEY, Prefs.DEFAULT_APOSTROPHE_KEY,
             ),
+            apostropheWidthPct = prefs.getInt(Prefs.APOSTROPHE_WIDTH_PCT, Prefs.DEFAULT_APOSTROPHE_WIDTH_PCT)
+                .coerceIn(50, 100),
             commaMode = punctuationMode(prefs, Prefs.COMMA_MODE, Prefs.COMMA_CUSTOM),
             commaCustom = punctuationCustom(prefs, Prefs.COMMA_CUSTOM),
             periodMode = punctuationMode(prefs, Prefs.PERIOD_MODE, Prefs.PERIOD_CUSTOM),
@@ -397,6 +405,9 @@ data class KeyboardConfig(
             smsCodes = prefs.getBoolean(Prefs.SMS_CODES, Prefs.DEFAULT_SMS_CODES),
             recentWords = prefs.getBoolean(Prefs.RECENT_WORDS, Prefs.DEFAULT_RECENT_WORDS),
             numberRow = prefs.getBoolean(Prefs.NUMBER_ROW, Prefs.DEFAULT_NUMBER_ROW),
+            numberRowGapPct = prefs.getInt(Prefs.NUMBER_ROW_GAP_PCT, Prefs.DEFAULT_NUMBER_ROW_GAP_PCT)
+                .coerceIn(0, 50),
+            slipCorrection = prefs.getBoolean(Prefs.SLIP_CORRECTION, Prefs.DEFAULT_SLIP_CORRECTION),
             enabledLanguages = enabledLanguages(prefs),
             britishSpelling = prefs.getBoolean(
                 Prefs.BRITISH_SPELLING, Prefs.DEFAULT_BRITISH_SPELLING,

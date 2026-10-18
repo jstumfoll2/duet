@@ -71,6 +71,12 @@
             android:defaultValue="normal"
             app:useSimpleSummaryProvider="true" />
         <SwitchPreferenceCompat
+            android:key="pref_slip_correction"
+            android:title="@string/pref_slip_correction_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_slip_correction_summary"
+            android:defaultValue="true" />
+        <SwitchPreferenceCompat
             android:key="pref_auto_capitalize"
             android:title="@string/pref_auto_capitalize_title"
             app:singleLineTitle="false"
@@ -541,12 +547,34 @@
             app:singleLineTitle="false"
             android:summary="@string/pref_number_row_summary"
             android:defaultValue="true" />
+        <SeekBarPreference
+            android:key="pref_number_row_gap"
+            android:title="@string/pref_number_row_gap_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_number_row_gap_summary"
+            android:dependency="pref_number_row"
+            android:defaultValue="25"
+            android:max="50"
+            app:min="0"
+            app:seekBarIncrement="5"
+            app:showSeekBarValue="true" />
         <SwitchPreferenceCompat
             android:key="pref_apostrophe_key"
             android:title="@string/pref_apostrophe_key_title"
             app:singleLineTitle="false"
             android:summary="@string/pref_apostrophe_key_summary"
             android:defaultValue="true" />
+        <SeekBarPreference
+            android:key="pref_apostrophe_width"
+            android:title="@string/pref_apostrophe_width_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_apostrophe_width_summary"
+            android:dependency="pref_apostrophe_key"
+            android:defaultValue="75"
+            android:max="100"
+            app:min="50"
+            app:seekBarIncrement="5"
+            app:showSeekBarValue="true" />
         <SwitchPreferenceCompat
             android:key="pref_emoji_key"
             android:title="@string/pref_emoji_key_title"

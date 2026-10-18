@@ -72,6 +72,12 @@ object Prefs {
     const val NUMBER_ROW = "pref_number_row"
 
     /**
+     * How much of the numbers row's height, in percent, is a gap that types the letter below
+     * instead of a digit (LayoutMutations.withNumberRow). Up to 50.
+     */
+    const val NUMBER_ROW_GAP_PCT = "pref_number_row_gap"
+
+    /**
      * The same, for the ?123 hold menu. A set of its own, so taking the gear off the bar does not
      * also take the hold menu's route to settings.
      */
@@ -198,6 +204,13 @@ object Prefs {
     const val CHORD_DEFAULTS_SEEDED = "pref_chord_defaults_seeded"
     const val RETYPE_AVOIDS_REJECTED = "pref_retype_avoids_rejected"
     const val AUTOCORRECT_LEVEL = "pref_autocorrect_level"
+
+    /**
+     * With autocorrect on, also fix a short tapped word one key off when the word before it says
+     * so (`going ti` to `going to`, `this s` to `this a`), and a numbers-row digit typed inside a
+     * word (`t9` to `to`). Backspace right after takes it back, as for any autocorrect.
+     */
+    const val SLIP_CORRECTION = "pref_slip_correction"
     const val REINFORCE_INCREMENT = "pref_reinforce_increment"
     const val EMOJI_KEY = "pref_emoji_key"
     /**
@@ -398,6 +411,9 @@ object Prefs {
      * and contracted words (nell'immagine, don't) without the symbols layer. On by default.
      */
     const val APOSTROPHE_KEY = "pref_apostrophe_key"
+
+    /** The apostrophe key's width as a percent of a letter key, 50 to 100. */
+    const val APOSTROPHE_WIDTH_PCT = "pref_apostrophe_width"
 
     /**
      * Bumped whenever dictionary state changes outside the IME (base wordlist imported or
@@ -617,6 +633,11 @@ object Prefs {
     const val DEFAULT_SMS_CODES = false
     const val DEFAULT_RECENT_WORDS = false
     const val DEFAULT_NUMBER_ROW = true
+    // A quarter of the digits' row: a modest margin for a thumb reaching high for the top letters.
+    const val DEFAULT_NUMBER_ROW_GAP_PCT = 25
+    // Three quarters of a letter key, up from half; the home row moves left 0.25 key to make room.
+    const val DEFAULT_APOSTROPHE_WIDTH_PCT = 75
+    const val DEFAULT_SLIP_CORRECTION = true
     const val DEFAULT_ENTER_ALTERNATES = "? ! ,"
     const val DEFAULT_APOSTROPHE_KEY = true
     const val DEFAULT_COMMA_MODE = "keep"

@@ -169,6 +169,8 @@
     <string name="pref_long_press_summary">Below about 150 ms a quick tap can open the long-press menu instead of typing the letter</string>
     <string name="slider_value_ms">%1$d ms</string>
     <string name="pref_autocorrect_title">Autocorrect</string>
+    <string name="pref_slip_correction_title">Fix short-word slips</string>
+    <string name="pref_slip_correction_summary">With autocorrect on, a short tapped word one key off is fixed when the word before it makes the meaning clear (going ti becomes going to, this s becomes this a), and so is a digit from the numbers row typed inside a word (t9 becomes to). Backspace right after takes it back</string>
     <string name="pref_reinforce_title">Suggestion reinforcement boost</string>
     <string name="pref_reinforce_summary">Weight added when long-pressing a suggestion</string>
     <string name="pref_badges_while_adjusting_title">Show ranks only while adjusting</string>
@@ -379,6 +381,8 @@
     <string name="pref_tidy_spaces_summary">Never two spaces in a row: a second space is dropped, or ends the sentence when the double-space full stop is on. No automatic space before a closing quote or bracket, or before the marks in No space before</string>
     <string name="pref_number_row_title">Numbers row</string>
     <string name="pref_number_row_summary">Digits in their own row above the letters, tap only. The keyboard grows a row so the letters keep their size</string>
+    <string name="pref_number_row_gap_title">Gap under the numbers row (%)</string>
+    <string name="pref_number_row_gap_summary">How much of each digit key, from the bottom, types the letter below instead. More keeps a thumb reaching for the top letters from typing t9 for to. The letter keys do not move</string>
     <string name="pref_recent_words_summary">The last two words stay on the left of the bar, each with the two words it beat above and below it. Tap one to swap it in. The bar grows to fit</string>
     <string name="pref_next_word_summary">When nothing is being typed, the bar offers the words that usually come next, in place of the shortcuts (the ?123 menu keeps them). With recent words on, they follow every word</string>
     <string name="pref_bar_actions_summary">Shown when there is nothing to suggest. Each is also assignable to a chord or an edge swipe</string>
@@ -436,7 +440,7 @@
     <string name="dict_lang_open" translatable="false">▾ %1$s</string>
     <string name="dict_base_line">Base: %1$s • %2$d words • %3$s</string>
     <string name="dict_updated_bundled">ships with the app</string>
-    <string name="dict_personal_line">Personal overlay: %1$d learned words</string>
+    <string name="dict_personal_line">Personal overlay: %1$d new words learned, plus %2$d dictionary words ranked by how often you use them</string>
     <string name="dict_source_bundled">bundled (OpenSubtitles/Tatoeba)</string>
     <string name="dict_source_aosp">imported AOSP merge</string>
     <string name="dict_import_base">Import improved dictionary (wordlist.combined)…</string>
@@ -449,7 +453,8 @@
     <string name="dict_blocked_empty">Nothing blocked. A blocked word leaves the dictionary and stops being suggested. Sliding a suggestion down only lowers its priority.</string>
     <string name="dict_export_personal">Export personal dictionary…</string>
     <string name="dict_import_personal">Import personal dictionary…</string>
-    <string name="dict_manage_personal">Review learned words (%1$d)…</string>
+    <string name="dict_manage_personal">Review learned words (%1$d new)…</string>
+    <string name="dict_words_show_dictionary">Also show dictionary words you use (%1$d). Each keeps a count so it ranks higher for you</string>
     <string name="dict_manage_personal_title">Learned words: %1$s</string>
     <plurals name="dict_word_row_suggested">
         <item quantity="one">%1$s · %2$d commit, suggested</item>
@@ -547,6 +552,8 @@
 
     <string name="pref_apostrophe_key_title">Apostrophe key</string>
     <string name="pref_apostrophe_key_summary">Adds a narrow apostrophe key right of L, for writing contracted and elided words (don\'t, nell\'immagine) without the symbols layer. Swipe out to it and back mid-word, or tap it with the other thumb while swiping, to get we\'re instead of were.</string>
+    <string name="pref_apostrophe_width_title">Apostrophe key width (%)</string>
+    <string name="pref_apostrophe_width_summary">Its width as a share of a letter key: 50 is the original narrow key at the edge, 100 a full key. The middle letter row moves left to make room</string>
 
     <string name="edge_swipe_settings_title">Edge swipe shortcuts</string>
     <string name="pref_edge_swipes_summary">A quick swipe off a key types text, runs an action or presses Ctrl and a key</string>
@@ -602,5 +609,13 @@
     <string name="voice_none">No voice typing keyboard is turned on. Turn one on here, then press the key again</string>
     <string name="pref_sms_codes_title">Codes from text messages</string>
     <string name="pref_sms_codes_summary">In a field that asks for a code, offer the code from a text message received in the last ten minutes. Needs permission to read text messages. Duet only reads them on this phone and has no internet access</string>
-    <string name="pref_sms_codes_denied">Duet was not allowed to read text messages, so codes stay off</string>
+    <string name="pref_sms_codes_denied">Duet was not allowed to read text messages, so codes stay off. To allow it later, open Duet\'s app info and go to Permissions, then SMS, then Allow</string>
+    <string name="pref_sms_codes_ask_title">Let Duet read text messages?</string>
+    <string name="pref_sms_codes_ask">Android will ask whether Duet may read your text messages. Duet only reads the last ten minutes of messages, on this phone, to find a code, and it has no internet access.</string>
+    <string name="pref_sms_codes_ask_restricted">Android will ask whether Duet may read your text messages. Duet only reads the last ten minutes of messages, on this phone, to find a code, and it has no internet access.\n\nBecause Duet was not installed from an app store, Android may refuse without asking and show \"App was denied access to SMS\". If it does: open app settings, tap the ⋮ menu at the top right, choose Allow restricted settings, then go to Permissions, then SMS, and choose Allow.</string>
+    <string name="pref_sms_codes_ask_continue">Continue</string>
+    <string name="pref_sms_codes_open_settings">Open app settings</string>
+    <string name="pref_sms_codes_not_now">Not now</string>
+    <string name="pref_sms_codes_denied_title">Text messages are blocked</string>
+    <string name="pref_sms_codes_denied_restricted">Android blocked Duet from reading text messages, so codes stay off. To allow it: open app settings, tap the ⋮ menu at the top right, choose Allow restricted settings and confirm, then go to Permissions, then SMS, and choose Allow. Come back here and the switch turns on.</string>
 </resources>

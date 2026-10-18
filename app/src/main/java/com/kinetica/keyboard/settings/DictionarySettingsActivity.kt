@@ -9,6 +9,7 @@ import android.text.InputType
 import android.text.TextWatcher
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
@@ -134,9 +135,28 @@ class DictionarySettingsActivity : AppCompatActivity() {
         val hasOverride: Boolean,
         val personalWords: Int,
         val blockedWords: Int,
+        /** Of [personalWords], those the base dictionary does not hold: the words actually learned. */
+        val newWords: Int = personalWords,
     )
 
+    // Each language's base words, read once per screen and dropped when the base list changes.
+    private val dictionaryWordsCache = HashMap<String, Set<String>>()
+
+    /** The language's base list words, lowercase: the imported override if any, else the bundled one. */
+    private fun dictionaryWords(lang: String): Set<String> = synchronized(dictionaryWordsCache) {
+        dictionaryWordsCache.getOrPut(lang) {
+            val override = DictionaryStore.wordlistOverride(this, lang)
+            try {
+                val stream = if (override.exists()) override.inputStream() else assets.open("dictionaries/${lang}_wordlist.txt")
+                stream.bufferedReader().useLines { PersonalWordRows.dictionaryWords(it) }
+            } catch (e: IOException) {
+                emptySet()
+            }
+        }
+    }
+
     private fun refresh() {
+        synchronized(dictionaryWordsCache) { dictionaryWordsCache.clear() }
         io.execute {
             val states = langs.map { (lang, label) ->
                 val info = DictionaryStore.readInfo(this, lang)
@@ -163,9 +183,17 @@ class DictionarySettingsActivity : AppCompatActivity() {
                 } catch (e: RuntimeException) {
                     0
                 }
+                val newWords = if (personal == 0) 0 else try {
+                    PersonalWordRows.learnedOnly(
+                        KineticaDb.get(this).userWords().allForLanguage(lang).map { it.word to it.frequency },
+                        dictionaryWords(lang),
+                    ).size
+                } catch (e: RuntimeException) {
+                    personal
+                }
                 LangState(
                     lang, label, source, baseWords, updatedAt, override.exists(),
-                    personal, blocked,
+                    personal, blocked, newWords,
                 )
             }
             main.post { if (!isDestroyed) render(states) }
@@ -216,7 +244,7 @@ class DictionarySettingsActivity : AppCompatActivity() {
             )
             container.addView(
                 TextView(this).apply {
-                    text = getString(R.string.dict_personal_line, s.personalWords)
+                    text = getString(R.string.dict_personal_line, s.newWords, s.personalWords - s.newWords)
                     setPadding(0, 0, 0, pad / 2)
                 },
             )
@@ -250,7 +278,7 @@ class DictionarySettingsActivity : AppCompatActivity() {
             if (s.personalWords > 0) {
                 container.addView(
                     Button(this).apply {
-                        text = getString(R.string.dict_manage_personal, s.personalWords)
+                        text = getString(R.string.dict_manage_personal, s.newWords)
                         setOnClickListener { showPersonalWords(s.lang, s.label) }
                     },
                 )
@@ -380,13 +408,14 @@ class DictionarySettingsActivity : AppCompatActivity() {
                 toastLater(R.string.dict_db_error)
                 return@execute
             }
+            val dictionary = dictionaryWords(lang)
             main.post {
                 if (isDestroyed) return@post
                 if (rows.isEmpty()) {
                     refresh()
                     return@post
                 }
-                showPersonalWordsDialog(lang, label, rows)
+                showPersonalWordsDialog(lang, label, rows, dictionary)
             }
         }
     }
@@ -508,8 +537,13 @@ class DictionarySettingsActivity : AppCompatActivity() {
     private fun showPersonalWordsDialog(
         lang: String,
         label: String,
-        rows: List<Pair<String, Int>>,
+        allRows: List<Pair<String, Int>>,
+        dictionary: Set<String>,
     ) {
+        // New words only, unless the box is ticked: dictionary words have rows too, for their
+        // ranking, and would bury the handful the keyboard actually learned.
+        val learned = PersonalWordRows.learnedOnly(allRows, dictionary)
+        var rows = if (learned.isEmpty()) allRows else learned
         val pad = (16 * resources.displayMetrics.density).toInt()
         val search = EditText(this).apply {
             setHint(R.string.dict_word_search_hint)
@@ -525,6 +559,12 @@ class DictionarySettingsActivity : AppCompatActivity() {
         val help = TextView(this).apply {
             text = getString(R.string.dict_words_help, KineticaConstants.PERSONAL_MERGE_MIN_COUNT)
             setPadding(pad, pad / 2, pad, 0)
+        }
+        val showAll = CheckBox(this).apply {
+            text = getString(R.string.dict_words_show_dictionary, allRows.size - learned.size)
+            isChecked = learned.isEmpty()
+            isEnabled = learned.isNotEmpty() && learned.size < allRows.size
+            setPadding(pad / 2, 0, pad, 0)
         }
         val list = ListView(this)
         list.choiceMode = ListView.CHOICE_MODE_MULTIPLE
@@ -550,6 +590,7 @@ class DictionarySettingsActivity : AppCompatActivity() {
         val view = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(help)
+            if (learned.size < allRows.size) addView(showAll)
             addView(search)
             addView(empty)
             addView(list)
@@ -574,29 +615,34 @@ class DictionarySettingsActivity : AppCompatActivity() {
             if (!checked.remove(word)) checked.add(word)
             repaintChecks()
         }
+        // Ticks on rows the query or the box now hides are kept, so a user can filter, tick,
+        // filter again and delete the lot in one action.
+        fun refilter() {
+            shown.clear()
+            shown.addAll(PersonalWordRows.filtered(rows, search.text?.toString() ?: ""))
+            adapter.clear()
+            adapter.addAll(shown.map { labelFor(it) })
+            adapter.notifyDataSetChanged()
+            val none = shown.isEmpty()
+            empty.visibility = if (none) android.view.View.VISIBLE else android.view.View.GONE
+            list.visibility = if (none) android.view.View.GONE else android.view.View.VISIBLE
+            repaintChecks()
+        }
+        showAll.setOnCheckedChangeListener { _, all ->
+            rows = if (all || learned.isEmpty()) allRows else learned
+            refilter()
+        }
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
-            override fun afterTextChanged(s: Editable?) {
-                shown.clear()
-                shown.addAll(PersonalWordRows.filtered(rows, s?.toString() ?: ""))
-                adapter.clear()
-                adapter.addAll(shown.map { labelFor(it) })
-                adapter.notifyDataSetChanged()
-                val none = shown.isEmpty()
-                empty.visibility = if (none) android.view.View.VISIBLE else android.view.View.GONE
-                list.visibility = if (none) android.view.View.GONE else android.view.View.VISIBLE
-                // Ticks on rows the query now hides are kept, so a user can filter, tick,
-                // filter again and delete the lot in one action.
-                repaintChecks()
-            }
+            override fun afterTextChanged(s: Editable?) = refilter()
         })
         dialog.show()
         repaintChecks()
         // Overridden after show so a delete does not dismiss the dialog: clearing out several
         // words in a row is the normal case.
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            val words = PersonalWordRows.wordsToDelete(rows, checked)
+            val words = PersonalWordRows.wordsToDelete(allRows, checked)
             if (words.isEmpty()) return@setOnClickListener
             confirmDeleteWords(lang, words) {
                 checked.clear()
@@ -604,7 +650,7 @@ class DictionarySettingsActivity : AppCompatActivity() {
             }
         }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-            val words = PersonalWordRows.wordsToDelete(rows, checked)
+            val words = PersonalWordRows.wordsToDelete(allRows, checked)
             if (words.isEmpty()) return@setOnClickListener
             raiseWords(lang, words)
             checked.clear()
