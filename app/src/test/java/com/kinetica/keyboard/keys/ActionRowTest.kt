@@ -229,6 +229,7 @@ class ActionRowTest {
             EditorAction.SELECT_ALL, EditorAction.TOGGLE_NUMBER_ROW, EditorAction.EXPANDIFY,
             EditorAction.TOGGLE_TYPING_SPEED, EditorAction.TOGGLE_PECK_MODE,
             EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT, EditorAction.ARROW_RIGHT,
+            EditorAction.CLIPBOARD, EditorAction.VOICE,
         )
         for (a in EditorAction.entries) {
             assertEquals(if (a in plainText) null else a, ActionRow.actionForGlyph(ActionRow.glyph(a)))
