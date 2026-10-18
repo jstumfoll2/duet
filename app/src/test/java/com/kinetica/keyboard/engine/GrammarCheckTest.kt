@@ -35,6 +35,19 @@ class GrammarCheckTest {
     }
 
     @Test
+    fun theVerbAgreesWithThePronounBeforeIt() {
+        assertEquals("doesn't", GrammarCheck.fixPrevious("he", "don't", "know", none))
+        assertEquals("doesn't", GrammarCheck.fixPrevious("it", "don't", "matter", none))
+        assertEquals("don't", GrammarCheck.fixPrevious("they", "doesn't", "care", none))
+        assertEquals("were", GrammarCheck.fixPrevious("you", "was", "right", none))
+        assertEquals("weren't", GrammarCheck.fixPrevious("we", "wasn't", "there", none))
+        assertNull(GrammarCheck.fixPrevious("i", "don't", "know", none))
+        assertNull(GrammarCheck.fixPrevious("i", "was", "there", none))
+        assertNull(GrammarCheck.fixPrevious("it", "was", "fine", none))
+        assertNull(GrammarCheck.fixPrevious(null, "don't", "go", none))
+    }
+
+    @Test
     fun theCaseOfTheWordAsWrittenIsKept() {
         assertEquals("You're", GrammarCheck.inCaseOf("Your", "you're"))
         assertEquals("An", GrammarCheck.inCaseOf("A", "an"))
@@ -64,6 +77,7 @@ class GrammarCheckTest {
         assertEquals("it's", fix(null, "its", "a"))
         assertEquals("they're", fix(null, "their", "going"))
         assertEquals("lose", fix("to", "loose", "weight"))
+        assertEquals("lets", fix("that", "let's", "us"))
     }
 
     @Test

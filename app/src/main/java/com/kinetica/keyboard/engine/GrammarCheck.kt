@@ -12,6 +12,9 @@ package com.kinetica.keyboard.engine
  * - Articles: `a` before a vowel sound becomes `an`, `an` before a consonant sound becomes `a`,
  *   with the common exceptions spelled out (`an hour`, `a user`, `a one`).
  * - `could of`, `would of`, `should of`, `must of`, `might of`: `of` becomes `have`.
+ * - Agreement after a subject pronoun ([AGREEMENT]): `he don't` becomes `he doesn't`, `they
+ *   doesn't` becomes `they don't`, `you was` becomes `you were`. Only the pronoun right before
+ *   is read, so the rules are the ones no context can make right.
  * - Confusion sets ([CONFUSIONS]): a member is swapped for another when the bundled word pairs
  *   favour the other with the next word by [KineticaConstants.GRAMMAR_PAIR_GAP] boost bytes, the
  *   pair is a real one ([KineticaConstants.GRAMMAR_MIN_PAIR_BYTE]), and the pair with the word
@@ -39,7 +42,33 @@ object GrammarCheck {
         setOf("whose", "who's"),
         setOf("affect", "effect"),
         setOf("accept", "except"),
+        setOf("lets", "let's"),
+        setOf("were", "we're", "where"),
+        setOf("weather", "whether"),
+        setOf("quiet", "quite"),
+        setOf("advice", "advise"),
+        setOf("breath", "breathe"),
+        setOf("past", "passed"),
+        setOf("hear", "here"),
+        setOf("threw", "through"),
+        setOf("of", "off"),
+        setOf("ill", "i'll"),
+        setOf("id", "i'd"),
     )
+
+    /** (subject before, word as written) -> the form that agrees with it. */
+    private val AGREEMENT: Map<Pair<String, String>, String> = buildMap {
+        for (s in listOf("he", "she", "it")) {
+            put(s to "don't", "doesn't")
+            put(s to "dont", "doesn't")
+        }
+        for (s in listOf("i", "you", "we", "they")) {
+            put(s to "doesn't", "don't")
+            put(s to "doesnt", "don't")
+        }
+        for (s in listOf("you", "we", "they")) put(s to "was", "were")
+        for (s in listOf("you", "we", "they")) put(s to "wasn't", "weren't")
+    }
 
     private val MODALS = setOf("could", "would", "should", "must", "might", "may")
 
@@ -58,6 +87,7 @@ object GrammarCheck {
         if (prev.isEmpty() || next.isEmpty()) return null
         article(prev, next)?.let { return it }
         if (prev == "of" && before in MODALS && next.firstOrNull()?.isLetter() == true) return "have"
+        if (before != null) AGREEMENT[before to prev]?.let { return it }
         val set = CONFUSIONS.firstOrNull { prev in it } ?: return null
         return confusion(before, prev, next, set, pairs)
     }
