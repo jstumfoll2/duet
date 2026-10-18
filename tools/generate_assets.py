@@ -1031,6 +1031,73 @@ def drop_ocr_existing(lang: str, out_dir: Path, dry_run: bool) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Apostrophe cleanup
+# ---------------------------------------------------------------------------
+# A contraction written without its apostrophe ("whats", "theres", "cant") is a
+# word of the list only by accident of tokenization: FrequencyWords counts the
+# misspelling, 2-3 orders of magnitude below the contraction. While the plain
+# spelling is a word, a tapped "cant" is never autocorrected to "can't", and the
+# bar offers both. So the plain spelling goes whenever the list holds the
+# apostrophe form, except where the plain spelling is a common word in its own
+# right (APOSTROPHE_KEEP: "its", "lets", "well", "ill"...); those are left to
+# GrammarCheck, which reads the next word. "cant" and "wont" are words (hypocrisy,
+# habit), but rare enough that a keyboard serves its users better by correcting
+# them, as other keyboards do.
+#
+# The other Latin lists carry English clitic stems from subtitles ("didn",
+# "doesn", "isn" in es, fr, de, nl, pl, cs, no) and "its": none is a word of those
+# languages, and each one stops an English word typed there from being corrected.
+APOSTROPHE_KEEP = {
+    "en": {"its", "lets", "well", "ill", "id", "wed", "shed", "were", "hell", "shell", "whore"},
+}
+ENGLISH_CLITIC_STEMS = {
+    "didn", "doesn", "isn", "wasn", "couldn", "wouldn", "shouldn", "hasn", "hadn", "aren", "mustn", "needn",
+}
+ENGLISH_LEAKS = {
+    "es": ENGLISH_CLITIC_STEMS | {"its", "im"},
+    "it": ENGLISH_CLITIC_STEMS | {"its"},
+    "fr": ENGLISH_CLITIC_STEMS | {"its"},
+    "de": ENGLISH_CLITIC_STEMS | {"its"},
+    "nl": ENGLISH_CLITIC_STEMS | {"its"},
+    "pl": ENGLISH_CLITIC_STEMS | {"its"},
+    "cs": ENGLISH_CLITIC_STEMS | {"its"},
+    "no": ENGLISH_CLITIC_STEMS | {"its", "cant"},
+}
+
+
+def apostrophe_drops(lang: str, words: set[str]) -> set[str]:
+    """The entries of [words] the apostrophe cleanup removes (rules above)."""
+    drops = {w for w in ENGLISH_LEAKS.get(lang, set()) if w in words}
+    if lang in APOSTROPHE_KEEP:
+        keep = APOSTROPHE_KEEP[lang]
+        for w in words:
+            if "'" in w:
+                plain = w.replace("'", "")
+                if plain in words and plain not in keep:
+                    drops.add(plain)
+    return drops
+
+
+def apostrophe_cleanup_existing(lang: str, out_dir: Path, dry_run: bool) -> int:
+    """Offline over the committed <lang>_wordlist.txt: the apostrophe cleanup, rewritten in place."""
+    path = out_dir / f"{lang}_wordlist.txt"
+    rows = [
+        (w, int(c))
+        for w, c in (line.split("\t") for line in path.read_text(encoding="utf-8").splitlines())
+    ]
+    drops = apostrophe_drops(lang, {w for w, _ in rows})
+    for w in sorted(drops):
+        LOG.info("  %s", w)
+    kept = [(w, c) for w, c in rows if w not in drops]
+    if dry_run:
+        LOG.info("dry run: %s %d -> %d rows", path, len(rows), len(kept))
+        return 0
+    path.write_text("".join(f"{w}\t{c}\n" for w, c in kept), encoding="utf-8")
+    LOG.info("cleaned %s: %d -> %d rows", path, len(rows), len(kept))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Spell-checker filter (en only)
 # ---------------------------------------------------------------------------
 # OpenSubtitles counts tokens, not words. The 50k list carries clitic stems
@@ -1386,6 +1453,12 @@ def main() -> int:
         "such as aii (all) and iike (like)",
     )
     parser.add_argument(
+        "--apostrophe-cleanup",
+        action="store_true",
+        help="offline over the committed <lang>_wordlist.txt: drop contractions written "
+        "without their apostrophe (whats, cant) and English clitic stems in other languages",
+    )
+    parser.add_argument(
         "--scowl-dir",
         type=Path,
         help="en: an unpacked SCOWL release (http://wordlist.aspell.net); its final/ "
@@ -1420,6 +1493,9 @@ def main() -> int:
 
     if args.drop_ocr_confusions:
         return drop_ocr_existing(lang, args.out_dir, args.dry_run)
+
+    if args.apostrophe_cleanup:
+        return apostrophe_cleanup_existing(lang, args.out_dir, args.dry_run)
 
     if args.spellcheck_existing:
         if args.scowl_dir is None:
@@ -1485,6 +1561,9 @@ def main() -> int:
 
     unigrams = drop_ocr_confusions(lang, unigrams)
     unigrams = augment_contractions(unigrams, lang, refresh=args.refresh_contractions)
+    # After the contractions too: their estimates read the plain spellings it drops.
+    apostrophe_dropped = apostrophe_drops(lang, {w for w, _ in unigrams})
+    unigrams = [(w, c) for w, c in unigrams if w not in apostrophe_dropped]
     # After the contractions: their estimates read clitic stems ("didn") the filter drops.
     if args.scowl_dir is not None and lang in SPELLCHECK_LANGS:
         sizes = scowl_sizes(args.scowl_dir)

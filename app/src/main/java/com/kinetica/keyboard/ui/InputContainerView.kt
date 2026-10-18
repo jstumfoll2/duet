@@ -50,6 +50,7 @@ class InputContainerView(
     private val bottomGap = View(context)
     private var dragStartRawY = 0f
     private var dragStartHeight = 0
+    private var inlineStrip: View? = null
 
     init {
         orientation = VERTICAL
@@ -107,6 +108,30 @@ class InputContainerView(
             lp.height = px
             suggestionBar.requestLayout()
         }
+        inlineStrip?.layoutParams?.let {
+            it.height = px
+            inlineStrip?.requestLayout()
+        }
+    }
+
+    /**
+     * Shows [strip] (the autofill chips) in the suggestion bar's place, at its height, until
+     * [hideInlineStrip]. A second call replaces the first strip.
+     */
+    fun showInlineStrip(strip: View) {
+        inlineStrip?.let { removeView(it) }
+        inlineStrip = strip
+        addView(strip, indexOfChild(suggestionBar), LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, suggestionBar.layoutParams.height))
+        suggestionBar.visibility = GONE
+    }
+
+    /** Puts the suggestion bar back; true when a strip was showing. */
+    fun hideInlineStrip(): Boolean {
+        val strip = inlineStrip ?: return false
+        removeView(strip)
+        inlineStrip = null
+        suggestionBar.visibility = VISIBLE
+        return true
     }
 
     /** Swaps the keyboard for the emoji picker at the keyboard's height. */

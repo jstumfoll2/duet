@@ -33,9 +33,9 @@ class ActionRowTest {
     }
 
     @Test
-    fun theDefaultsAreTheFourAtTheFront() {
+    fun theDefaultsAreAtTheFront() {
         // New actions append, so turning one on does not move cells a user already knows.
-        assertEquals(ActionRow.DEFAULT, ActionRow.ALL.take(4).map { it.name }.toSet())
+        assertEquals(ActionRow.DEFAULT, ActionRow.ALL.take(ActionRow.DEFAULT.size).map { it.name }.toSet())
         for (name in ActionRow.DEFAULT) {
             assertTrue(name, ActionRow.ALL.any { it.name == name })
         }
@@ -229,6 +229,7 @@ class ActionRowTest {
             EditorAction.SELECT_ALL, EditorAction.TOGGLE_NUMBER_ROW, EditorAction.EXPANDIFY,
             EditorAction.TOGGLE_TYPING_SPEED, EditorAction.TOGGLE_PECK_MODE,
             EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT, EditorAction.ARROW_RIGHT,
+            EditorAction.CLIPBOARD, EditorAction.VOICE,
         )
         for (a in EditorAction.entries) {
             assertEquals(if (a in plainText) null else a, ActionRow.actionForGlyph(ActionRow.glyph(a)))

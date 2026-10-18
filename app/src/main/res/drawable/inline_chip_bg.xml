@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Autofill chips are drawn by the autofill service from this resource, outside the keyboard's
+     theme, so the fill is a grey that reads on light and dark bars alike. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#40808080" />
+    <corners android:radius="16dp" />
+</shape>

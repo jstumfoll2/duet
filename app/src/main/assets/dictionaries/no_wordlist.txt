@@ -35435,7 +35435,6 @@ sentimentalitet	32
 vinkjeller	32
 nedgangen	32
 oljer	32
-didn	32
 fanen	32
 gjeninnsette	32
 pym	32
@@ -36069,7 +36068,6 @@ tjueen	31
 gymnas	31
 ork	31
 tøytete	31
-cant	31
 dobson	31
 jobbes	31
 skrytt	31

@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -14,12 +15,21 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
 import android.util.Log
+import android.util.Size
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InlineSuggestionsRequest
+import android.view.inputmethod.InlineSuggestionsResponse
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
+import android.widget.HorizontalScrollView
+import android.widget.LinearLayout
+import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.preference.PreferenceManager
 import com.kinetica.keyboard.R
@@ -208,6 +218,27 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private class ExpansionChoice(val trigger: String, val targets: List<String>, val shown: List<String>)
 
     private var expansionChoice: ExpansionChoice? = null
+
+    /**
+     * Clips or one-time codes on the bar, until one is picked or the bar moves on. [texts] is
+     * what a pick writes, [shown] the labels, one per text.
+     */
+    private class BarOffer(val kind: Kind, val texts: List<String>, val shown: List<String>) {
+        enum class Kind { CLIPS, FRESH_CLIP, CODES }
+    }
+
+    private var barOffer: BarOffer? = null
+
+    /** The clips this process saw copied, in memory only ([ClipboardHistory]). */
+    private val clipboardHistory = ClipboardHistory()
+    private var clipListener: ClipboardManager.OnPrimaryClipChangedListener? = null
+    private val smsCodes by lazy { SmsCodes(this, mainHandler) }
+
+    /** Bumped per field, so a code read for one field is not offered in the next. */
+    private var codeFieldGeneration = 0
+
+    /** Bumped per autofill response, so a slow inflation of an old one cannot replace a newer strip. */
+    private var inlineGeneration = 0
 
     // The shortcut rows, resolved once per config change, so the index a surface reports and
     // the row it drew cannot disagree.
@@ -541,6 +572,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         prefs.registerOnSharedPreferenceChangeListener(listener)
         loadDictionaryAsync()
         reloadExpansions()
+        getSystemService(ClipboardManager::class.java)?.let { cm ->
+            val l = ClipboardManager.OnPrimaryClipChangedListener { mainHandler.post { onClipChanged(cm) } }
+            cm.addPrimaryClipChangedListener(l)
+            clipListener = l
+        }
     }
 
     override fun onDestroy() {
@@ -549,6 +585,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 .unregisterOnSharedPreferenceChangeListener(it)
         }
         NeuralRerank.detach()
+        clipListener?.let { getSystemService(ClipboardManager::class.java)?.removePrimaryClipChangedListener(it) }
+        clipListener = null
+        smsCodes.unwatch()
         cancelUserDictReload()
         mainHandler.removeCallbacks(spacebarNoticeRunnable)
         decodeExecutor.shutdown()
@@ -1103,9 +1142,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         keyboardView?.setShiftUppercase(shift.isShifted)
         closeEmojiPicker()
         applyViewConfig()
+        watchCodes(editorInfo)
     }
 
     override fun onFinishInput() {
+        codeFieldGeneration++
+        smsCodes.unwatch()
+        containerView?.hideInlineStrip()
         abandonWord()
         composer?.reset()
         saveTouchModel()
@@ -1835,10 +1878,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun refreshPredictions() {
         // An offer of expansion targets lasts while the bar shows it, not until a pick.
         expansionChoice?.let { if (suggestionBar?.showsWords(it.shown) != true) expansionChoice = null }
+        barOffer?.let { if (suggestionBar?.showsWords(it.shown) != true) dropBarOffer() }
         pushRecent()
         val bar = suggestionBar ?: return
         val quiet = lastCandidates.isEmpty() && lastCommit.stripWord == null && keptBar == null &&
-            expansionChoice == null
+            expansionChoice == null && barOffer == null
+        if (quiet && tentativeLength == 0 && composer?.hasPendingWord != true && offerFreshClip()) return
         val idle = quiet && config.nextWord && !editorState.privateMode && tentativeLength == 0 &&
             composer?.hasPendingWord != true
         if (!idle) {
@@ -1885,6 +1930,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** Current candidates -> suggestion bar, with personal-weight badges. */
     private fun pushSuggestions() {
+        // Typing takes the bar back from the autofill chips; the service offers them again
+        // in the next field.
+        containerView?.hideInlineStrip()
         // The all-tap literal rides along as a last zone, the one-tap way to commit an
         // out-of-dictionary word verbatim (as commitWordInternal does in correction mode). A
         // pick goes through onSuggestionPicked, which bypasses finalizePendingWord, so
@@ -1927,7 +1975,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * slide and the block have nothing to act on there.
      */
     private fun expansionsOnBar(): Boolean =
-        expansionChoice?.let { suggestionBar?.showsWords(it.shown) == true } == true
+        expansionChoice?.let { suggestionBar?.showsWords(it.shown) == true } == true ||
+            barOffer?.let { suggestionBar?.showsWords(it.shown) == true } == true
 
     /**
      * Puts back the letters an autocorrect replaced, when the backspace comes right after it: the
@@ -2088,7 +2137,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.TAB, EditorAction.ESCAPE, EditorAction.FORWARD_DELETE, EditorAction.HOME,
             EditorAction.END, EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT,
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
-            EditorAction.BACKSPACE, EditorAction.CTRL_NEXT,
+            EditorAction.BACKSPACE, EditorAction.CTRL_NEXT, EditorAction.CLIPBOARD, EditorAction.VOICE,
             -> null
         }
         if (menuId == null) {
@@ -2131,6 +2180,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
             -> sendSpecialKey(action)
             EditorAction.BACKSPACE -> onBackspace()
+            EditorAction.CLIPBOARD -> offerClipboard()
+            EditorAction.VOICE -> switchToVoice()
             EditorAction.CTRL_NEXT -> {
                 ctrlPending = !ctrlPending
                 DecodeTrace.log { "  ctrl pending=$ctrlPending" }
@@ -2218,6 +2269,210 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         getSystemService(ClipboardManager::class.java)
             ?.setPrimaryClip(ClipData.newPlainText(getString(R.string.clip_label_line), line))
     }
+
+    // ------------------------------------------------------------------ clipboard, voice, codes
+
+    /** A new primary clip, into the history; offered by itself on the idle bar for a short while. */
+    private fun onClipChanged(cm: ClipboardManager) {
+        // A copy made in a password field stays out, whatever the copying app says.
+        if (isInputViewShown && editorState.privateMode) return
+        val clip = try {
+            cm.primaryClip
+        } catch (e: SecurityException) {
+            null
+        } ?: return
+        if (clip.itemCount == 0) return
+        // ClipDescription.EXTRA_IS_SENSITIVE (Android 13), by value so older phones read it too.
+        val sensitive = clip.description?.extras?.getBoolean(EXTRA_IS_SENSITIVE) == true
+        clipboardHistory.add(clip.getItemAt(0).coerceToText(this), System.currentTimeMillis(), sensitive)
+        DecodeTrace.log { "  clip copied sensitive=$sensitive" }
+        if (!sensitive && isInputViewShown) refreshPredictions()
+    }
+
+    /** The clipboard action: the recent clips on the bar, newest first, a tap pastes one. */
+    private fun offerClipboard() {
+        cancelAutospace()
+        finalizePendingWord()
+        val now = System.currentTimeMillis()
+        if (clipboardHistory.recent(now).isEmpty()) {
+            // What was copied before the keyboard started; not offered as fresh.
+            getSystemService(ClipboardManager::class.java)?.let { cm ->
+                val clip = try { cm.primaryClip } catch (e: SecurityException) { null }
+                if (clip != null && clip.itemCount > 0 &&
+                    clip.description?.extras?.getBoolean(EXTRA_IS_SENSITIVE) != true
+                ) {
+                    clipboardHistory.add(clip.getItemAt(0).coerceToText(this), now)
+                    clipboardHistory.markFreshUsed()
+                }
+            }
+        }
+        val clips = clipboardHistory.recent(now)
+        DecodeTrace.log { "  clipboard offer n=${clips.size}" }
+        if (clips.isEmpty()) {
+            Toast.makeText(this, R.string.clipboard_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        showBarOffer(BarOffer.Kind.CLIPS, clips.map { it.text })
+    }
+
+    /** The clip copied a moment ago, alone on the idle bar; true when it is shown. */
+    private fun offerFreshClip(): Boolean {
+        val clip = clipboardHistory.fresh(System.currentTimeMillis()) ?: return false
+        showBarOffer(BarOffer.Kind.FRESH_CLIP, listOf(clip.text))
+        return true
+    }
+
+    private fun showBarOffer(kind: BarOffer.Kind, texts: List<String>) {
+        val bar = suggestionBar ?: return
+        val labels = texts.map {
+            when (kind) {
+                BarOffer.Kind.CLIPS -> ClipboardHistory.preview(it)
+                BarOffer.Kind.FRESH_CLIP -> "📋 " + ClipboardHistory.preview(it)
+                BarOffer.Kind.CODES -> it
+            }
+        }
+        val shown = ExpansionRows.distinctLabels(labels)
+        barOffer = BarOffer(kind, texts, shown)
+        barPredictions = emptyList()
+        containerView?.hideInlineStrip()
+        bar.setSuggestions(shown.map { SuggestionBarView.Suggestion(it, 0) })
+    }
+
+    /** The bar moved on from an offer; a fresh clip left unpicked is not offered by itself again. */
+    private fun dropBarOffer() {
+        if (barOffer?.kind == BarOffer.Kind.FRESH_CLIP) clipboardHistory.markFreshUsed()
+        barOffer = null
+    }
+
+    private fun pickBarOffer(offer: BarOffer, index: Int) {
+        if (offer.kind == BarOffer.Kind.FRESH_CLIP) clipboardHistory.markFreshUsed()
+        suggestionBar?.clearSuggestions()
+        val text = offer.texts[index]
+        DecodeTrace.log { "  bar offer pick kind=${offer.kind} len=${text.length}" }
+        // Written as is, never learned: a clip or a code is not something the user typed.
+        abandonWord()
+        commitTracked(text)
+        updateAutoShift()
+    }
+
+    /**
+     * Hands input to the user's voice typing keyboard (FUTO Voice Input, Google voice typing,
+     * any input method with a voice subtype); it returns to this keyboard when it is done.
+     * Kinetica itself never listens. With none turned on, the input method settings open.
+     */
+    private fun switchToVoice() {
+        cancelAutospace()
+        finalizePendingWord()
+        val imm = getSystemService(InputMethodManager::class.java) ?: return
+        var target: Pair<String, InputMethodSubtype?>? = null
+        for (imi in imm.enabledInputMethodList) {
+            if (imi.packageName == packageName) continue
+            val voice = imm.getEnabledInputMethodSubtypeList(imi, true).firstOrNull { it.mode == VOICE_MODE }
+            if (voice != null) {
+                target = imi.id to voice
+                break
+            }
+            // A voice-only input method that declares no subtypes.
+            if (target == null && imi.subtypeCount == 0 && imi.id.contains("voice", ignoreCase = true)) {
+                target = imi.id to null
+            }
+        }
+        DecodeTrace.log { "  voice switch to=${target?.first ?: "none"}" }
+        if (target == null) {
+            Toast.makeText(this, R.string.voice_none, Toast.LENGTH_LONG).show()
+            requestHideSelf(0)
+            startActivity(
+                Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            return
+        }
+        val (id, subtype) = target
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (subtype != null) switchInputMethod(id, subtype) else switchInputMethod(id)
+        } else {
+            val token = window?.window?.attributes?.token ?: return
+            @Suppress("DEPRECATION")
+            imm.setInputMethodAndSubtype(token, id, subtype)
+        }
+    }
+
+    /**
+     * In a code field, with the opt-in on, offers the codes of messages received in the last ten
+     * minutes, and again whenever a message arrives while the field is open.
+     */
+    private fun watchCodes(info: EditorInfo?) {
+        val generation = ++codeFieldGeneration
+        smsCodes.unwatch()
+        if (!config.smsCodes || !SmsCodes.isCodeField(info) || !smsCodes.allowed()) return
+        val read = {
+            dbExecutor.execute {
+                val codes = smsCodes.read()
+                mainHandler.post {
+                    if (generation != codeFieldGeneration || codes.isEmpty()) return@post
+                    if (tentativeLength > 0 || composer?.hasPendingWord == true) return@post
+                    DecodeTrace.log { "  sms codes n=${codes.size}" }
+                    showBarOffer(BarOffer.Kind.CODES, codes.map { it.code })
+                }
+            }
+        }
+        read()
+        smsCodes.watch { if (generation == codeFieldGeneration) read() }
+    }
+
+    // ------------------------------------------------------------------ inline autofill
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    override fun onCreateInlineSuggestionsRequest(uiExtras: Bundle): InlineSuggestionsRequest? {
+        if (suggestionBar == null) return null
+        return InlineAutofill.request(this, inlineChipHeightPx(), suggestionBar?.theme?.suggestionText ?: 0)
+    }
+
+    /**
+     * Autofill chips from the password manager, in the bar's place until typing starts or the
+     * field changes. An empty response takes them down.
+     */
+    @RequiresApi(Build.VERSION_CODES.R)
+    override fun onInlineSuggestionsResponse(response: InlineSuggestionsResponse): Boolean {
+        val container = containerView ?: return false
+        val generation = ++inlineGeneration
+        val list = response.inlineSuggestions
+        DecodeTrace.log { "  autofill chips n=${list.size}" }
+        if (list.isEmpty()) {
+            container.hideInlineStrip()
+            return true
+        }
+        val views = arrayOfNulls<View>(list.size)
+        var left = list.size
+        val size = Size(ViewGroup.LayoutParams.WRAP_CONTENT, inlineChipHeightPx())
+        for ((i, suggestion) in list.withIndex()) {
+            suggestion.inflate(this, size, mainExecutor) { v ->
+                views[i] = v
+                if (--left == 0 && generation == inlineGeneration) showInlineChips(views.filterNotNull())
+            }
+        }
+        return true
+    }
+
+    private fun showInlineChips(chips: List<View>) {
+        val container = containerView ?: return
+        if (chips.isEmpty()) {
+            container.hideInlineStrip()
+            return
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        for (chip in chips) row.addView(chip)
+        val strip = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setBackgroundColor(suggestionBar?.theme?.suggestionBg ?: 0)
+            addView(row, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        container.showInlineStrip(strip)
+    }
+
+    private fun inlineChipHeightPx(): Int = (dpToPx(barHeightDp()) * INLINE_CHIP_FRACTION).roundToInt()
 
     /** Opens settings, at [screen] with [reveal] scrolled to and flashed when given. */
     private fun openSettings(screen: String? = null, reveal: String? = null) {
@@ -3248,6 +3503,15 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             pickMidWord(it, word)
             return
         }
+        val offer = barOffer
+        if (offer != null) {
+            barOffer = null
+            val i = offer.shown.indexOf(word)
+            if (i >= 0 && suggestionBar?.showsWords(offer.shown) == true) {
+                pickBarOffer(offer, i)
+                return
+            }
+        }
         val choice = expansionChoice
         if (choice != null) {
             expansionChoice = null
@@ -3995,6 +4259,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         midWordHistory = null
         wordStartMs = -1L
         expansionChoice = null
+        if (barOffer != null) {
+            // Its labels must not stay up as words: a tap would write the label.
+            dropBarOffer()
+            suggestionBar?.clearSuggestions()
+        }
         composer?.clear()
         reloadedWord = null
         reloadedByHand = false
@@ -4175,6 +4444,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // How far each way COPY_LINE reads for the line's ends. A longer line is refused,
         // not half copied.
         const val COPY_LINE_READ_CHARS = 2000
+
+        /** ClipDescription.EXTRA_IS_SENSITIVE, which Android 13 added and password managers set. */
+        const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
+
+        /** InputMethodSubtype.getMode() of a voice typing subtype. */
+        const val VOICE_MODE = "voice"
+
+        /** Autofill chip height as a share of the bar's, so a chip never touches its edges. */
+        const val INLINE_CHIP_FRACTION = 0.8f
+
         // Backspace slide: how much text to fetch for word-span staging.
         const val STAGE_FETCH_CHARS = 256
         // Spacebar word slide: how far to read for one word boundary. Smaller than the staging

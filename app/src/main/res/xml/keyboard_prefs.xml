@@ -185,6 +185,12 @@
                 android:summary="@string/pref_recent_words_summary"
                 android:defaultValue="false" />
             <SwitchPreferenceCompat
+                android:key="pref_sms_codes"
+                android:title="@string/pref_sms_codes_title"
+                app:singleLineTitle="false"
+                android:summary="@string/pref_sms_codes_summary"
+                android:defaultValue="false" />
+            <SwitchPreferenceCompat
                 android:key="pref_badges_while_adjusting"
                 android:title="@string/pref_badges_while_adjusting_title"
                 app:singleLineTitle="false"

@@ -115,6 +115,19 @@ enum class EditorAction(val output: String) {
 
     /** Holds Ctrl for the next key tapped: then `a` sends Ctrl+A. */
     CTRL_NEXT("${ACTION_PREFIX}ctrl_next"),
+
+    /**
+     * The recent clipboard on the bar, for a tap to paste any of them (ClipboardHistory). Kept
+     * by the keyboard in memory, never on disk, and never for a clip marked sensitive.
+     */
+    CLIPBOARD("${ACTION_PREFIX}clipboard"),
+
+    /**
+     * Hand the field to the phone's voice typing (any enabled input method with a voice
+     * subtype), so Kinetica itself stays without network access. Switching back is that
+     * keyboard's own button.
+     */
+    VOICE("${ACTION_PREFIX}voice"),
     ;
 
     companion object {

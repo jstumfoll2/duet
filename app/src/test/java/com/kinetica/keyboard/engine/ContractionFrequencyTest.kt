@@ -88,9 +88,10 @@ class ContractionFrequencyTest {
             pairs++
             if (a <= b) ties.add("$form=$a vs $typo=$b")
         }
-        // The spell-checker filter took most misspellings out (`dont`, `didnt`); the ones SCOWL
-        // lists as words stay (`hes`, `whats`, `lets`), 11 pairs.
-        assertTrue("expected the misspelling pairs, found $pairs", pairs >= 10)
+        // The spell-checker filter took most misspellings out (`dont`, `didnt`) and the
+        // apostrophe cleanup the rest (`whats`, `hes`, `cant`); only the plain spellings that
+        // are common words stay (`its`, `lets`), 2 pairs.
+        assertTrue("expected the misspelling pairs, found $pairs", pairs >= 2)
         assertTrue("contraction not above its misspelling: $ties", ties.isEmpty())
     }
 
