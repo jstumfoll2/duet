@@ -51,7 +51,8 @@ THE SOFTWARE.
    Ukrainian sentences. In the accented languages, which spellings with
    the accents left off a wordlist keeps is decided the same way.
 
-Word-pair counts, and the English word-triple counts (en_trigrams.txt),
+Word-pair counts, and part of the English word-triple counts (en_trigrams.txt,
+which adds C4 web counts, section 6),
 derived from the Tatoeba sentence corpora:
 https://tatoeba.org
 
@@ -333,3 +334,20 @@ and Australian word list.  It is under the following copyright:
   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
   OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
   SUCH DAMAGE.
+
+--------------------------------------------------------------------------
+6. C4 web text counts (en_wordlist.txt additions, en_trigrams.txt)
+
+About 8,700 English words added to en_wordlist.txt, and most of the
+English word-triple counts in en_trigrams.txt, are derived from word
+counts over six shards (about 750 million words) of C4, the cleaned
+English Common Crawl corpus published by the Allen Institute for AI
+(tools/web_ngrams.py, tools/build_en_lexicon.py). Only counts are used;
+no text from the corpus is bundled.
+
+https://huggingface.co/datasets/allenai/c4
+License: Open Data Commons Attribution License (ODC-BY) v1.0
+https://opendatacommons.org/licenses/by/1-0/
+C4 is also subject to the Common Crawl terms of use:
+https://commoncrawl.org/terms-of-use
+Attribution: C4 by the Allen Institute for AI, built from Common Crawl.
