@@ -26,8 +26,10 @@ class FieldKeysTest {
         ),
     )
 
+    // The emoji key off, as upstream ships it: on (this fork's default) it leads the comma's menu.
     private fun comma(field: FieldKind, prefs: Map<String, Any> = emptyMap()): Key? =
-        AlphaLayouts.build(board(), MapPrefs.config(prefs), field).keys.firstOrNull { it.id == "comma" }
+        AlphaLayouts.build(board(), MapPrefs.config(mapOf(Prefs.EMOJI_KEY to false) + prefs), field)
+            .keys.firstOrNull { it.id == "comma" }
 
     @Test
     fun anEmailFieldTypesTheAt() {

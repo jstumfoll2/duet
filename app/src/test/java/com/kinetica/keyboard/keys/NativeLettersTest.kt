@@ -38,6 +38,8 @@ class NativeLettersTest {
             mapOf(
                 Prefs.PLAIN_LETTER_ALTERNATES to true,
                 Prefs.ENABLED_LANGUAGES to languages.toSet(),
+                // Off, as upstream ships it: on (this fork's default) the digits leave the top row.
+                Prefs.NUMBER_ROW to false,
             ),
         )
         assertEquals(languages.toSet(), config.enabledLanguages.toSet())

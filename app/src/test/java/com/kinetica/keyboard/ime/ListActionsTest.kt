@@ -29,8 +29,10 @@ class ListActionsTest {
         ),
     )
 
+    // The emoji key off, as upstream ships it: on (this fork's default) it leads the comma's list.
     private fun cells(prefs: Map<String, Any>, id: String): List<String> =
-        AlphaLayouts.build(board(), MapPrefs.config(prefs)).keys.first { it.id == id }.alternates
+        AlphaLayouts.build(board(), MapPrefs.config(mapOf(Prefs.EMOJI_KEY to false) + prefs))
+            .keys.first { it.id == id }.alternates
 
     @Test
     fun theCommaAndPeriodListsRunTheirShortcuts() {
