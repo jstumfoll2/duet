@@ -46,6 +46,8 @@ object ActionLabels {
         EditorAction.ARROW_RIGHT -> R.string.action_arrow_right
         EditorAction.PAGE_UP -> R.string.action_page_up
         EditorAction.PAGE_DOWN -> R.string.action_page_down
+        EditorAction.CLIPBOARD -> R.string.action_clipboard
+        EditorAction.VOICE -> R.string.action_voice
     }
 
     /** The setting a toggle flips, as the spacebar names it. Null for anything else. */
@@ -94,6 +96,7 @@ object ActionLabels {
         EditorAction.ONE_HANDED, EditorAction.TOGGLE_NEXT_WORD, EditorAction.TOGGLE_RECENT_WORDS,
         EditorAction.TOGGLE_NUMBER_ROW, EditorAction.TOGGLE_TIDY_SPACES,
         EditorAction.TOGGLE_TYPING_SPEED, EditorAction.TOGGLE_PECK_MODE, EditorAction.CTRL_NEXT,
+        EditorAction.CLIPBOARD, EditorAction.VOICE,
         -> null
     }
 }

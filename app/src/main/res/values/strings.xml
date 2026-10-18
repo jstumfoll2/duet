@@ -560,4 +560,11 @@
     <string name="pref_theme_hue_summary">Position on the colour wheel, from 0 to 360, for the custom colour theme. Every surface follows it</string>
     <string name="pref_theme_color_title">Custom theme colour</string>
     <string name="pref_theme_color_summary">The colour the custom palette is built from</string>
+    <string name="action_clipboard">Clipboard history</string>
+    <string name="action_voice">Voice typing</string>
+    <string name="clipboard_empty">Nothing copied in the last hour</string>
+    <string name="voice_none">No voice typing keyboard is turned on. Turn one on here, then press the key again</string>
+    <string name="pref_sms_codes_title">Codes from text messages</string>
+    <string name="pref_sms_codes_summary">In a field that asks for a code, offer the code from a text message received in the last ten minutes. Needs permission to read text messages. Kinetica only reads them on this phone and has no internet access</string>
+    <string name="pref_sms_codes_denied">Kinetica was not allowed to read text messages, so codes stay off</string>
 </resources>

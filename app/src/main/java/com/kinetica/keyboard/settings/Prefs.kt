@@ -52,6 +52,13 @@ object Prefs {
     const val NEXT_WORD = "pref_next_word"
 
     /**
+     * Offer the one-time code from a text message that arrived in the last ten minutes, in a
+     * field that asks for one. Off by default: it needs the READ_SMS permission, which the
+     * settings screen asks for when this is turned on; the keyboard only reads, never sends.
+     */
+    const val SMS_CODES = "pref_sms_codes"
+
+    /**
      * The last two words stay on the bar, each with the two candidates it beat, so a wrong
      * word a few words back is one tap from fixed. Off by default: it makes the
      * bar taller and takes two fifths of its width.
@@ -523,6 +530,7 @@ object Prefs {
     const val DEFAULT_EDIT_FROM_MENU = false
     const val DEFAULT_LEARN_PHRASES = false
     const val DEFAULT_NEXT_WORD = true
+    const val DEFAULT_SMS_CODES = false
     const val DEFAULT_RECENT_WORDS = false
     const val DEFAULT_NUMBER_ROW = true
     const val DEFAULT_ENTER_ALTERNATES = "? ! ,"

@@ -518,4 +518,11 @@
         <item quantity="other">%1$d parole apprese eliminate</item>
         <item quantity="many">%1$d parole apprese eliminate</item>
     </plurals>
+    <string name="action_clipboard">Cronologia appunti</string>
+    <string name="action_voice">Dettatura vocale</string>
+    <string name="clipboard_empty">Niente copiato nell\'ultima ora</string>
+    <string name="voice_none">Nessuna tastiera di dettatura è attiva. Attivane una qui, poi premi di nuovo il tasto</string>
+    <string name="pref_sms_codes_title">Codici dagli SMS</string>
+    <string name="pref_sms_codes_summary">In un campo che chiede un codice, propone il codice di un SMS ricevuto negli ultimi dieci minuti. Richiede il permesso di leggere gli SMS. Kinetica li legge solo su questo telefono e non ha accesso a internet</string>
+    <string name="pref_sms_codes_denied">Kinetica non ha il permesso di leggere gli SMS, quindi i codici restano disattivati</string>
 </resources>

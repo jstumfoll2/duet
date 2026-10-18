@@ -27,6 +27,8 @@ object ActionRow {
         EditorAction.NEXT_LANGUAGE,
         EditorAction.ONE_HANDED,
         EditorAction.TOGGLE_AUTOSPACE,
+        EditorAction.CLIPBOARD,
+        EditorAction.VOICE,
         EditorAction.UNDO,
         EditorAction.REDO,
         EditorAction.PASTE,
@@ -66,6 +68,8 @@ object ActionRow {
         EditorAction.NEXT_LANGUAGE.name,
         EditorAction.ONE_HANDED.name,
         EditorAction.TOGGLE_AUTOSPACE.name,
+        EditorAction.CLIPBOARD.name,
+        EditorAction.VOICE.name,
     )
 
     /**
@@ -111,6 +115,9 @@ object ActionRow {
         EditorAction.PAGE_DOWN -> "⇟"
         EditorAction.BACKSPACE -> "⌫"           // the key's own label
         EditorAction.CTRL_NEXT -> "⌃"           // the control symbol
+        // No text symbol says either of these, so they are the two emoji in the row.
+        EditorAction.CLIPBOARD -> "📋"
+        EditorAction.VOICE -> "🎙"
     }
 
     /**
@@ -129,6 +136,8 @@ object ActionRow {
         EditorAction.TOGGLE_TYPING_SPEED, EditorAction.TOGGLE_PECK_MODE,
         // Arrows are text a list may well hold (`→`), so in a list they type themselves.
         EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT, EditorAction.ARROW_RIGHT,
+        // Emoji, which a list holds to type them.
+        EditorAction.CLIPBOARD, EditorAction.VOICE,
     )
 
     /**
@@ -224,6 +233,8 @@ object ActionRow {
             nextLanguage(before.languages, before.language)?.let { Notice.Language(it) }
         EditorAction.ONE_HANDED ->
             Notice.Layout(oneHandedToggle(before.layoutMode, before.rememberedOneHanded).mode)
+        // The clips on the bar, or another keyboard, say what happened.
+        EditorAction.CLIPBOARD, EditorAction.VOICE -> null
         EditorAction.UNDO, EditorAction.REDO, EditorAction.PASTE, EditorAction.COPY,
         EditorAction.CUT, EditorAction.SELECT_ALL, EditorAction.RETYPE, EditorAction.EXPANDIFY,
         EditorAction.DATE, EditorAction.TIME, EditorAction.ENTER, EditorAction.COPY_LINE,

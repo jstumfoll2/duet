@@ -1,5 +1,6 @@
 package com.kinetica.keyboard.settings
 
+import android.Manifest
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
@@ -14,6 +15,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import java.io.IOException
 import org.json.JSONException
@@ -25,6 +28,7 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceScreen
 import androidx.preference.SeekBarPreference
+import androidx.preference.SwitchPreferenceCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.kinetica.keyboard.R
 import com.kinetica.keyboard.engine.Alphabet
@@ -36,8 +40,25 @@ import com.kinetica.keyboard.ui.SizePreviewView
 
 class KeyboardPrefsFragment : PreferenceFragmentCompat() {
 
+    // The keyboard is a service and cannot ask for a permission, so the switch that needs one
+    // asks here; a refusal turns the switch back off rather than leaving it on and doing nothing.
+    private val smsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) return@registerForActivityResult
+        findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.isChecked = false
+        context?.let { Toast.makeText(it, R.string.pref_sms_codes_denied, Toast.LENGTH_LONG).show() }
+    }
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.keyboard_prefs, rootKey)
+        findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.setOnPreferenceChangeListener { _, on ->
+            val ctx = context
+            if (on == true && ctx != null &&
+                ctx.checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                smsPermission.launch(Manifest.permission.READ_SMS)
+            }
+            true
+        }
         if (rootKey == SettingsSynonyms.LONGPRESS_GROUP) addLetterRows()
         dropIconSpace(preferenceScreen)
         wireThemePreview()

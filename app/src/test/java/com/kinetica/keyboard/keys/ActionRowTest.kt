@@ -33,9 +33,9 @@ class ActionRowTest {
     }
 
     @Test
-    fun theDefaultsAreTheFourAtTheFront() {
+    fun theDefaultsAreAtTheFront() {
         // New actions append, so turning one on does not move cells a user already knows.
-        assertEquals(ActionRow.DEFAULT, ActionRow.ALL.take(4).map { it.name }.toSet())
+        assertEquals(ActionRow.DEFAULT, ActionRow.ALL.take(ActionRow.DEFAULT.size).map { it.name }.toSet())
         for (name in ActionRow.DEFAULT) {
             assertTrue(name, ActionRow.ALL.any { it.name == name })
         }

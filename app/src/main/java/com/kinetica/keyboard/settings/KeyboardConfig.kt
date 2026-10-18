@@ -136,6 +136,8 @@ data class KeyboardConfig(
     val menuActionOrder: List<String>,
     /** Next-word predictions in the idle bar. */
     val nextWord: Boolean,
+    /** One-time codes from text messages on the bar in a code field ([Prefs.SMS_CODES]). */
+    val smsCodes: Boolean = Prefs.DEFAULT_SMS_CODES,
     /** Recent words and their alternatives on a taller bar. */
     val recentWords: Boolean,
     /** Digits in their own row above the letters. */
@@ -343,6 +345,7 @@ data class KeyboardConfig(
             barActionOrder = ActionRow.decodeOrder(prefs.getString(Prefs.BAR_ACTIONS_ORDER, null)),
             menuActionOrder = ActionRow.decodeOrder(prefs.getString(Prefs.MENU_ACTIONS_ORDER, null)),
             nextWord = prefs.getBoolean(Prefs.NEXT_WORD, Prefs.DEFAULT_NEXT_WORD),
+            smsCodes = prefs.getBoolean(Prefs.SMS_CODES, Prefs.DEFAULT_SMS_CODES),
             recentWords = prefs.getBoolean(Prefs.RECENT_WORDS, Prefs.DEFAULT_RECENT_WORDS),
             numberRow = prefs.getBoolean(Prefs.NUMBER_ROW, Prefs.DEFAULT_NUMBER_ROW),
             enabledLanguages = enabledLanguages(prefs),
