@@ -7,6 +7,7 @@
          follow the build they are running in. The developer build overrides it. -->
     <string name="app_pkg" translatable="false">com.kinetica.keyboard</string>
     <string name="ime_name">Kinetica Keyboard</string>
+    <string name="spell_checker_name">Kinetica spell checker</string>
     <string name="subtype_en_us" translatable="false">English (US)</string>
     <string name="subtype_it_it" translatable="false">Italiano</string>
     <string name="subtype_es_es" translatable="false">Español</string>
@@ -265,6 +266,7 @@
     <string name="notice_retype">Retype</string>
     <string name="notice_expand">Expand</string>
     <string name="notice_autospace_on">Autospace on</string>
+    <string name="notice_wrong_language">Typing in %1$s?</string>
     <string name="notice_toggle_on">%1$s on</string>
     <string name="notice_toggle_off">%1$s off</string>
     <string name="notice_name_next_word">Next word</string>

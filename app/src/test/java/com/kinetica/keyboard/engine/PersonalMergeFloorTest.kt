@@ -44,6 +44,20 @@ class PersonalMergeFloorTest {
     }
 
     @Test
+    fun aNewWordWaitsForAThirdCommit() {
+        // `tosay`, learned at two from one typo, reached the trie (batch 7, 2026-10-18).
+        fun load(count: Int) = DictionaryLoader.load(
+            reader(base),
+            DictionaryLoader.userWordsForMerge(listOf("tosay" to count, "cuando" to 2)),
+            newWordMinWeight = DictionaryLoader.NEW_WORD_MIN_WEIGHT,
+        )
+        val two = load(KineticaConstants.NEW_WORD_MERGE_MIN_COUNT - 1)
+        assertFalse("a new word at two commits stays out", two.trie.contains("tosay"))
+        assertTrue("a bundled word keeps the usual floor", two.trie.contains("cuando"))
+        assertTrue(load(KineticaConstants.NEW_WORD_MERGE_MIN_COUNT).trie.contains("tosay"))
+    }
+
+    @Test
     fun mergedRowsKeepTheFrequencyScale() {
         val extra = DictionaryLoader.userWordsForMerge(listOf("dinero" to 6))
         assertEquals(

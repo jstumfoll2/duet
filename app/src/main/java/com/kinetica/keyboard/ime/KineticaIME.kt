@@ -46,7 +46,9 @@ import com.kinetica.keyboard.engine.GrammarCheck
 import com.kinetica.keyboard.engine.KeyboardGeometry
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.LanguageMomentum
+import com.kinetica.keyboard.engine.LanguageStreak
 import com.kinetica.keyboard.engine.SharedWordFiling
+import com.kinetica.keyboard.engine.SpellLexicon
 import com.kinetica.keyboard.engine.WordComposer
 import com.kinetica.keyboard.engine.WordPredictor
 import com.kinetica.keyboard.engine.models.InputToken
@@ -172,6 +174,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private var extraCounts = ConcurrentHashMap<String, Int>()
     private var extraPairs = ConcurrentHashMap<String, Int>()
     private var extraLanguage: String? = null
+
+    // The enabled languages no predictor holds (Mix off), bundled lists only. Nothing decodes
+    // from them: they say which language a typed word belongs to, so English tapped with
+    // Spanish active is learned as English and the spacebar can say so (LanguageStreak).
+    private var otherLexicon = SpellLexicon(emptyList())
+    private val languageStreak = LanguageStreak()
 
     /** Which resident language is being typed, with no primary language. Main thread. */
     private val momentum = LanguageMomentum()
@@ -619,7 +627,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 val allBlocked = allBlockedWords()
                 val swaps = spellingSwaps(lang)
                 val dict = openWordlist(lang).bufferedReader().use {
-                    DictionaryLoader.load(it, userWords, blocked, swaps, Alphabet.forLanguage(lang))
+                    DictionaryLoader.load(
+                        it, userWords, blocked, swaps, Alphabet.forLanguage(lang), DictionaryLoader.NEW_WORD_MIN_WEIGHT,
+                    )
                 }
                 val bigrams = assets.open(bigramsAsset(lang)).bufferedReader().use {
                     DictionaryLoader.loadBigrams(it, dict.trie)
@@ -655,6 +665,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                                 blockedWords(other),
                                 spellingSwaps(other),
                                 Alphabet.forLanguage(other),
+                                DictionaryLoader.NEW_WORD_MIN_WEIGHT,
                             )
                         }
                         val b = assets.open(bigramsAsset(other)).bufferedReader().use {
@@ -684,6 +695,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                                 blockedWords(other),
                                 spellingSwaps(other),
                                 Alphabet.forLanguage(other),
+                                DictionaryLoader.NEW_WORD_MIN_WEIGHT,
                             )
                         }
                         val b = assets.open(bigramsAsset(other)).bufferedReader().use {
@@ -695,10 +707,22 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         null
                     }
                 }
+                val others = sameScript.filter { it != detectLang && it != extraLang }.mapNotNull { other ->
+                    try {
+                        other to openWordlist(other).bufferedReader().use {
+                            DictionaryLoader.load(it, alphabet = Alphabet.forLanguage(other))
+                        }
+                    } catch (e: IOException) {
+                        Log.w(TAG, "filing dictionary load failed for $other", e)
+                        null
+                    }
+                }
                 mainHandler.post {
                     blockedSpellings = allBlocked
                     // The user may have toggled languages again mid-parse.
                     if (lang != config.language) return@post
+                    otherLexicon = SpellLexicon(others)
+                    languageStreak.reset()
                     val counts = ConcurrentHashMap<String, Int>(userRows.size * 2)
                     for (row in userRows) counts[row.word] = row.frequency
                     personalCounts = counts
@@ -1820,7 +1844,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         DecodeTrace.log { "  recent pick back=$back old=${entry.word} new=$replacement" }
         // The swap is the user's correction, so the weight moves as a correction pick's does,
         // and the pairs with its neighbours move with it.
-        val lang = sharedFiling.languageFor(heldBy(replacement), entry.languages[word.lowercase()] ?: languageOf(replacement))
+        val lang = filingLanguage(replacement, entry.languages[word.lowercase()] ?: languageOf(replacement))
         learnWord(replacement, lang = lang)
         if (!entry.word.equals(replacement, ignoreCase = true)) unlearnWord(entry.word)
         // A neighbour counts only across whitespace: `end. Next` is no pair, as learnPair agrees.
@@ -1980,15 +2004,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     /**
-     * An autocorrect the user reverted says the letters were meant. They are not corrected again
-     * while the keyboard runs, and they are learned up to the merge floor at once, so the
-     * dictionary holds them from the next load on: one revert is enough, where an accepted
-     * peck needs [KineticaConstants.PERSONAL_MERGE_MIN_COUNT] commits.
+     * An autocorrect the user reverted: the letters are not corrected again while the keyboard
+     * runs. Nothing is learned here. A backspace that undoes a correction is as often the start
+     * of fixing a typo as a vote for it (`today` undone back to `tosay`, 2026-10-18), so the
+     * letters earn weight only as any word does, by being committed.
      */
-    private fun acceptTypedLetters(typed: String, lang: String = languageOf(typed)) {
+    private fun acceptTypedLetters(typed: String) {
         rememberRejectedCorrection(typed)
-        val missing = typedLettersTopUp(countsFor(lang)[typed.lowercase()] ?: 0)
-        if (missing > 0) learnWord(typed, amount = missing, lang = lang)
     }
 
     private fun rememberRejectedCorrection(typed: String) {
@@ -3402,7 +3424,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // Learned as a pick is, the old word left alone: nothing says this keyboard wrote it.
         if (!word.equals(old, ignoreCase = true)) {
             val from = history?.languages?.get(word.lowercase()) ?: languageOf(word)
-            learnWord(word, lang = sharedFiling.languageFor(heldBy(word), from))
+            learnWord(word, lang = filingLanguage(word, from))
         }
         updateAutoShift()
         refreshPredictions()
@@ -3565,7 +3587,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         )
         unlearnLastPair()
         composer?.replaceLastCommit(replacement.lowercase())
-        val replacementLang = sharedFiling.languageFor(heldBy(replacement), languageOf(replacement))
+        val replacementLang = filingLanguage(replacement, languageOf(replacement))
         if (prevForPair != null) {
             learnPair(listOf(prevForPair, replacement.lowercase()), replacement, replacementLang)
         }
@@ -3581,7 +3603,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         lastAutocorrect = null
         if (corrected != null && revertsAutocorrect(corrected.typed, corrected.corrected, current, replacement)) {
             DecodeTrace.log { "  autocorrect reverted word=$current typed=$replacement src=strip" }
-            acceptTypedLetters(replacement, replacementLang)
+            acceptTypedLetters(replacement)
         }
         lastLearnedWord = replacement.lowercase()
         lastLearnedWordLang = replacementLang
@@ -3723,6 +3745,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * trie entry until the next load, but its ranking multiplier drops with the count.
      */
     private fun askUserDictReload(word: String, lang: String, before: Int, after: Int) {
+        // Not resident: its next load reads the database row anyway.
+        if (lang !in residentLanguages()) return
         val p = when {
             lang == secondaryLanguage && lang != config.language -> secondaryPredictor
             lang == extraLanguage && lang != config.language -> extraPredictor
@@ -3928,6 +3952,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun pairsFor(lang: String): ConcurrentHashMap<String, Int> = when {
         lang == secondaryLanguage && lang != config.language -> secondaryPairs
         lang == extraLanguage && lang != config.language -> extraPairs
+        lang != config.language -> ConcurrentHashMap()
         else -> personalPairs
     }
 
@@ -3955,6 +3980,35 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     /**
+     * The language to learn [word] into, from where the decode said it came from
+     * ([provenance]). A word both resident lexicons hold goes by [SharedWordFiling]. A word no
+     * resident lexicon holds goes to the other enabled language that spells it, if one does:
+     * with Mix off, English tapped in Spanish mode was learned into Spanish, typos and all
+     * (batch 7, 2026-10-18).
+     */
+    private fun filingLanguage(word: String, provenance: String): String {
+        val held = heldBy(word)
+        val shared = sharedFiling.languageFor(held, provenance)
+        if (held.isNotEmpty() || predictor?.holdsSpelling(word) != false) return shared
+        return otherLexicon.languageHolding(word) ?: shared
+    }
+
+    /**
+     * Counts [word], just learned into [filed], toward [LanguageStreak]; at the third word in a
+     * row only a non-resident language holds, the spacebar asks whether the user is typing in
+     * that language. Resident languages are already decoded (Mix), so they never count.
+     */
+    private fun noticeWrongLanguage(word: String, filed: String) {
+        val foreign = filed.takeIf { it !in residentLanguages() }
+        val suggest = languageStreak.onCommit(foreign, predictor?.holdsSpelling(word) == true) ?: return
+        DecodeTrace.log { "  wrong language word=$word suggest=$suggest active=${config.language}" }
+        val name = entryFor(R.array.language_values, R.array.language_entries, suggest)
+        mainHandler.removeCallbacks(spacebarNoticeRunnable)
+        keyboardView?.spacebarNotice = getString(R.string.notice_wrong_language, name)
+        mainHandler.postDelayed(spacebarNoticeRunnable, WRONG_LANGUAGE_NOTICE_MS)
+    }
+
+    /**
      * The dictionary a word on offer came from, defaulting to the active language for anything
      * not in the current candidate list (a typed literal, a correction never a candidate).
      */
@@ -3967,6 +4021,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun countsFor(lang: String): ConcurrentHashMap<String, Int> = when {
         lang == secondaryLanguage && lang != config.language -> secondaryCounts
         lang == extraLanguage && lang != config.language -> extraCounts
+        // A word filed into a language no predictor holds has no live map; the database row
+        // is all it gets, and the active language's ranking must not see it.
+        lang != config.language -> ConcurrentHashMap()
         else -> personalCounts
     }
 
@@ -4127,8 +4184,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             // provenance. The one commit that learns nothing is a swipe whose full-buffer
             // decode gave no auto-committable word: the screen then shows a stale partial decode.
             if (!swipeDecodeEmpty && learnsOnCommit(word, reloadedWord)) {
-                val filed = sharedFiling.languageFor(heldBy(word), lang)
+                val filed = filingLanguage(word, lang)
                 learnWord(word, lang = filed)
+                noticeWrongLanguage(word, filed)
                 lastCommitLearned = word.lowercase()
                 lastLearnedWord = word.lowercase()
                 lastLearnedWordLang = filed
@@ -4353,6 +4411,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // How long a shortcut's notice stays on the spacebar. Chosen, not measured: long
         // enough to read two words, gone before the next word is typed.
         const val SPACEBAR_NOTICE_MS = 1500L
+        // Long enough to read mid-sentence.
+        const val WRONG_LANGUAGE_NOTICE_MS = 4000L
         // How much editor text a kept bar compares to prove nothing changed before a pick.
         // Longer than any word, so a space or a deleted letter after the stale text shows.
         const val KEPT_BAR_TAIL_CHARS = 64
@@ -5222,6 +5282,7 @@ internal fun userDictDemoted(countBefore: Int, countAfter: Int): Boolean =
  *
  * The count map only supplies a ranking multiplier and cannot boost a candidate the trie
  * never produced, so a word the dictionary lacks stays undecodable until a load merges it.
+ * Such a word is new, so its floor is [KineticaConstants.NEW_WORD_MERGE_MIN_COUNT].
  * True on the crossing only, so a word the reload cannot admit
  * (blocked, or past USER_DICT_LIMIT) costs one parse, not one per commit.
  */
@@ -5230,8 +5291,8 @@ internal fun userDictNeedsReload(
     countAfter: Int,
     trieHasWord: Boolean,
 ): Boolean = !trieHasWord &&
-    countBefore < KineticaConstants.PERSONAL_MERGE_MIN_COUNT &&
-    countAfter >= KineticaConstants.PERSONAL_MERGE_MIN_COUNT
+    countBefore < KineticaConstants.NEW_WORD_MERGE_MIN_COUNT &&
+    countAfter >= KineticaConstants.NEW_WORD_MERGE_MIN_COUNT
 
 /**
  * [candidates] with the word a retype just rejected moved to the end.
@@ -5352,10 +5413,6 @@ internal fun moveTypedSecond(options: MutableList<String>, typed: String) {
     options.remove(typed)
     options.add(1, typed)
 }
-
-/** Learning a reverted autocorrect's letters still needs to add, from their [count] so far. */
-internal fun typedLettersTopUp(count: Int): Int =
-    (KineticaConstants.PERSONAL_MERGE_MIN_COUNT - count).coerceAtLeast(0)
 
 /**
  * How much a backspace takes back to undo an autocorrect: the corrected word, plus the one space
