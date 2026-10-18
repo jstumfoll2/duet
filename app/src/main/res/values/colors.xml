@@ -30,5 +30,5 @@
     <color name="suggestion_text_primary_light">#FF101014</color>
     <color name="correction_chip_light">#FFC9CEF5</color>
     <color name="popup_bg_light">#FFFFFFFF</color>
-    <color name="launcher_background">#FF1B1B1F</color>
+    <color name="launcher_background">#FF14213D</color>
 </resources>

@@ -24,13 +24,13 @@ jobs:
       # The project's exact green gate: build, JVM golden suite, lint.
       - run: ./gradlew assembleDebug test lint
 
-      # The DEV build (com.kinetica.keyboard.dev, with the trace screen and
+      # The DEV build (io.github.jstumfoll2.duet.dev, with the trace screen and
       # practice mode), for installing by hand. Signed with this runner's
       # throwaway debug key, so a newer one only installs over an older one
       # after uninstalling it.
       - uses: actions/upload-artifact@v4
         with:
-          name: kinetica-dev-apk
+          name: duet-dev-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
 

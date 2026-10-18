@@ -60,6 +60,9 @@ object ActionRow {
         EditorAction.PAGE_DOWN,
         EditorAction.BACKSPACE,
         EditorAction.CTRL_NEXT,
+        EditorAction.CASE_LOWER,
+        EditorAction.CASE_TITLE,
+        EditorAction.CASE_UPPER,
     )
 
     /** What the row offers out of the box. */
@@ -118,14 +121,32 @@ object ActionRow {
         // No text symbol says either of these, so they are the two emoji in the row.
         EditorAction.CLIPBOARD -> "📋"
         EditorAction.VOICE -> "🎙"
+        // Shift's own hold menu cells, so the two read the same.
+        EditorAction.CASE_LOWER -> "abc"
+        EditorAction.CASE_TITLE -> "Abc"
+        EditorAction.CASE_UPPER -> "ABC"
     }
 
     /**
-     * The action whose [glyph] is [text], or null: a letter's long-press list may hold one and
-     * run it. No built-in list holds these symbols, so only a list the user wrote can.
+     * The action whose [glyph] is [text], or null: a long-press list may hold one and run it. No
+     * built-in list holds these symbols, so only a list the user wrote can. A symbol that is also
+     * ordinary text runs only when it carries [ACTION_MARK], which only a name written in a list
+     * gives it. The case symbols differ by case alone, so the exact symbol is tried first.
      */
-    fun actionForGlyph(text: String): EditorAction? =
-        EditorAction.entries.firstOrNull { it !in NOT_IN_LISTS && glyph(it) == text }
+    fun actionForGlyph(text: String): EditorAction? {
+        if (text.length > 1 && text.last() == ACTION_MARK) {
+            val symbol = text.dropLast(1)
+            return EditorAction.entries.firstOrNull { glyph(it) == symbol }
+                ?: EditorAction.entries.firstOrNull { glyph(it).equals(symbol, ignoreCase = true) }
+        }
+        return EditorAction.entries.firstOrNull { it !in NOT_IN_LISTS && glyph(it) == text }
+    }
+
+    /**
+     * Invisible, appended to a symbol that is also ordinary text (`ALL`, `→`) when a list names
+     * its action, so that cell runs the action and the same symbol typed as text stays text.
+     */
+    const val ACTION_MARK = '\u2060'
 
     /**
      * Actions whose symbol is ordinary text a list may hold (`ALL`, `123`, the French `»`), so a
@@ -138,17 +159,50 @@ object ActionRow {
         EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT, EditorAction.ARROW_RIGHT,
         // Emoji, which a list holds to type them.
         EditorAction.CLIPBOARD, EditorAction.VOICE,
+        EditorAction.CASE_LOWER, EditorAction.CASE_TITLE, EditorAction.CASE_UPPER,
     )
 
     /**
-     * The glyph for an action written by name in a letter's list, `:paste` or `:select_all`, or
-     * null for anything else: typing a name is easier than finding the symbol.
+     * The cell for an action written in a long-press list by name (`:paste`, `:select_all`) or as
+     * a stored target (`action:PASTE`), or null for anything else: typing a name is easier than
+     * finding the symbol. A symbol that is also text carries [ACTION_MARK].
      */
     fun glyphForToken(text: String): String? {
-        if (text.length < 2 || text[0] != ':') return null
-        val name = text.substring(1).uppercase()
-        return EditorAction.entries.firstOrNull { it.name == name && it !in NOT_IN_LISTS }?.let { glyph(it) }
+        val action = tokenAction(text) ?: return null
+        return if (action in NOT_IN_LISTS) glyph(action) + ACTION_MARK else glyph(action)
     }
+
+    /** The action a list entry names, by `:name`, an alias, or `action:NAME`; null for text. */
+    fun tokenAction(text: String): EditorAction? {
+        if (text.length >= 2 && text[0] == ':') {
+            val name = text.substring(1).uppercase()
+            return NAME_ALIASES[name] ?: EditorAction.entries.firstOrNull { it.name == name }
+        }
+        return EditorAction.of(text)
+    }
+
+    /** The names users reach for that the enum spells differently. */
+    private val NAME_ALIASES = mapOf(
+        "SWITCH_LANGUAGE" to EditorAction.NEXT_LANGUAGE,
+        "LANGUAGE" to EditorAction.NEXT_LANGUAGE,
+    )
+
+    /**
+     * A list cell as a held shift shows it: upper case, except a target written out
+     * (`combo:ctrl+a`, `action:paste`), whose prefix must stay as it is to run, and a marked
+     * symbol, whose case may name the action (`abc`, `ABC`).
+     */
+    fun shifted(cell: String): String =
+        if (KeyCombo.parse(cell) != null || cell.startsWith(EditorAction.PREFIX) ||
+            (cell.length > 1 && cell.last() == ACTION_MARK)
+        ) {
+            cell
+        } else {
+            cell.uppercase()
+        }
+
+    /** Every name a list accepts, as written there: the settings help lists these. */
+    fun listTokenNames(): String = EditorAction.entries.joinToString(" ") { ":" + it.name.lowercase() }
 
     /**
      * Whether [action] is worth offering at all right now.
@@ -220,7 +274,10 @@ object ActionRow {
      * call, so the notice and the effect cannot disagree.
      */
     fun notice(action: EditorAction, before: KeyboardState): Notice? = when (action) {
-        EditorAction.SETTINGS -> null
+        // Settings closes the keyboard; a re-case shows in the word itself.
+        EditorAction.SETTINGS, EditorAction.CASE_LOWER, EditorAction.CASE_TITLE,
+        EditorAction.CASE_UPPER,
+        -> null
         EditorAction.TOGGLE_AUTOSPACE -> Notice.Autospace(!before.autospace)
         EditorAction.TOGGLE_NEXT_WORD -> Notice.Toggle(action, !before.nextWord)
         EditorAction.TOGGLE_RECENT_WORDS -> Notice.Toggle(action, !before.recentWords)
@@ -304,6 +361,6 @@ object ActionRow {
 
     const val FULL = "full"
 
-    /** Right-anchored, the mode named "one-handed" in the settings list. */
+    /** Right-anchored, the mode named "one-handed, right" in the settings list. */
     const val DEFAULT_ONE_HANDED = "one_handed"
 }
