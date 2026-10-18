@@ -7,6 +7,7 @@
          follow the build they are running in. The developer build overrides it. -->
     <string name="app_pkg" translatable="false">com.kinetica.keyboard</string>
     <string name="ime_name">Kinetica Keyboard</string>
+    <string name="spell_checker_name">Kinetica spell checker</string>
     <string name="subtype_en_us" translatable="false">English (US)</string>
     <string name="subtype_it_it" translatable="false">Italiano</string>
     <string name="subtype_es_es" translatable="false">Español</string>

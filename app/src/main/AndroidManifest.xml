@@ -25,6 +25,19 @@
                 android:resource="@xml/method" />
         </service>
 
+        <service
+            android:name=".spell.KineticaSpellChecker"
+            android:label="@string/spell_checker_name"
+            android:permission="android.permission.BIND_TEXT_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.textservice.SpellCheckerService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.textservice.scs"
+                android:resource="@xml/spellchecker" />
+        </service>
+
         <activity
             android:name=".settings.SettingsActivity"
             android:label="@string/settings_title"
