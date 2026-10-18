@@ -1,9 +1,12 @@
-# Kinetica
+# Duet
 
-[![F-Droid](https://img.shields.io/f-droid/v/com.kinetica.keyboard?logo=fdroid)](https://f-droid.org/packages/com.kinetica.keyboard/)
-[![Latest release](https://img.shields.io/github/v/release/EZ-eta/kinetica?logo=github)](https://github.com/EZ-eta/kinetica/releases/latest)
+Duet is a fork of [Kinetica](https://github.com/EZ-eta/kinetica) by EZ-eta, renamed with its own
+icon as Kinetica's README asks of forks. It adds an interleaved two-thumb decoder, a trace replay
+harness, a spell checker and dictionary work on top of upstream; see the commit history for every
+change. Report Duet bugs here, not upstream. The text below is upstream's README as is: its
+install links and release notes are Kinetica's, not Duet's.
+
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-[![Support on Ko-fi](https://img.shields.io/badge/support-Ko--fi-FF5A16?logo=kofi&logoColor=white)](https://ko-fi.com/ez_eta)
 
 An open-source (GPL-3.0) Android keyboard built for **two thumbs at once**. Each thumb swipes or
 taps on its own, at the same time as the other, and both streams merge into one word. A spiritual

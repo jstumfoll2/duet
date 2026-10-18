@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Italian. Strings missing here fall back to English; see CONTRIBUTING.md. -->
 <resources>
-    <string name="ime_name">Tastiera Kinetica</string>
-    <string name="spell_checker_name">Correttore ortografico Kinetica</string>
+    <string name="ime_name">Tastiera Duet</string>
+    <string name="spell_checker_name">Correttore ortografico Duet</string>
     <string name="settings_search">Cerca nelle impostazioni</string>
     <string name="settings_search_hint">Cerca nelle impostazioni</string>
     <string name="settings_search_none">Nessuna impostazione trovata</string>
-    <string name="settings_title">Impostazioni di Kinetica</string>
+    <string name="settings_title">Impostazioni di Duet</string>
     <string name="licenses_title">Licenze open source</string>
     <string name="pref_version_title">Versione</string>
     <string name="pref_licenses_summary">Fonti dei dati e relative licenze (app GPL-3.0; dati MIT e CC BY 2.0 FR)</string>
     <string name="licenses_missing">In questa build mancano le note di licenza.</string>
-    <string name="onboarding_title">Configura Kinetica</string>
-    <string name="onboarding_step1">1. Attiva Kinetica nell\'elenco delle tastiere di sistema</string>
-    <string name="onboarding_step2">2. Imposta Kinetica come tastiera in uso</string>
+    <string name="onboarding_title">Configura Duet</string>
+    <string name="onboarding_step1">1. Attiva Duet nell\'elenco delle tastiere di sistema</string>
+    <string name="onboarding_step2">2. Imposta Duet come tastiera in uso</string>
     <string name="onboarding_step3">3. Provala</string>
     <string name="onboarding_enable">Attiva</string>
     <string name="onboarding_select">Scegli</string>
@@ -81,7 +81,7 @@
     <string name="tip_ctrl_summary">Imposta un accordo o uno swipe sui tasti su Ctrl + tasto e scrivi il tasto: a, c, v, Del</string>
     <string name="tip_backup_title">Tutto in un file</string>
     <string name="tip_backup_summary">Backup salva ogni impostazione, parola appresa, accordo e swipe sui tasti, e li ripristina su un altro telefono</string>
-    <string name="tip_learned_title">Guarda cosa ha imparato Kinetica</string>
+    <string name="tip_learned_title">Guarda cosa ha imparato Duet</string>
     <string name="tip_learned_summary">Dizionario elenca le parole apprese e quelle bloccate, lingua per lingua</string>
     <string name="tip_bigger_dictionary_title">Un dizionario più grande</string>
     <string name="tip_bigger_dictionary_summary">Dizionario importa un elenco di parole AOSP e lo unisce sul telefono, senza internet</string>
@@ -179,7 +179,7 @@
     <string name="pref_group_key_symbols_summary">Cosa offrono questi tre tasti tenuti premuti</string>
     <string name="pref_group_gestures_more_title">Swipe e trascinamenti</string>
     <string name="pref_group_gestures_more_summary">Swipe sui tasti, trascinamento di cancella e della barra spaziatrice</string>
-    <string name="pref_group_learn_title">Impara Kinetica</string>
+    <string name="pref_group_learn_title">Impara Duet</string>
     <string name="pref_group_learn_summary">Esercizi per due pollici e brevi consigli, dalle basi in su</string>
     <string name="contribute_title">Contribuisci</string>
     <string name="pref_contribute_summary">Sostieni la tastiera</string>
@@ -307,7 +307,7 @@
     <string name="tutor_title">Esercitati con due pollici</string>
     <string name="tutor_summary">Cinque parole, ognuna disegnata sulla tastiera pollice per pollice, da scrivere in un campo di prova</string>
     <string name="tutor_step">Parola %1$d di %2$d: %3$s</string>
-    <string name="tutor_field_hint">Scrivi qui la parola con Kinetica</string>
+    <string name="tutor_field_hint">Scrivi qui la parola con Duet</string>
     <string name="tutor_skip">Parola successiva</string>
     <string name="tutor_well_done">Fatto.</string>
     <string name="tutor_hint_one_thumb">Un pollice: fai swipe su tutte le lettere senza staccare il dito, poi solleva.</string>
@@ -424,7 +424,7 @@
     <string name="dict_reset_confirm">Eliminare tutte le parole apprese e i pesi personali per %1$s? Non si può annullare.</string>
     <string name="dict_import_done">Dizionario unito importato: %1$d parole nuove</string>
     <string name="dict_import_not_wordlist">Non è un file wordlist.combined di AOSP (nessuna parola trovata)</string>
-    <string name="dict_import_not_personal">Non è un\'esportazione del dizionario personale di Kinetica</string>
+    <string name="dict_import_not_personal">Non è un\'esportazione del dizionario personale di Duet</string>
     <string name="dict_import_failed">Importazione non riuscita: impossibile leggere il file</string>
     <string name="dict_export_done">%1$d parole personali esportate</string>
     <string name="dict_export_failed">Esportazione non riuscita: impossibile scrivere il file</string>
@@ -459,17 +459,17 @@
     <string name="backup_export_partial">Backup scritto: %1$d voci, %2$d saltate</string>
     <string name="backup_export_failed">Backup non riuscito: impossibile scrivere il file</string>
     <string name="backup_import_message">Unisci aggiunge a ciò che c\'è già su questo telefono. Sostituisci cancella prima parole e frasi apprese. In entrambi i casi impostazioni e scorciatoie vengono sovrascritte. Prima viene salvata la tastiera attuale, quindi si può annullare.</string>
-    <string name="backup_import_not_backup">Non è un file di backup di Kinetica</string>
-    <string name="backup_import_too_new">Questo backup è stato fatto con una versione più recente di Kinetica</string>
+    <string name="backup_import_not_backup">Non è un file di backup di Duet</string>
+    <string name="backup_import_too_new">Questo backup è stato fatto con una versione più recente di Duet</string>
     <string name="backup_import_done">Ripristinati: %1$d parole, %2$d impostazioni</string>
     <string name="backup_progress_title">Ripristino</string>
     <string name="backup_progress_reading">Lettura del backup…</string>
     <string name="backup_progress_saving">Salvataggio della tastiera attuale…</string>
     <string name="backup_progress_writing">Scrittura %1$d / %2$d</string>
-    <string name="backup_progress_keep_open">%1$s\n\nTieni aperta Kinetica finché non finisce.</string>
+    <string name="backup_progress_keep_open">%1$s\n\nTieni aperto Duet finché non finisce.</string>
     <string name="backup_import_done_missing_base">Ripristinato. Importa di nuovo il dizionario migliorato per: %1$s</string>
     <string name="dict_clear_phrases">Cancella le frasi apprese</string>
-    <string name="dict_clear_phrases_confirm">Dimenticare tutte le coppie di parole che Kinetica ha imparato per %1$s? Le parole apprese restano.</string>
+    <string name="dict_clear_phrases_confirm">Dimenticare tutte le coppie di parole che Duet ha imparato per %1$s? Le parole apprese restano.</string>
     <string name="pref_learn_phrases_title">Impara le frasi che scrivi</string>
     <string name="pref_learn_phrases_summary">Ricorda quale parola scrivi di solito dopo quale, per indovinare meglio la successiva. Resta solo su questo telefono, mai in un\'esportazione del dizionario</string>
     <string name="pref_double_space_period_title">Doppio spazio per il punto</string>
@@ -558,6 +558,6 @@
     <string name="clipboard_empty">Niente copiato nell\'ultima ora</string>
     <string name="voice_none">Nessuna tastiera di dettatura è attiva. Attivane una qui, poi premi di nuovo il tasto</string>
     <string name="pref_sms_codes_title">Codici dagli SMS</string>
-    <string name="pref_sms_codes_summary">In un campo che chiede un codice, propone il codice di un SMS ricevuto negli ultimi dieci minuti. Richiede il permesso di leggere gli SMS. Kinetica li legge solo su questo telefono e non ha accesso a internet</string>
-    <string name="pref_sms_codes_denied">Kinetica non ha il permesso di leggere gli SMS, quindi i codici restano disattivati</string>
+    <string name="pref_sms_codes_summary">In un campo che chiede un codice, propone il codice di un SMS ricevuto negli ultimi dieci minuti. Richiede il permesso di leggere gli SMS. Duet li legge solo su questo telefono e non ha accesso a internet</string>
+    <string name="pref_sms_codes_denied">Duet non ha il permesso di leggere gli SMS, quindi i codici restano disattivati</string>
 </resources>

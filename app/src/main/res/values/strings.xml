@@ -2,12 +2,12 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <!-- Translations go in values-<code>/strings.xml and fall back to English string by string,
          so a partial file works. CONTRIBUTING.md says what to leave alone. -->
-    <string name="app_name" translatable="false">Kinetica</string>
+    <string name="app_name" translatable="false">Duet</string>
     <!-- The application id, as a resource so the settings sub-screen intents below
          follow the build they are running in. The debug build overrides it. -->
-    <string name="app_pkg" translatable="false">com.kinetica.keyboard</string>
-    <string name="ime_name">Kinetica Keyboard</string>
-    <string name="spell_checker_name">Kinetica spell checker</string>
+    <string name="app_pkg" translatable="false">io.github.jstumfoll2.duet</string>
+    <string name="ime_name">Duet Keyboard</string>
+    <string name="spell_checker_name">Duet spell checker</string>
     <string name="subtype_en_us" translatable="false">English (US)</string>
     <string name="subtype_it_it" translatable="false">Italiano</string>
     <string name="subtype_es_es" translatable="false">Español</string>
@@ -24,15 +24,15 @@
     <string name="settings_search">Search settings</string>
     <string name="settings_search_hint">Search settings</string>
     <string name="settings_search_none">No setting matches that</string>
-    <string name="settings_title">Kinetica Settings</string>
+    <string name="settings_title">Duet Settings</string>
     <string name="licenses_title">Open-source licenses</string>
     <string name="pref_version_title">Version</string>
     <string name="pref_licenses_summary">Data sources and their licenses (GPL-3.0 app; MIT and CC BY 2.0 FR data)</string>
     <string name="licenses_missing">License notices missing from this build.</string>
 
-    <string name="onboarding_title">Set up Kinetica</string>
-    <string name="onboarding_step1">1. Turn on Kinetica in the system keyboard list</string>
-    <string name="onboarding_step2">2. Make Kinetica the current keyboard</string>
+    <string name="onboarding_title">Set up Duet</string>
+    <string name="onboarding_step1">1. Turn on Duet in the system keyboard list</string>
+    <string name="onboarding_step2">2. Make Duet the current keyboard</string>
     <string name="onboarding_step3">3. Try it out</string>
     <string name="onboarding_enable">Enable</string>
     <string name="onboarding_select">Select</string>
@@ -103,7 +103,7 @@
     <string name="tip_ctrl_summary">Set a chord or an edge swipe to Ctrl + key and type the key: a, c, v, Del</string>
     <string name="tip_backup_title">Keep everything in one file</string>
     <string name="tip_backup_summary">Backup saves every setting, learned word, chord and swipe, and restores them on another phone</string>
-    <string name="tip_learned_title">See what Kinetica learned</string>
+    <string name="tip_learned_title">See what Duet learned</string>
     <string name="tip_learned_summary">Dictionary lists your learned and blocked words, per language</string>
     <string name="tip_bigger_dictionary_title">A bigger dictionary</string>
     <string name="tip_bigger_dictionary_summary">Dictionary imports an AOSP word list and merges it on the phone, with no network</string>
@@ -204,7 +204,7 @@
     <string name="pref_group_key_symbols_summary">What those three keys offer when held</string>
     <string name="pref_group_gestures_more_title">Swipes and slides</string>
     <string name="pref_group_gestures_more_summary">Key swipes, backspace and spacebar slides</string>
-    <string name="pref_group_learn_title">Learn Kinetica</string>
+    <string name="pref_group_learn_title">Learn Duet</string>
     <string name="pref_group_learn_summary">Practice for two thumbs, and short tips from the basics up</string>
     <string name="contribute_title">Contribute</string>
     <string name="pref_contribute_summary">Support the keyboard</string>
@@ -335,7 +335,7 @@
     <string name="tutor_title">Practise two thumbs</string>
     <string name="tutor_summary">Five words, each drawn over the board thumb by thumb, typed in a practice field</string>
     <string name="tutor_step">Word %1$d of %2$d: %3$s</string>
-    <string name="tutor_field_hint">Type the word here with Kinetica</string>
+    <string name="tutor_field_hint">Type the word here with Duet</string>
     <string name="tutor_skip">Next word</string>
     <string name="tutor_well_done">Done.</string>
     <string name="tutor_hint_one_thumb">One thumb: swipe through every letter without lifting, then lift.</string>
@@ -481,7 +481,7 @@
     <string name="dict_reset_confirm">Delete all learned words and personal weights for %1$s? This cannot be undone.</string>
     <string name="dict_import_done">Merged dictionary imported: %1$d new words added</string>
     <string name="dict_import_not_wordlist">Not an AOSP wordlist.combined file (no word entries found)</string>
-    <string name="dict_import_not_personal">Not a Kinetica personal dictionary export</string>
+    <string name="dict_import_not_personal">Not a Duet personal dictionary export</string>
     <string name="dict_import_failed">Import failed: could not read the file</string>
     <string name="dict_export_done">Exported %1$d personal words</string>
     <string name="dict_export_failed">Export failed: could not write the file</string>
@@ -517,17 +517,17 @@
     <string name="backup_export_partial">Backup written: %1$d entries, %2$d skipped</string>
     <string name="backup_export_failed">Backup failed: could not write the file</string>
     <string name="backup_import_message">Merge adds to what this phone already has. Replace clears learned words and phrases first. Either way, settings and shortcuts are overwritten. The current keyboard is saved first, so this can be undone.</string>
-    <string name="backup_import_not_backup">Not a Kinetica backup file</string>
-    <string name="backup_import_too_new">This backup was made by a newer version of Kinetica</string>
+    <string name="backup_import_not_backup">Not a Duet backup file</string>
+    <string name="backup_import_too_new">This backup was made by a newer version of Duet</string>
     <string name="backup_import_done">Restored: %1$d words, %2$d settings</string>
     <string name="backup_progress_title">Restoring</string>
     <string name="backup_progress_reading">Reading the backup\u2026</string>
     <string name="backup_progress_saving">Saving a copy of the current keyboard first\u2026</string>
     <string name="backup_progress_writing">Writing %1$d / %2$d</string>
-    <string name="backup_progress_keep_open">%1$s\n\nKeep Kinetica open until this finishes.</string>
+    <string name="backup_progress_keep_open">%1$s\n\nKeep Duet open until this finishes.</string>
     <string name="backup_import_done_missing_base">Restored. Re-import the improved dictionary for: %1$s</string>
     <string name="dict_clear_phrases">Clear learned phrases</string>
-    <string name="dict_clear_phrases_confirm">Forget every word pair Kinetica has learned for %1$s? The learned words themselves are kept.</string>
+    <string name="dict_clear_phrases_confirm">Forget every word pair Duet has learned for %1$s? The learned words themselves are kept.</string>
     <string name="pref_learn_phrases_title">Learn phrases you type</string>
     <string name="pref_learn_phrases_summary">Remembers which word you tend to type after which, to guess the next one better. Kept on this phone only, never in a dictionary export</string>
     <string name="pref_double_space_period_title">Double-tap space for a full stop</string>
@@ -601,6 +601,6 @@
     <string name="clipboard_empty">Nothing copied in the last hour</string>
     <string name="voice_none">No voice typing keyboard is turned on. Turn one on here, then press the key again</string>
     <string name="pref_sms_codes_title">Codes from text messages</string>
-    <string name="pref_sms_codes_summary">In a field that asks for a code, offer the code from a text message received in the last ten minutes. Needs permission to read text messages. Kinetica only reads them on this phone and has no internet access</string>
-    <string name="pref_sms_codes_denied">Kinetica was not allowed to read text messages, so codes stay off</string>
+    <string name="pref_sms_codes_summary">In a field that asks for a code, offer the code from a text message received in the last ten minutes. Needs permission to read text messages. Duet only reads them on this phone and has no internet access</string>
+    <string name="pref_sms_codes_denied">Duet was not allowed to read text messages, so codes stay off</string>
 </resources>

@@ -52,7 +52,7 @@ class ThemePreviewView @JvmOverloads constructor(
         canvas.drawRoundRect(rect, r, r, fill)
         label.textSize = barH * 0.46f
         label.color = t.suggestionPrimary
-        canvas.drawText("Kinetica", w * 0.28f, barH * 0.68f, label)
+        canvas.drawText("Duet", w * 0.28f, barH * 0.68f, label)
         label.color = t.suggestionText
         canvas.drawText("kinetics", w * 0.72f, barH * 0.68f, label)
         // The accent, as the page dot the real strip draws in it.

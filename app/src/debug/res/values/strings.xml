@@ -4,13 +4,13 @@
       Overrides for the debug build. The system keyboard picker lists ime_name, so the
       two builds need different names there.
     -->
-    <string name="app_name">Kinetica DEV</string>
-    <string name="ime_name">Kinetica DEV Keyboard</string>
-    <string name="app_pkg" translatable="false">com.kinetica.keyboard.dev</string>
+    <string name="app_name">Duet DEV</string>
+    <string name="ime_name">Duet DEV Keyboard</string>
+    <string name="app_pkg" translatable="false">io.github.jstumfoll2.duet.dev</string>
 
-    <string name="trace_title">Kinetica DEV trace</string>
+    <string name="trace_title">Duet DEV trace</string>
     <string name="trace_recording">Recording decode traces</string>
-    <string name="trace_explain">Every gesture decoded by the DEV keyboard is written to a file on this device, including the words it produces. Nothing leaves the device and nothing is sent anywhere. This build exists to capture that file; the normal Kinetica build records nothing.</string>
+    <string name="trace_explain">Every gesture decoded by the DEV keyboard is written to a file on this device, including the words it produces. Nothing leaves the device and nothing is sent anywhere. This build exists to capture that file; the normal Duet build records nothing.</string>
     <string name="trace_export">Export</string>
     <string name="trace_clear">Clear</string>
     <string name="trace_empty">Nothing recorded yet.</string>
@@ -23,8 +23,8 @@
     <string name="trace_words_export">Export word traces</string>
     <string name="trace_words_clear">Clear word traces</string>
     <string name="practice_open">Practice mode</string>
-    <string name="practice_title">Kinetica DEV practice</string>
-    <string name="practice_explain">Swipe or tap the word shown with the Kinetica DEV keyboard, then space, three times per word. Each attempt is recorded with the shown word as its label, for measuring the decoder. If you know an attempt went wrong, tap Discard last swipe and do it again. Recording stops when you leave this screen.</string>
+    <string name="practice_title">Duet DEV practice</string>
+    <string name="practice_explain">Swipe or tap the word shown with the Duet DEV keyboard, then space, three times per word. Each attempt is recorded with the shown word as its label, for measuring the decoder. If you know an attempt went wrong, tap Discard last swipe and do it again. Recording stops when you leave this screen.</string>
     <string name="practice_progress">Attempt %1$d of %2$d · %3$d recorded, %4$d decoded as shown</string>
     <string name="practice_discard">Discard last swipe</string>
 
