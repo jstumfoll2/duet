@@ -324,6 +324,12 @@ class KeyboardView @JvmOverloads constructor(
 
     private var layout: KeyboardLayout? = null
     private val keyRects = ArrayList<RectF>()
+
+    // The strip between the numbers row's digits and the top letter row, in view pixels, or
+    // empty (top >= bottom) when the row is off or has no gap. See [letterUnderGap].
+    private var numberGapTop = 0f
+    private var numberGapBottom = 0f
+
     private val keyInsets = ArrayList<RectF>()
     private var uppercase = false
     private var staticLayer: Bitmap? = null
@@ -738,11 +744,6 @@ class KeyboardView @JvmOverloads constructor(
         renderStaticLayer()
         invalidate()
     }
-
-    // The strip between the numbers row's digits and the top letter row, in view pixels, or
-    // empty (top >= bottom) when the row is off or has no gap. See [letterUnderGap].
-    private var numberGapTop = 0f
-    private var numberGapBottom = 0f
 
     private fun measureNumberRowGap(l: KeyboardLayout) {
         var digitsBottom = -1f
