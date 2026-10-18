@@ -1,0 +1,56 @@
+INFO MainProcess vocabulary: 238197 words
+INFO ForkPoolWorker-1 shard 0: downloading https://huggingface.co/datasets/allenai/c4/resolve/main/en/c4-train.00000-of-01024.json.gz
+INFO ForkPoolWorker-2 shard 1: downloading https://huggingface.co/datasets/allenai/c4/resolve/main/en/c4-train.00001-of-01024.json.gz
+INFO ForkPoolWorker-1 shard 0: 356317 docs, 125701206 words, 12727992 pairs, 43633680 triples
+INFO ForkPoolWorker-1 shard 2: downloading https://huggingface.co/datasets/allenai/c4/resolve/main/en/c4-train.00002-of-01024.json.gz
+INFO ForkPoolWorker-2 shard 1: 356318 docs, 125084523 words, 12685434 pairs, 43443498 triples
+INFO ForkPoolWorker-2 shard 3: downloading https://huggingface.co/datasets/allenai/c4/resolve/main/en/c4-train.00003-of-01024.json.gz
+INFO ForkPoolWorker-1 shard 2: 356317 docs, 125932765 words, 12734880 pairs, 43733579 triples
+INFO ForkPoolWorker-1 shard 4: downloading https://huggingface.co/datasets/allenai/c4/resolve/main/en/c4-train.00004-of-01024.json.gz
+INFO ForkPoolWorker-2 shard 3: 356317 docs, 125522007 words, 12683230 pairs, 43524959 triples
+INFO ForkPoolWorker-2 shard 5: downloading https://huggingface.co/datasets/allenai/c4/resolve/main/en/c4-train.00005-of-01024.json.gz
+INFO ForkPoolWorker-2 shard 5: 356318 docs, 125192893 words, 12694425 pairs, 43470874 triples
+INFO ForkPoolWorker-1 shard 4: 356317 docs, 125529555 words, 12700759 pairs, 43569692 triples
+INFO MainProcess total: 2137904 docs, 752962949 words
+INFO MainProcess bigrams.tsv.gz: 3000000 kept of 6900962 with count >= 3
+INFO MainProcess trigrams.tsv.gz: 4000000 kept of 12779943 with count >= 3
+one	of	the	340612
+as	well	as	304479
+a	lot	of	186686
+if	you	are	153286
+be	able	to	151164
+in	order	to	133704
+some	of	the	130737
+part	of	the	124395
+you	want	to	122151
+you	need	to	117399
+if	you	have	108118
+this	is	a	108020
+there	is	a	104229
+the	end	of	101399
+is	one	of	97585
+to	be	a	92963
+of	the	most	90147
+it	is	a	86543
+a	number	of	85704
+the	united	states	80962
+this	is	the	77767
+out	of	the	76161
+there	is	no	76126
+all	of	the	74397
+a	variety	of	70697
+in	addition	to	70103
+if	you	want	68882
+in	the	world	67007
+you	have	to	66326
+would	like	to	64875
+end	of	the	64869
+the	fact	that	61179
+you	will	be	61090
+you	have	a	59993
+the	use	of	59971
+the	number	of	59233
+when	it	comes	58925
+at	the	end	57914
+it	comes	to	57542
+according	to	the	57415
