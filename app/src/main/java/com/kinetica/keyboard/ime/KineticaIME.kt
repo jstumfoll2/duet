@@ -41,6 +41,7 @@ import com.kinetica.keyboard.engine.AccentFolder
 import com.kinetica.keyboard.engine.DecodeTrace
 import com.kinetica.keyboard.engine.Alphabet
 import com.kinetica.keyboard.engine.DictionaryLoader
+import com.kinetica.keyboard.engine.DigitSlips
 import com.kinetica.keyboard.engine.GestureEngine
 import com.kinetica.keyboard.engine.GrammarCheck
 import com.kinetica.keyboard.engine.KeyboardGeometry
@@ -48,6 +49,7 @@ import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.LanguageMomentum
 import com.kinetica.keyboard.engine.LanguageStreak
 import com.kinetica.keyboard.engine.SharedWordFiling
+import com.kinetica.keyboard.engine.ShortSlips
 import com.kinetica.keyboard.engine.SpellLexicon
 import com.kinetica.keyboard.engine.WordComposer
 import com.kinetica.keyboard.engine.WordPredictor
@@ -571,6 +573,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 config.homeRowSpreadPct != previous.homeRowSpreadPct ||
                 // The apostrophe key reshapes the home row too.
                 config.apostropheKey != previous.apostropheKey ||
+                config.apostropheWidthPct != previous.apostropheWidthPct ||
+                config.numberRowGapPct != previous.numberRowGapPct ||
                 config.letterAlternates != previous.letterAlternates ||
                 config.emojiKey != previous.emojiKey ||
                 config.numberPriority != previous.numberPriority ||
@@ -880,7 +884,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private fun alphaLayout(): KeyboardLayout =
         AlphaLayouts.build(layoutFor(AlphaLayouts.name(config, bundledLayouts)), config, editorState.fieldKind)
-            .also { layoutFieldKind = editorState.fieldKind }
+            .also {
+                layoutFieldKind = editorState.fieldKind
+                digitLetters = LayoutMutations.digitLetters(it)
+            }
+
+    // The letter under each numbers-row digit on the letters last built, for [fixDigitSlip].
+    private var digitLetters: Map<Char, Char> = emptyMap()
 
     private fun wordlistAsset(lang: String) = "dictionaries/${lang}_wordlist.txt"
     private fun bigramsAsset(lang: String) = "dictionaries/${lang}_bigrams.txt"
@@ -2142,6 +2152,56 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * asks (one commit can be the uncorrected typo itself). No tap autocorrect fires on either,
      * whether or not the active list holds the letters.
      */
+    /**
+     * The word a short tapped [literal] was meant to be ([ShortSlips]), or null. Each resident
+     * language may offer it, the active one first, so `going ti` typed in Spanish mode still
+     * reaches English `to`. Letters the user commits in any language are kept, and so are letters
+     * another resident language pairs with the word before them.
+     */
+    private fun shortSlip(literal: String): String? {
+        val g = currentGeometry ?: return null
+        val prev = composer?.contextSnapshot()?.lastOrNull() ?: return null
+        val w = literal.lowercase()
+        val floor = KineticaConstants.PERSONAL_MERGE_MIN_COUNT
+        if (listOf(personalCounts, secondaryCounts, extraCounts).any { (it[w] ?: 0) >= floor }) return null
+        val predictors = listOfNotNull(predictor, secondaryPredictor, extraPredictor)
+        for (p in predictors) {
+            val lang = p.language.ifEmpty { config.language }
+            val standalone = ('a'..'z').filterTo(HashSet()) { StandaloneLetters.isWord(it, lang) }
+            val fix = ShortSlips.correction(p, g, literal, prev, standalone) ?: continue
+            if (predictors.any { it !== p && it.pairByte(prev, w) >= KineticaConstants.SLIP_MIN_PAIR_BYTE }) return null
+            return fix
+        }
+        return null
+    }
+
+    /**
+     * A numbers-row digit typed inside a word, where the letter below it was meant: `t9` becomes
+     * `to` before the delimiter lands ([DigitSlips]). The run is the letters and digits before
+     * the cursor, the pending tapped word included; a fix replaces it in place and backspace
+     * takes it back as it does an autocorrect.
+     */
+    private fun fixDigitSlip() {
+        if (!config.numberRow || !config.slipCorrection || config.autocorrectConfidence == null) return
+        if (editorState.privateMode || editorState.addressField || editorState.fieldKind != FieldKind.TEXT) return
+        if (digitLetters.isEmpty() || selectionLength() != 0) return
+        if (composer?.hasSwipeToken() == true) return
+        val p = predictor ?: return
+        val before = ich.textBeforeCursor(KineticaConstants.MAX_WORD_LEN + 1)?.toString() ?: return
+        val run = before.takeLastWhile { it.isLetterOrDigit() }
+        if (run.length == before.length && before.length > KineticaConstants.MAX_WORD_LEN) return
+        if (run.none { it.isDigit() }) return
+        val fix = listOfNotNull(p, secondaryPredictor, extraPredictor)
+            .firstNotNullOfOrNull { DigitSlips.correction(it, run, digitLetters) } ?: return
+        abandonWord()
+        ich.replaceBeforeCursor(run.length, fix)
+        expectAfter(run.length, fix.length)
+        learnWord(fix)
+        autocorrectUndo = AutocorrectUndo(run, fix, cursorExpected())
+        lastAutocorrect = AutocorrectUndo(run, fix, cursorExpected())
+        DecodeTrace.log { "  digit slip typed=$run -> $fix" }
+    }
+
     private fun heldOutsideActive(literal: String): Boolean {
         val w = literal.lowercase()
         val floor = KineticaConstants.PERSONAL_MERGE_MIN_COUNT
@@ -3240,6 +3300,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private fun onSpace() {
         if (consumeCtrl("space")) return
+        fixDigitSlip()
         if (config.tidySpaces && composer?.hasPendingWord != true) {
             when (tidySpaceTap(ich.textBeforeCursor(2) ?: "", config.doubleSpacePeriod)) {
                 SpaceTap.SENTENCE_END -> {
@@ -3472,6 +3533,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (performIfAction(text)) return
         // "Hi" + autospace + "!" should read "Hi!", not "Hi !".
         eatAutospaceBefore(text)
+        if (text.none { it.isLetterOrDigit() }) fixDigitSlip()
         finalizePendingWord()
         commitTracked(text)
         updateAutoShift()
@@ -3629,6 +3691,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun onEnter() {
         if (consumeCtrl("enter")) return
         cancelAutospace()
+        fixDigitSlip()
         finalizePendingWord()
         // The symbol pages and the numpad have no enter hold, so their tap keeps the action.
         val holdSends = config.enterHoldSends && keyboardView?.showsLetters != false
@@ -3863,6 +3926,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             } else {
                 null
             }
+            // A short word one key off, which the decode cannot offer back (tapped `ti` lists `tie`,
+            // never `to`): built from the board and decided by the word before it.
+            val slip = if (target == null && threshold != null && !keeps && config.slipCorrection) {
+                shortSlip(lastLiteral)
+            } else {
+                null
+            }
             if (keeps) nextCommitDeliberate = true
             if (keeps && threshold != null) {
                 DecodeTrace.log {
@@ -3870,9 +3940,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         if (reloadedWord != null && reloadedByHand) "src=edit" else "src=undone"
                 }
             }
-            if (target != null) {
-                val display = displayWord(target.word)
+            if (target != null || slip != null) {
+                val display = displayWord(target?.word ?: slip!!)
                 val typed = tentativeWord
+                if (slip != null) DecodeTrace.log { "  slip typed=$typed -> $display" }
                 replaceTentative(display)
                 finalWord = display
                 how = "autocorrect"

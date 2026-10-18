@@ -44,6 +44,28 @@ object PersonalWordRows {
         rows.sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })
 
     /**
+     * The rows for words the language's dictionary does not hold: the ones the keyboard learned.
+     *
+     * Every committed word gets a row, dictionary words included, because the count is what ranks
+     * a word the user writes above one they do not (`PERSONAL_BOOST * ln(1 + count)`). So the
+     * table is mostly common words and the list showed all of them; the new words are what a
+     * user looking at "learned words" means. [dictionary] is the base list's words, lowercase.
+     */
+    fun learnedOnly(rows: List<Pair<String, Int>>, dictionary: Set<String>): List<Pair<String, Int>> =
+        rows.filter { it.first.lowercase() !in dictionary }
+
+    /** The base wordlist's words from its lines (`word<TAB>count`), lowercase, for [learnedOnly]. */
+    fun dictionaryWords(lines: Sequence<String>): Set<String> {
+        val out = HashSet<String>()
+        for (line in lines) {
+            val tab = line.indexOf('\t')
+            val word = if (tab < 0) line.trim() else line.substring(0, tab)
+            if (word.isNotEmpty()) out.add(word.lowercase())
+        }
+        return out
+    }
+
+    /**
      * Rows of [rows] whose word contains [query], in the order [rows] already has: count order,
      * so the most influential row stays first, as [sortedForDisplay] intends.
      *

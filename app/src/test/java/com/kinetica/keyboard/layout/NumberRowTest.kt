@@ -97,4 +97,24 @@ class NumberRowTest {
         // Only the top row.
         assertEquals(listOf("à"), l.keys.first { it.id == "a" }.alternates)
     }
+
+    @Test
+    fun theGapShortensTheDigitsAndLeavesTheLettersWhereTheyWere() {
+        val plain = LayoutMutations.withNumberRow(qwerty())
+        val gapped = LayoutMutations.withNumberRow(qwerty(), 0.25f)
+        val digit = gapped.keys.first { it.id == "num_9" }
+        val plainDigit = plain.keys.first { it.id == "num_9" }
+        assertEquals(0f, digit.y, 1e-6f)
+        assertEquals(plainDigit.h * 0.75f, digit.h, 1e-6f)
+        assertEquals(plain.keys.filter { it.isLetter }, gapped.keys.filter { it.isLetter })
+        // Capped at half the row.
+        assertEquals(plainDigit.h * 0.5f, LayoutMutations.withNumberRow(qwerty(), 0.9f).keys.first { it.id == "num_9" }.h, 1e-6f)
+    }
+
+    @Test
+    fun eachDigitSitsOverTheLetterItWasMeantFor() {
+        val map = LayoutMutations.digitLetters(LayoutMutations.withNumberRow(qwerty(), 0.25f))
+        assertEquals("1234567890".zip("qwertyuiop").toMap(), map)
+        assertEquals(emptyMap<Char, Char>(), LayoutMutations.digitLetters(qwerty()))
+    }
 }

@@ -399,7 +399,7 @@
     <string name="dict_lang_header_active">%1$s (attiva)</string>
     <string name="dict_base_line">Base: %1$s • %2$d parole • %3$s</string>
     <string name="dict_updated_bundled">incluso nell\'app</string>
-    <string name="dict_personal_line">Personale: %1$d parole apprese</string>
+    <string name="dict_personal_line">Personale: %1$d parole nuove apprese, più %2$d parole del dizionario ordinate per quanto le usi</string>
     <string name="dict_source_bundled">incluso (OpenSubtitles/Tatoeba)</string>
     <string name="dict_source_aosp">unione AOSP importata</string>
     <string name="dict_import_base">Importa un dizionario migliorato (wordlist.combined)…</string>
@@ -412,7 +412,7 @@
     <string name="dict_blocked_empty">Nessuna parola bloccata. Una parola bloccata esce dal dizionario e non viene più suggerita; trascinare un suggerimento in giù ne abbassa solo il peso.</string>
     <string name="dict_export_personal">Esporta il dizionario personale…</string>
     <string name="dict_import_personal">Importa un dizionario personale…</string>
-    <string name="dict_manage_personal">Rivedi le parole apprese (%1$d)…</string>
+    <string name="dict_manage_personal">Rivedi le parole apprese (%1$d nuove)…</string>
     <string name="dict_manage_personal_title">Parole apprese: %1$s</string>
     <string name="dict_word_row_taken_back">%1$s · ritirata, non suggerita</string>
     <string name="dict_words_help">Il numero dice quante volte hai scritto la parola; trascinarla in su sulla barra lo aumenta. Da %1$d viene suggerita, sotto resta ma non viene suggerita. Spunta le parole per eliminarle o alzarle.</string>

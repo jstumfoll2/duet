@@ -633,6 +633,27 @@ class LayoutMutationsTest {
     }
 
     @Test
+    fun aWiderApostropheKeyTakesItsRoomFromTheHomeRow() {
+        val half = LayoutMutations.withApostropheKey(homeRowLayout(), 0.5f)
+        assertEquals(LayoutMutations.withApostropheKey(homeRowLayout()), half)
+        for (width in listOf(0.6f, 0.75f, 0.9f, 1f)) {
+            val out = LayoutMutations.withApostropheKey(homeRowLayout(), width)
+            val apos = out.keys.single { it.output == "'" }
+            val a = out.keys.first { it.id == "a" }
+            val l = out.keys.first { it.id == "l" }
+            assertEquals("width $width", 0.1f * width, apos.w, 1e-6f)
+            assertEquals("flush right at $width", 1f, apos.x + apos.w, 1e-6f)
+            assertTrue("l clear of the key at $width", l.x + l.w <= apos.x + 1e-6f)
+            assertTrue("a on the board at $width", a.x >= -1e-6f)
+        }
+        // A full key: the row reaches the left edge and meets the key.
+        val full = LayoutMutations.withApostropheKey(homeRowLayout(), 1f)
+        assertEquals(0f, full.keys.first { it.id == "a" }.x, 1e-6f)
+        val fullL = full.keys.first { it.id == "l" }
+        assertEquals(full.keys.single { it.output == "'" }.x, fullL.x + fullL.w, 1e-6f)
+    }
+
+    @Test
     fun withApostropheKeyIsIdempotent() {
         val once = LayoutMutations.withApostropheKey(homeRowLayout())
         val twice = LayoutMutations.withApostropheKey(once)

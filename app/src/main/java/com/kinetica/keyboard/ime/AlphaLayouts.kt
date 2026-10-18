@@ -51,7 +51,7 @@ object AlphaLayouts {
             l, config.periodAlternates.map(::cell), config.commaAlternates.map(::cell),
         )
         // Optional apostrophe key in the home-row right padding.
-        if (config.apostropheKey) l = LayoutMutations.withApostropheKey(l)
+        if (config.apostropheKey) l = LayoutMutations.withApostropheKey(l, config.apostropheWidthPct / 100f)
         // After the apostrophe key, which the spread stops at; before the numbers row, which moves
         // every row and leaves none at y=0.25.
         if (config.homeRowSpreadPct > 0) l = LayoutMutations.withHomeRowSpread(l, config.homeRowSpreadPct / 100f)
@@ -85,7 +85,7 @@ object AlphaLayouts {
         l = LayoutMutations.withPeriodKey(l, config.periodMode, config.periodCustom)
         // Last: it moves every key, and the mutations above find keys by row.
         if (config.numberRow) {
-            l = LayoutMutations.withNumberRow(l)
+            l = LayoutMutations.withNumberRow(l, config.numberRowGapPct / 100f)
             l = LayoutMutations.withNumberRowLists(l, lists)
         }
         return l

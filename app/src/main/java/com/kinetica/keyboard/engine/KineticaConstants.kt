@@ -707,6 +707,27 @@ object KineticaConstants {
     const val REAL_WORD_MAX_FREQ_BYTE = 90
     const val REAL_WORD_MIN_FREQ_GAP = 90
 
+    // Short-word slips (ShortSlips): one key off in a tapped word of at most three letters, decided
+    // by the previous word. A neighbour is a key that touches the typed one: within 1.05 kw in its own
+    // row, or within 0.8 kw across in the row above or below (the two keys a row step overlaps). The typed letters may be a word up to byte 125 (`ti`
+    // at 110; `so` is 200, `in` 230), the replacement must be 60 bytes more frequent, and the pair
+    // with the previous word must be at least byte 100 and 60 above the pair as typed. On Jason's
+    // traces (1,643 tapped English commits) this fires 40 times, among them `going ti`, `need ti`,
+    // `in tbe`, `instead og`, `but iy` and `this s`.
+    const val SLIP_MAX_LEN = 3
+    const val SLIP_ROW_NEIGHBOUR_KW = 1.05f
+    const val SLIP_DIAGONAL_NEIGHBOUR_KW = 0.8f
+    const val SLIP_MAX_TYPED_BYTE = 125
+    const val SLIP_MIN_FREQ_GAP = 60
+    const val SLIP_MIN_PAIR_BYTE = 100
+    const val SLIP_MIN_PAIR_GAP = 60
+
+    // Numbers-row slips (DigitSlips): at most two digits in the run, and the word they spell as
+    // letters at byte 160 or more (a corpus count near 45 000). `to` 247, `of` 237, `with` 224 and
+    // `or` 208 qualify; `3d` read as `ed` (150) and `m8` as `mi` (134) do not.
+    const val DIGIT_SLIP_MAX_DIGITS = 2
+    const val DIGIT_SLIP_MIN_BYTE = 160
+
     // Per-word cross-language ranking (WordComposer.merge) has no constants of its own:
     // - No cross-dictionary frequency normalisation is needed. Each asset is log-quantised
     //   against its own maximum, and fw at matched rank percentiles agrees within 1.04-1.07x
