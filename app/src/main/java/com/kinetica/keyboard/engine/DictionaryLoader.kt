@@ -42,6 +42,7 @@ object DictionaryLoader {
         blocked: Set<String> = emptySet(),
         spellingSwaps: Map<String, String> = emptyMap(),
         alphabet: Alphabet = Alphabet.LATIN,
+        newWordMinWeight: Int = 0,
     ): LoadedDictionary {
         // Duplicate displays (corpus word also in the user dictionary) merge
         // by summing counts, so personal use adds to corpus evidence.
@@ -76,6 +77,8 @@ object DictionaryLoader {
             if (lower in blocked) continue
             if (AccentFolder.fold(lower) == lower && lower !in bundledSpellings && lower in bundledKeys) continue
             if (lower !in bundledSpellings && lower in bundledUnapostrophed) continue
+            // A spelling the list lacks is a new word: it waits for [newWordMinWeight].
+            if (count < newWordMinWeight && lower !in bundledSpellings) continue
             countByDisplay[word] = (countByDisplay[word] ?: 0) + count
         }
 
@@ -140,6 +143,12 @@ object DictionaryLoader {
      * for [load]'s extraWords. Rows below PERSONAL_MERGE_MIN_COUNT, including rows de-reinforced
      * to zero, never reach the trie; see the constant's rationale.
      */
+    /**
+     * [load]'s newWordMinWeight for [userWordsForMerge] rows: a learned word no bundled list
+     * spells merges only at [KineticaConstants.NEW_WORD_MERGE_MIN_COUNT] commits.
+     */
+    const val NEW_WORD_MIN_WEIGHT = KineticaConstants.NEW_WORD_MERGE_MIN_COUNT * KineticaConstants.USER_FREQ_SCALE
+
     fun userWordsForMerge(rows: List<Pair<String, Int>>): List<Pair<String, Int>> =
         rows.filter { it.second >= KineticaConstants.PERSONAL_MERGE_MIN_COUNT }
             .map { it.first to it.second * KineticaConstants.USER_FREQ_SCALE }
