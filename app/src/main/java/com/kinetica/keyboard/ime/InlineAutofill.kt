@@ -1,5 +1,6 @@
 package com.kinetica.keyboard.ime
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.drawable.Icon
 import android.os.Build
@@ -27,6 +28,10 @@ object InlineAutofill {
 
     const val MAX_SUGGESTIONS = 6
 
+    // The style builders' setters are public API inherited from a base builder that
+    // androidx.autofill marks library-restricted, which lint reports on every call; the
+    // library's own samples call them the same way.
+    @SuppressLint("RestrictedApi")
     fun request(context: Context, chipHeightPx: Int, textColor: Int): InlineSuggestionsRequest {
         val d = context.resources.displayMetrics.density
         val pad = (12 * d).toInt()
