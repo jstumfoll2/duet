@@ -30579,7 +30579,6 @@ jonny	440
 winne	440
 kuzynami	440
 przydaje	440
-didn	440
 zmarnowałeś	440
 milczeniu	440
 zarządem	440
@@ -41264,7 +41263,6 @@ masowy	288
 dzikus	288
 jock	288
 małżeńskiego	288
-isn	288
 gorycz	288
 przywieziesz	288
 olbrzymim	288
@@ -47163,7 +47161,6 @@ delikatni	238
 szamana	238
 niezastąpiony	238
 dostrzegłam	238
-doesn	238
 sprawiaj	238
 niewiernych	238
 naznaczony	238

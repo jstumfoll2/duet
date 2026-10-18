@@ -57,18 +57,25 @@ object DictionaryLoader {
         // A learned spelling that only leaves the accents off a bundled word is not merged: as a
         // form it would outrank the word it misspells, and the bundled lists drop theirs for the
         // same reason. Rows learned earlier stay in the database and no longer reach the trie.
+        // Likewise a learned contraction with its apostrophe left off ("dont", "cant") when the
+        // bundled list holds the contraction and not the plain spelling: merged, it would stop the
+        // typed letters from being corrected to the contraction.
         val bundledSpellings = HashSet<String>()
         val bundledKeys = HashSet<String>()
+        val bundledUnapostrophed = HashSet<String>()
         if (extraWords.isNotEmpty()) {
             for (w in countByDisplay.keys) {
-                bundledSpellings.add(w.lowercase())
+                val lower = w.lowercase()
+                bundledSpellings.add(lower)
                 bundledKeys.add(AccentFolder.fold(w))
+                if ('\'' in lower) bundledUnapostrophed.add(lower.replace("'", ""))
             }
         }
         for ((word, count) in extraWords) {
             val lower = word.lowercase()
             if (lower in blocked) continue
             if (AccentFolder.fold(lower) == lower && lower !in bundledSpellings && lower in bundledKeys) continue
+            if (lower !in bundledSpellings && lower in bundledUnapostrophed) continue
             countByDisplay[word] = (countByDisplay[word] ?: 0) + count
         }
 

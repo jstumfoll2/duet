@@ -66,9 +66,9 @@ class RealWordCorrectionTest {
     @Test
     fun commonAndLongerRealWordsAreKept() {
         val p = english()
-        // Common words, and rare five-letter words one key from common ones.
-        // `whats` is a contraction typed without its apostrophe.
-        for (typed in listOf("so", "in", "on", "wafer", "jello", "excise", "fable", "whats")) {
+        // Common words, and rare five-letter words one key from common ones. (`whats` is no
+        // longer a word: ApostropheSpellingTest.)
+        for (typed in listOf("so", "in", "on", "wafer", "jello", "excise", "fable")) {
             assertTrue(typed, p.isWord(typed))
             assertNull(typed, correction(p, typed))
         }
