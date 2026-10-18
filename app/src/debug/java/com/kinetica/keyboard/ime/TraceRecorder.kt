@@ -11,7 +11,8 @@ import java.io.File
 import java.io.IOException
 
 /**
- * Developer build: the decode trace goes to a file as well as to logcat.
+ * Debug build: the decode trace goes to a file as well as to logcat, and a crash leaves its
+ * stack beside it.
  *
  * A file takes the computer out of the loop: type normally for a week, then export. A trace taken
  * tethered to a desk records typing at a desk, and the engine work is about how two thumbs move
@@ -26,6 +27,14 @@ object TraceRecorder {
     private const val MAX_BYTES = 4L * 1024 * 1024
     private const val DIR = "trace"
     private const val NAME = "kinetica_trace.log"
+    private const val CRASH_NAME = "kinetica_crash.log"
+
+    /**
+     * The keyboard's state for a crash line, without any text: lengths and flags only. Set by
+     * the service; read only when a crash is written.
+     */
+    @Volatile
+    var crashState: (() -> String)? = null
 
     private val lock = Any()
 
@@ -66,6 +75,34 @@ object TraceRecorder {
                 append(m)
             }
         }
+        // A restart reads as a gap in the trace otherwise: the line says where it began.
+        append("process start at=${System.currentTimeMillis()}")
+        installCrashHandler(File(dir, CRASH_NAME))
+    }
+
+    /**
+     * Writes an uncaught exception's stack to its own file, then hands it on, so Android still
+     * restarts the keyboard. Its own file and no lock: the crashing thread may hold [lock].
+     */
+    private fun installCrashHandler(crashFile: File) {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, e ->
+            try {
+                val state = try {
+                    crashState?.invoke() ?: "-"
+                } catch (inner: RuntimeException) {
+                    "unreadable"
+                }
+                crashFile.parentFile?.mkdirs()
+                crashFile.appendText(
+                    "CRASH at=${System.currentTimeMillis()} thread=${thread.name} state=$state\n" +
+                        e.stackTraceToString() + "\n",
+                )
+            } catch (write: IOException) {
+                Log.w("KineticaTrace", "crash write failed", write)
+            }
+            previous?.uncaughtException(thread, e)
+        }
     }
 
     private fun append(message: String) {
@@ -98,7 +135,9 @@ object TraceRecorder {
             val previous = File(f.parentFile, "$NAME.1")
             val head = if (previous.exists()) previous.readText() else ""
             val tail = if (f.exists()) f.readText() else ""
-            return head + tail
+            val crashes = File(f.parentFile, CRASH_NAME)
+            val crashText = if (crashes.exists()) "\n--- crashes ---\n" + crashes.readText() else ""
+            return head + tail + crashText
         }
     }
 
@@ -112,6 +151,7 @@ object TraceRecorder {
         val f = file ?: return
         synchronized(lock) {
             File(f.parentFile, "$NAME.1").delete()
+            File(f.parentFile, CRASH_NAME).delete()
             f.delete()
             lines = 0L
         }
