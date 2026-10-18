@@ -239,6 +239,7 @@
     <string name="notice_retype">Riscrivi</string>
     <string name="notice_expand">Espandi</string>
     <string name="notice_autospace_on">Spazio automatico attivato</string>
+    <string name="notice_wrong_language">Stai scrivendo in %1$s?</string>
     <string name="notice_toggle_on">%1$s: on</string>
     <string name="notice_toggle_off">%1$s: off</string>
     <string name="notice_name_next_word">Parola successiva</string>

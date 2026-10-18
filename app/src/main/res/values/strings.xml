@@ -266,6 +266,7 @@
     <string name="notice_retype">Retype</string>
     <string name="notice_expand">Expand</string>
     <string name="notice_autospace_on">Autospace on</string>
+    <string name="notice_wrong_language">Typing in %1$s?</string>
     <string name="notice_toggle_on">%1$s on</string>
     <string name="notice_toggle_off">%1$s off</string>
     <string name="notice_name_next_word">Next word</string>

@@ -27,6 +27,15 @@ class SpellLexiconTest {
     }
 
     @Test
+    fun aTypedWordIsFiledUnderTheLanguageThatSpellsIt() {
+        // English tapped with Spanish active: the filing lexicon holds the other languages.
+        val others = SpellLexicon(listOf("en" to en))
+        assertEquals("en", others.languageHolding("Then"))
+        assertEquals(null, others.languageHolding("tosay"))
+        assertEquals("es", SpellLexicon(listOf("es" to es, "en" to en)).languageHolding("el"))
+    }
+
+    @Test
     fun accentsMustMatchWhenTheDictionaryKeepsThem() {
         val accentOnly = dict("olvidó\t900\n")
         val lex = SpellLexicon(listOf("es" to accentOnly))

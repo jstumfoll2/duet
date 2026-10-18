@@ -29,6 +29,17 @@ class SpellLexicon(private val dictionaries: List<Pair<String, LoadedDictionary>
     }
 
     /**
+     * The first language, in priority order, whose dictionary holds [word] as spelled, or null.
+     * The keyboard files a typed word no resident dictionary holds by this: English tapped with
+     * Spanish active is learned as English, not as a new Spanish word.
+     */
+    fun languageHolding(word: String): String? {
+        val w = word.lowercase()
+        if (w.isEmpty()) return null
+        return dictionaries.firstOrNull { (_, d) -> holds(d, w) }?.first
+    }
+
+    /**
      * Up to [limit] words within [maxEdits(word)] edits of [word] (insert, delete, substitute,
      * swap two neighbours), on accent-folded letters, nearest first and then commonest. An
      * accent-only difference is distance 0, so the accented spelling leads. Case follows the

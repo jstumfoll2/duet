@@ -86,7 +86,12 @@ class KineticaSpellChecker : SpellCheckerService() {
             val override = DictionaryStore.wordlistOverride(context, lang)
             val stream = if (override.exists()) override.inputStream() else context.assets.open("dictionaries/${lang}_wordlist.txt")
             stream.bufferedReader().use {
-                DictionaryLoader.load(it, learned, alphabet = Alphabet.forLanguage(lang))
+                DictionaryLoader.load(
+                    it,
+                    learned,
+                    alphabet = Alphabet.forLanguage(lang),
+                    newWordMinWeight = DictionaryLoader.NEW_WORD_MIN_WEIGHT,
+                )
             }
         } catch (e: java.io.IOException) {
             Log.w(TAG, "no wordlist for $lang", e)

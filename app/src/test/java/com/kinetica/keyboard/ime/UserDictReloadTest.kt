@@ -15,7 +15,7 @@ import org.junit.Test
  */
 class UserDictReloadTest {
 
-    private val floor = KineticaConstants.PERSONAL_MERGE_MIN_COUNT
+    private val floor = KineticaConstants.NEW_WORD_MERGE_MIN_COUNT
 
     @Test
     fun aWordReachingTheMergeFloorAsksForAReload() {

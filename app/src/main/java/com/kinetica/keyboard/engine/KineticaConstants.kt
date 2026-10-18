@@ -634,6 +634,17 @@ object KineticaConstants {
     // accident. The floor also keeps rows de-reinforced to zero from returning as freqByte-1
     // ghosts through the max(1, ..) quantizer.
     const val PERSONAL_MERGE_MIN_COUNT = 2
+
+    // A learned spelling no bundled list holds needs one commit more: two commits was enough
+    // for typos to become decodable. In batch 7 (2026-10-18) English typed with Spanish active
+    // and its typos (`tosay`) reached the Spanish trie. A real new word (a name, slang) is typed
+    // again; a typo seldom three times.
+    const val NEW_WORD_MERGE_MIN_COUNT = 3
+
+    // Commits in a row filed into one other enabled language (words only it holds) before the
+    // spacebar asks whether the keyboard is in the wrong language. A third of batch 7's misses
+    // were English typed with Spanish left active, Mix off.
+    const val WRONG_LANGUAGE_STREAK = 3
     const val USER_FREQ_SCALE = 1000
 
     // Suggestion-bar badge tiers: 1..7 dots (1 center + up to 6 hexagon corners). Thresholds
