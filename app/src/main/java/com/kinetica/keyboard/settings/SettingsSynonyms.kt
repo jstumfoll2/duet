@@ -50,6 +50,7 @@ object SettingsSynonyms {
         Prefs.ZEN_MODE to listOf("minimal", "clean", "hide", "distraction", "plain"),
         Prefs.VIBRATION to listOf("haptic", "buzz", "feedback"),
         Prefs.VIBRATION_INTENSITY to listOf("haptic", "buzz", "strength"),
+        Prefs.KEY_SOUND to listOf("click", "audio", "noise", "feedback", "tick"),
 
         // Size, keys and the bar
         Prefs.KEYBOARD_HEIGHT_PCT to listOf("size", "tall", "short", "big", "small", "bigger"),
@@ -138,6 +139,7 @@ object SettingsSynonyms {
         Prefs.RETYPE_BUTTON to listOf("redo", "again", "undo", "try again"),
         Prefs.RETYPE_BUTTON_DP to listOf("redo", "again", "size", "width"),
         Prefs.PECK_MODE to listOf("literal", "no prediction", "raw", "typing"),
+        Prefs.INCOGNITO to listOf("private", "privacy", "learning", "forget", "history"),
 
         // Gestures
         Prefs.ALTERNATE_SWIPES to listOf("flick", "up", "accent", "gesture"),

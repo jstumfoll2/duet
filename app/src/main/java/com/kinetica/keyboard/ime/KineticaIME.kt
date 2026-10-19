@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -269,9 +270,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private val boardAlphabet: Alphabet get() = currentGeometry?.alphabet ?: Alphabet.LATIN
     private val layouts = HashMap<String, KeyboardLayout>()
     private var vibrator: Vibrator? = null
+    private var audioManager: AudioManager? = null
     private var prefListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     private var editorState = EditorState.DEFAULT
+
+    /** The field as the app described it, before the incognito switch is applied. */
+    private var fieldState = EditorState.DEFAULT
 
     private lateinit var config: KeyboardConfig
 
@@ -541,6 +546,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             // it into the chain below would rebuild one.
             if (config.expansionGeneration != previous.expansionGeneration) {
                 reloadExpansions()
+            }
+            if (config.incognito != previous.incognito) {
+                // Applies to the field already open, not only the next one.
+                editorState = fieldState.withIncognito(config.incognito)
             }
             if (config.peckMode != previous.peckMode) {
                 // Entering or leaving literal mode mid-word would leave a
@@ -1102,6 +1111,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val parts = ArrayList<String>(2)
         if (config.enabledLanguages.size > 1) parts.add(config.language.uppercase())
         if (config.peckMode) parts.add("TAP")
+        if (config.incognito) parts.add(INCOGNITO_TAG)
         NeuralRerank.spacebarTag()?.let { parts.add(it) }
         return if (parts.isEmpty()) null else parts.joinToString(" · ")
     }
@@ -1138,7 +1148,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             "  start restarting=$restarting pending=${tentativeLength > 0 || composer?.hasPendingWord == true}"
         }
         synchronizeLanguageOnStart()
-        editorState = EditorState.from(attribute)
+        fieldState = EditorState.from(attribute)
+        editorState = fieldState.withIncognito(config.incognito)
         backspaceTarget = null
         abandonWord()
         composer?.reset()
@@ -2364,7 +2375,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.ENTER, EditorAction.COPY_LINE, EditorAction.TOGGLE_NEXT_WORD,
             EditorAction.TOGGLE_RECENT_WORDS, EditorAction.TOGGLE_NUMBER_ROW,
             EditorAction.TOGGLE_TIDY_SPACES, EditorAction.TOGGLE_TYPING_SPEED,
-            EditorAction.TOGGLE_PECK_MODE,
+            EditorAction.TOGGLE_PECK_MODE, EditorAction.TOGGLE_INCOGNITO,
             EditorAction.TAB, EditorAction.ESCAPE, EditorAction.FORWARD_DELETE, EditorAction.HOME,
             EditorAction.END, EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT,
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
@@ -2407,6 +2418,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.TOGGLE_TIDY_SPACES -> togglePref(Prefs.TIDY_SPACES, !config.tidySpaces)
             EditorAction.TOGGLE_TYPING_SPEED -> togglePref(Prefs.TYPING_SPEED, !config.typingSpeed)
             EditorAction.TOGGLE_PECK_MODE -> togglePeckMode()
+            EditorAction.TOGGLE_INCOGNITO -> togglePref(Prefs.INCOGNITO, !config.incognito)
             EditorAction.TAB, EditorAction.ESCAPE, EditorAction.FORWARD_DELETE, EditorAction.HOME,
             EditorAction.END, EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT,
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
@@ -2510,8 +2522,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** A new primary clip, into the history; offered by itself on the idle bar for a short while. */
     private fun onClipChanged(cm: ClipboardManager) {
-        // A copy made in a password field stays out, whatever the copying app says.
-        if (isInputViewShown && editorState.privateMode) return
+        // A copy made in a password field stays out, whatever the copying app says, and so does
+        // every copy while incognito is on.
+        if (config.incognito || (isInputViewShown && editorState.privateMode)) return
         val clip = try {
             cm.primaryClip
         } catch (e: SecurityException) {
@@ -2757,6 +2770,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             tidySpaces = config.tidySpaces,
             typingSpeed = config.typingSpeed,
             peckMode = config.peckMode,
+            incognito = config.incognito,
             ctrlPending = ctrlPending,
         )
     }
@@ -3282,6 +3296,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     private fun vibrateForKeyPress() {
+        if (config.keySound) clickForKeyPress()
         if (!config.vibration) return
         val amplitude = when (config.vibrationIntensity) {
             1 -> 60
@@ -3296,6 +3311,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE)
         }
         v.vibrate(effect)
+    }
+
+    /**
+     * The system key click. At the phone's own touch-sound volume (-1), and silent when the
+     * ringer is on vibrate or silent, as the stock keyboards are.
+     */
+    private fun clickForKeyPress() {
+        val am = audioManager ?: getSystemService(AudioManager::class.java)?.also { audioManager = it } ?: return
+        if (am.ringerMode != AudioManager.RINGER_MODE_NORMAL) return
+        am.playSoundEffect(AudioManager.FX_KEY_CLICK, -1f)
     }
 
     private fun onSpace() {
@@ -4737,6 +4762,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private companion object {
         const val TAG = "KineticaIME"
+
+        /** On the spacebar while incognito is on: the shortcut's own glyph. */
+        val INCOGNITO_TAG = ActionRow.glyph(EditorAction.TOGGLE_INCOGNITO)
 
         // Its own file, not the settings: per-key averages, kept out of a settings backup.
         const val TOUCH_MODEL_PREFS = "touch_model"
