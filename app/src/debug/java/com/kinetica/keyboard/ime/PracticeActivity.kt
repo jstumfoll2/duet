@@ -4,10 +4,14 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.setPadding
@@ -31,6 +35,10 @@ import java.util.Random
  * word is usually drawn, and "Discard last" withdraws an attempt the person knows
  * went wrong (a discard line in the trace) and asks for it again.
  *
+ * A length picker at the top narrows the prompts to one band of word lengths
+ * ([PracticeWords.Length]), for drilling the long words alone; the choice is kept
+ * between visits, and "All lengths" asks as before.
+ *
  * Each recorded attempt is also decoded both without and with the neural rerank
  * ([NeuralRerank.compare]), whichever one the keyboard is live on, and the
  * running score of the two is shown under the prompt.
@@ -47,7 +55,8 @@ class PracticeActivity : AppCompatActivity() {
     private lateinit var input: EditText
     private lateinit var versus: TextView
     private val rnd = Random()
-    private var words = PracticeWords.Pool(emptyList())
+    private var allWords = PracticeWords.Pool(emptyList())
+    private var words = allWords
     private var done = 0
     private var hits = 0
 
@@ -66,7 +75,35 @@ class PracticeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         title = getString(R.string.practice_title)
         val pad = (16 * resources.displayMetrics.density).toInt()
-        words = loadWords()
+        allWords = loadWords()
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        val lengths = PracticeWords.Length.values()
+        val savedLength = lengths.firstOrNull { it.name == prefs.getString(KEY_LENGTH, null) }
+            ?: PracticeWords.Length.ALL
+        var length = savedLength
+        words = allWords.ofLength(length)
+        val lengthPicker = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@PracticeActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                lengths.map { it.label },
+            )
+            setSelection(savedLength.ordinal, false)
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    val chosen = lengths[position]
+                    // The spinner reports its first layout as a selection too.
+                    if (chosen == length) return
+                    length = chosen
+                    prefs.edit().putString(KEY_LENGTH, chosen.name).apply()
+                    words = allWords.ofLength(chosen)
+                    input.text.clear()
+                    next()
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            }
+        }
 
         prompt = TextView(this).apply { textSize = 34f }
         hint = TextView(this).apply { textSize = 16f }
@@ -111,6 +148,7 @@ class PracticeActivity : AppCompatActivity() {
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad)
+            addView(lengthPicker)
             addView(prompt)
             addView(hint)
             addView(input)
@@ -198,6 +236,9 @@ class PracticeActivity : AppCompatActivity() {
     })
 
     private companion object {
+        const val PREFS = "practice"
+        const val KEY_LENGTH = "word_length"
+
         /** Attempts per prompt. */
         const val REPEATS = 3
 

@@ -251,4 +251,27 @@ class SpacebarCursorControllerTest {
         c.onMove(40f)
         assertTrue(c.sliding)
     }
+
+    @Test
+    fun aMidWordTouchNeverMovesTheCursorAndLiftsAsASpace() {
+        val r = Recorder()
+        r.controller.onDown(100f, lockSlide = true)
+        r.controller.onMove(160f)
+        r.controller.onMove(20f)
+        assertFalse("a locked touch is never a slide", r.controller.sliding)
+        assertEquals(emptyList<Int>(), r.directions)
+        assertEquals(SpacebarCursorController.Lift.SPACE, r.controller.onUp())
+    }
+
+    @Test
+    fun theLockLastsOneTouch() {
+        val r = Recorder()
+        r.controller.onDown(100f, lockSlide = true)
+        r.controller.onMove(160f)
+        r.controller.onUp()
+        r.controller.onDown(100f)
+        r.controller.onMove(110f)
+        r.controller.onMove(130f)
+        assertEquals(listOf(1), r.directions)
+    }
 }

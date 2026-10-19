@@ -18,6 +18,25 @@ object TouchRules {
         fromNumberRow && otherSwiping && plainTap
 
     /**
+     * A spacebar touch landing mid-word cannot slide the cursor: another thumb is drawing, or a
+     * letter lifted under [MID_WORD_SPACE_MS] ago. A cursor step there abandons the pending word,
+     * so its letters were committed as drawn and the rest of the word started over at the new
+     * cursor, where autocorrect only ever saw the pieces. Owner traces, 2026-10-19: the gap
+     * between strokes of one word is under 250 ms for 95% of words.
+     */
+    fun locksSpaceSlide(otherSwiping: Boolean, sinceLetterLiftMs: Long): Boolean =
+        otherSwiping || sinceLetterLiftMs in 0 until MID_WORD_SPACE_MS
+
+    /**
+     * A mid-word spacebar touch that travels past the drift allowance onto a letter is a stroke
+     * of the word that landed low, and goes to the engine like a digit handed over.
+     */
+    fun spaceHandsOverToSwipe(locked: Boolean, travelPx: Float, driftLimitPx: Float, onLetter: Boolean): Boolean =
+        locked && onLetter && travelPx >= driftLimitPx
+
+    const val MID_WORD_SPACE_MS = 300L
+
+    /**
      * A touch that began on a numbers-row digit becomes a swipe once it travels past the hold
      * slop onto a letter: a word started a little high is still a word, not a digit.
      */

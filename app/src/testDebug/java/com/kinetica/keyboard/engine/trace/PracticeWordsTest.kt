@@ -48,4 +48,32 @@ class PracticeWordsTest {
     fun anEmptyListStillGivesAPrompt() {
         assertEquals("hello" to Kind.ANY, PracticeWords.Pool(emptyList()).pick(Random(1)))
     }
+
+    @Test
+    fun aLengthKeepsEveryPromptInsideIt() {
+        val pool = PracticeWords.Pool(listOf("the", "all", "water", "right", "respond", "nothing", "technically"))
+        val rnd = Random(3)
+        for (length in PracticeWords.Length.values()) {
+            val cut = pool.ofLength(length)
+            repeat(300) {
+                val (w, k) = cut.pick(rnd)
+                assertTrue("$w for $length", w.length in length.range)
+                if (k != Kind.ANY) assertTrue("$w as $k", k in PracticeWords.kindsOf(w))
+            }
+        }
+    }
+
+    @Test
+    fun aLengthNoWordFitsFallsBackToTheWholeList() {
+        val pool = PracticeWords.Pool(listOf("the", "all"))
+        val (w, _) = pool.ofLength(PracticeWords.Length.VERY_LONG).pick(Random(1))
+        assertTrue(w in setOf("the", "all"))
+    }
+
+    @Test
+    fun lengthLabelsReadAsRanges() {
+        assertEquals("All lengths", PracticeWords.Length.ALL.label)
+        assertEquals("4-6 letters", PracticeWords.Length.MEDIUM.label)
+        assertEquals("10+ letters", PracticeWords.Length.VERY_LONG.label)
+    }
 }
