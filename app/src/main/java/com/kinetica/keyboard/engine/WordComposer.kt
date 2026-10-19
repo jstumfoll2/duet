@@ -410,14 +410,14 @@ class WordComposer(
                         if (request.generation != generation.get()) {
                             null
                         } else {
-                            DecodeTrace.holding { alternate.decode(request.tokens, request.context, beam = false, apostrophe = request.apostrophe) }
+                            DecodeTrace.holding { alternate.decodeFor(request, beam = false) }
                         }
                     },
                 )
             } else {
                 null
             }
-            val active = predictor.decode(request.tokens, request.context, apostrophe = request.apostrophe)
+            val active = predictor.decodeFor(request)
             // If input advanced during the active-language pass, drop the second-language pass
             // and immediately drain the newest snapshot instead.
             if (request.generation != generation.get()) {
@@ -434,7 +434,7 @@ class WordComposer(
                     DecodeTrace.write(done.second)
                     done.first
                 } else {
-                    alternate.decode(request.tokens, request.context, beam = false, apostrophe = request.apostrophe)
+                    alternate.decodeFor(request, beam = false)
                 }
                 if (request.generation != generation.get()) continue
                 merge(active, other, tapOnly = request.literal.isNotEmpty()).also { m ->
@@ -452,6 +452,20 @@ class WordComposer(
                 Merged(active, active.firstOrNull(), foreignKept = 0, reason = "single")
             }.let { rescueHeld(it) }
             deliver(request, merged)
+        }
+    }
+
+    /**
+     * [request]'s decode on this predictor, given up part way once a newer request supersedes
+     * it: on a slow phone two long overlapped words otherwise queued behind each other's whole
+     * search. A stale result is dropped by the generation checks around every call.
+     */
+    private fun WordPredictor.decodeFor(request: DecodeRequest, beam: Boolean = true): List<WordCandidate> {
+        stale = { request.generation != generation.get() }
+        try {
+            return decode(request.tokens, request.context, beam = beam, apostrophe = request.apostrophe)
+        } finally {
+            stale = null
         }
     }
 
@@ -480,13 +494,13 @@ class WordComposer(
             return executor.submit(
                 Callable {
                     if (request.generation != generation.get()) null
-                    else DecodeTrace.holding { p.decode(request.tokens, request.context, beam = true, apostrophe = request.apostrophe) }
+                    else DecodeTrace.holding { p.decodeFor(request) }
                 },
             )
         }
         val second = besideOn(alternateExecutor, alternate)
         val third = besideOn(extraExecutor, request.extra)
-        val active = predictor.decode(request.tokens, request.context, apostrophe = request.apostrophe)
+        val active = predictor.decodeFor(request)
         if (request.generation != generation.get()) {
             second?.cancel(false)
             third?.cancel(false)
@@ -499,7 +513,7 @@ class WordComposer(
             DecodeTrace.write(done.second)
             lists.add(done.first)
         } else {
-            lists.add(alternate.decode(request.tokens, request.context, beam = true, apostrophe = request.apostrophe))
+            lists.add(alternate.decodeFor(request))
         }
         if (third != null) {
             val done = awaitBeside(third) ?: return null

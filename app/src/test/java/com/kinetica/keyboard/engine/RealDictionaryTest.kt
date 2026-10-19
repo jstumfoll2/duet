@@ -165,6 +165,31 @@ class RealDictionaryTest {
     }
 
     @Test
+    fun aSupersededDecodeStopsEarly() {
+        // The composer marks a decode stale once newer input arrives; the search then stops
+        // instead of spending its whole budget on a list nobody will see.
+        val trie = loadTrie()
+        val g = TestData.qwertyGeometry()
+        val predictor = WordPredictor(trie, BigramTable.EMPTY, g)
+        val tokens = listOf(TestData.swipe("keyboard", g, 0, 600))
+        predictor.decode(tokens, emptyList()) // warmup
+        fun ms(block: () -> Unit): Double {
+            val t0 = System.nanoTime()
+            repeat(10) { block() }
+            return (System.nanoTime() - t0) / 10 / 1_000_000.0
+        }
+        val full = ms { predictor.decode(tokens, emptyList()) }
+        predictor.stale = { true }
+        val stopped = try {
+            ms { predictor.decode(tokens, emptyList()) }
+        } finally {
+            predictor.stale = null
+        }
+        assertTrue("stale decode took $stopped ms against $full", stopped < full)
+        assertTrue(predictor.decode(tokens, emptyList()).any { it.word == "keyboard" })
+    }
+
+    @Test
     fun completionSurfacesFromTapPrefix() {
         // Real-dictionary completion golden: a 5-tap prefix surfaces its rare long
         // extension mid-word. Personal words merge into the trie at load the same

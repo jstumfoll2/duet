@@ -107,6 +107,13 @@ class WordPredictor(
      */
     private val langTag: String = if (language.isEmpty()) "" else "[$language]"
 
+    /**
+     * Set by the caller around a decode it may supersede: once it returns true the search stops
+     * where it stands, so a stale decode frees the thread for the newer one instead of running
+     * its whole budget. The result is then incomplete and the caller must drop it.
+     */
+    @Volatile var stale: (() -> Boolean)? = null
+
     /** Commit count for [word], 0 when never committed. */
     fun personalCount(word: String): Int = personalCounts[word.lowercase()] ?: 0
 
@@ -134,6 +141,9 @@ class WordPredictor(
          */
         fun pairKey(prev: String, next: String): String =
             AccentFolder.fold(prev.lowercase()) + "\u0000" + AccentFolder.fold(next.lowercase())
+
+        /** Budget checks between two looks at [stale]; a power of two. */
+        const val STALE_CHECK_EVERY = 64
     }
 
     /**
@@ -312,7 +322,7 @@ class WordPredictor(
      * `fw * geometric(cost) * bigram * personal`, one model for the whole list.
      */
     private fun interleaved(il: Interleave, prevWordId: Int): List<WordCandidate> {
-        val search = InterleavedSearch(trie, il)
+        val search = InterleavedSearch(trie, il, stop = stale)
         val hits = search.run(KineticaConstants.INTERLEAVE_KEEP)
         val out = ArrayList<WordCandidate>(hits.size)
         for (h in hits) {
@@ -1235,12 +1245,25 @@ class WordPredictor(
 
         /** Branch budget: this subtree's candidate slice, or the global work ceiling. */
         private fun branchExhausted(): Boolean =
-            emitted >= emitCap || attempts >= KineticaConstants.MAX_EMIT_ATTEMPTS || stepsExhausted()
+            emitted >= emitCap || attempts >= KineticaConstants.MAX_EMIT_ATTEMPTS || stepsExhausted() || superseded()
 
         /** Whole-pass budget, for the sites that ignore the per-subtree slice. */
         private fun passExhausted(): Boolean =
             emitted >= KineticaConstants.MAX_CANDIDATES ||
-                attempts >= KineticaConstants.MAX_EMIT_ATTEMPTS || stepsExhausted()
+                attempts >= KineticaConstants.MAX_EMIT_ATTEMPTS || stepsExhausted() || superseded()
+
+        // [stale], asked every STALE_CHECK_EVERY budget checks and sticky once true.
+        private val staleCheck = stale
+        private var checks = 0
+        private var gaveUp = false
+
+        private fun superseded(): Boolean {
+            if (gaveUp) return true
+            val f = staleCheck ?: return false
+            if (++checks and (STALE_CHECK_EVERY - 1) != 0) return false
+            gaveUp = f()
+            return gaveUp
+        }
 
         // The stream pass's cost is trie walking, not DTW: the slow phone decodes ran hundreds
         // of thousands of gate checks for a handful of attempts, which the two budgets above

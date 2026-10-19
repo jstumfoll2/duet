@@ -14,6 +14,8 @@ class InterleavedSearch(
     private val trie: Trie,
     private val il: Interleave,
     private val maxNodes: Int = MAX_NODES,
+    /** Asked every 1,024 nodes; true ends the walk early (a superseded decode). */
+    private val stop: (() -> Boolean)? = null,
 ) {
     class Hit(val node: Int, val word: String, val cost: Float, val fw: Float)
 
@@ -41,6 +43,7 @@ class InterleavedSearch(
             val child = trie.firstChild(node) + cursor[depth]
             cursor[depth]++
             visited++
+            if (stop != null && visited and 1023 == 0 && stop.invoke()) break
             val code = trie.letter(child)
             // A doubled letter, or an apostrophe (no key), adds no visit. Readings past the
             // prefix bound are not written, so the row only carries what can still pass it.
