@@ -2783,6 +2783,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         return true
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun showInlineChips(chips: List<View>) {
         val container = containerView ?: return
         if (chips.isEmpty()) {
