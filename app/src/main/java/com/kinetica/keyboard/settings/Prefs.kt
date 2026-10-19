@@ -470,6 +470,15 @@ object Prefs {
      */
     const val PECK_MODE = "pref_peck_mode"
 
+    /**
+     * Incognito: nothing typed is learned, remembered or traced in any field until it is turned
+     * off, as a no-learning field asks for itself. Suggestions and autocorrect keep working.
+     */
+    const val INCOGNITO = "pref_incognito"
+
+    /** The system's key-click sound on each key press, at the phone's touch-sound volume. */
+    const val KEY_SOUND = "pref_key_sound"
+
     /** Legacy: the reserved peck-toggle letter, converted the same way as [LANG_CYCLE_KEY]. */
     const val PECK_CHORD_KEY = "pref_peck_chord_key"
     const val THEME_MODE = "pref_theme_mode"
@@ -662,6 +671,8 @@ object Prefs {
     const val DEFAULT_HOME_ROW_SPREAD_PCT = 0
     const val DEFAULT_BOTTOM_PAD_DP = 0
     const val DEFAULT_PECK_MODE = false
+    const val DEFAULT_INCOGNITO = false
+    const val DEFAULT_KEY_SOUND = false
 
     /**
      * Canonical order of all bundled languages; cycling follows this order.

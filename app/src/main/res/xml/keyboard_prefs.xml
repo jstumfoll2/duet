@@ -124,6 +124,12 @@
             app:singleLineTitle="false"
             android:summary="@string/pref_peck_mode_summary"
             android:defaultValue="false" />
+        <SwitchPreferenceCompat
+            android:key="pref_incognito"
+            android:title="@string/pref_incognito_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_incognito_summary"
+            android:defaultValue="false" />
         <PreferenceScreen
             android:key="pref_group_spacing"
             android:title="@string/pref_group_spacing_title"
@@ -423,6 +429,12 @@
             android:title="@string/pref_vibration_title"
             app:singleLineTitle="false"
             android:defaultValue="true" />
+        <SwitchPreferenceCompat
+            android:key="pref_key_sound"
+            android:title="@string/pref_key_sound_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_key_sound_summary"
+            android:defaultValue="false" />
         <SeekBarPreference
             android:key="pref_vibration_intensity"
             android:title="@string/pref_vibration_intensity_title"

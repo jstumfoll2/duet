@@ -202,4 +202,18 @@ class EditorStateTest {
         assertFalse(stateFor(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI or caps).capSentences)
         assertTrue(stateFor(InputType.TYPE_CLASS_TEXT or caps).capSentences)
     }
+
+    @Test
+    fun incognitoForgetsAndKeepsSuggestions() {
+        val field = stateFor(InputType.TYPE_CLASS_TEXT)
+        val incognito = field.withIncognito(true)
+        assertTrue(incognito.teachesNothing)
+        assertFalse(incognito.privateMode)
+        assertTrue(incognito.offersCorrections)
+        // Off again, the field is what the app asked for.
+        assertEquals(field, field.withIncognito(false))
+        // A field that already asks for no learning stays that way when incognito ends.
+        val noLearning = stateForOptions(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
+        assertTrue(noLearning.withIncognito(false).teachesNothing)
+    }
 }

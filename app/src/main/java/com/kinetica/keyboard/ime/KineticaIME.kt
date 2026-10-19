@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -270,9 +271,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private val boardAlphabet: Alphabet get() = currentGeometry?.alphabet ?: Alphabet.LATIN
     private val layouts = HashMap<String, KeyboardLayout>()
     private var vibrator: Vibrator? = null
+    private var audioManager: AudioManager? = null
     private var prefListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     private var editorState = EditorState.DEFAULT
+
+    /** The field as the app described it, before the incognito switch is applied. */
+    private var fieldState = EditorState.DEFAULT
 
     private lateinit var config: KeyboardConfig
 
@@ -543,6 +548,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             if (config.expansionGeneration != previous.expansionGeneration) {
                 reloadExpansions()
             }
+            if (config.incognito != previous.incognito) {
+                // Applies to the field already open, not only the next one.
+                editorState = fieldState.withIncognito(config.incognito)
+                DecodeTrace.suppressed = editorState.teachesNothing
+            }
             if (config.peckMode != previous.peckMode) {
                 // Entering or leaving literal mode mid-word would leave a
                 // half-tracked tentative; settle it as plain text first.
@@ -640,7 +650,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 // Learned words merge into the trie at load, gated and scaled by
                 // PERSONAL_MERGE_MIN_COUNT and USER_FREQ_SCALE (rationale in KineticaConstants).
                 val userRows = try {
-                    KineticaDb.get(this).userWords().topN(lang, USER_DICT_LIMIT)
+                    withoutStrayLetters(KineticaDb.get(this).userWords().topN(lang, USER_DICT_LIMIT), lang)
                 } catch (e: RuntimeException) {
                     Log.w(TAG, "user dictionary unavailable", e)
                     emptyList()
@@ -677,7 +687,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 val alt = detectLang?.let { other ->
                     try {
                         altRows = try {
-                            KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT)
+                            withoutStrayLetters(KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT), other)
                         } catch (e: RuntimeException) {
                             Log.w(TAG, "user dictionary unavailable for $other", e)
                             emptyList()
@@ -710,7 +720,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 val extra = extraLang?.let { other ->
                     try {
                         extraRows = try {
-                            KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT)
+                            withoutStrayLetters(KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT), other)
                         } catch (e: RuntimeException) {
                             Log.w(TAG, "user dictionary unavailable for $other", e)
                             emptyList()
@@ -1103,6 +1113,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val parts = ArrayList<String>(2)
         if (config.enabledLanguages.size > 1) parts.add(config.language.uppercase())
         if (config.peckMode) parts.add("TAP")
+        if (config.incognito) parts.add(INCOGNITO_TAG)
         NeuralRerank.spacebarTag()?.let { parts.add(it) }
         return if (parts.isEmpty()) null else parts.joinToString(" · ")
     }
@@ -1139,7 +1150,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             "  start restarting=$restarting pending=${tentativeLength > 0 || composer?.hasPendingWord == true}"
         }
         synchronizeLanguageOnStart()
-        editorState = EditorState.from(attribute)
+        fieldState = EditorState.from(attribute)
+        editorState = fieldState.withIncognito(config.incognito)
         // The DEV build's trace names what is typed; a private field leaves no line in it.
         DecodeTrace.suppressed = editorState.teachesNothing
         backspaceTarget = null
@@ -2161,18 +2173,31 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * reaches English `to`. Letters the user commits in any language are kept, and so are letters
      * another resident language pairs with the word before them.
      */
+    private fun standaloneLetters(lang: String): Set<Char> =
+        ('a'..'z').filterTo(HashSet()) { StandaloneLetters.isWord(it, lang) }
+
+    /**
+     * [rows] without lone letters that can only be slips in [lang] ([ShortSlips.isStrayLetter]):
+     * a count earned by uncorrected `s`-for-`a` slips must not rank `s` above `a` in the decode.
+     */
+    private fun withoutStrayLetters(rows: List<UserWord>, lang: String): List<UserWord> {
+        val standalone = standaloneLetters(lang)
+        return rows.filterNot { it.word.length == 1 && ShortSlips.isStrayLetter(it.word[0], standalone) }
+    }
+
     private fun shortSlip(literal: String): String? {
         val g = currentGeometry ?: return null
-        val prev = composer?.contextSnapshot()?.lastOrNull() ?: return null
+        val prev = composer?.contextSnapshot()?.lastOrNull()
         val w = literal.lowercase()
-        val floor = KineticaConstants.PERSONAL_MERGE_MIN_COUNT
-        if (listOf(personalCounts, secondaryCounts, extraCounts).any { (it[w] ?: 0) >= floor }) return null
+        // A lone letter's count is its own uncorrected slips (ShortSlips), so only longer
+        // letters are kept for being committed.
+        if (w.length > 1 &&
+            listOf(personalCounts, secondaryCounts, extraCounts).any { (it[w] ?: 0) >= KineticaConstants.SLIP_KEEP_COUNT }
+        ) return null
         val predictors = listOfNotNull(predictor, secondaryPredictor, extraPredictor)
         for (p in predictors) {
-            val lang = p.language.ifEmpty { config.language }
-            val standalone = ('a'..'z').filterTo(HashSet()) { StandaloneLetters.isWord(it, lang) }
-            val fix = ShortSlips.correction(p, g, literal, prev, standalone) ?: continue
-            if (predictors.any { it !== p && it.pairByte(prev, w) >= KineticaConstants.SLIP_MIN_PAIR_BYTE }) return null
+            val fix = ShortSlips.correction(p, g, literal, prev, standaloneLetters(p.language.ifEmpty { config.language })) ?: continue
+            if (prev != null && predictors.any { it !== p && it.pairByte(prev, w) >= KineticaConstants.SLIP_MIN_PAIR_BYTE }) return null
             return fix
         }
         return null
@@ -2367,7 +2392,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.ENTER, EditorAction.COPY_LINE, EditorAction.TOGGLE_NEXT_WORD,
             EditorAction.TOGGLE_RECENT_WORDS, EditorAction.TOGGLE_NUMBER_ROW,
             EditorAction.TOGGLE_TIDY_SPACES, EditorAction.TOGGLE_TYPING_SPEED,
-            EditorAction.TOGGLE_PECK_MODE,
+            EditorAction.TOGGLE_PECK_MODE, EditorAction.TOGGLE_INCOGNITO,
             EditorAction.TAB, EditorAction.ESCAPE, EditorAction.FORWARD_DELETE, EditorAction.HOME,
             EditorAction.END, EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT,
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
@@ -2410,6 +2435,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.TOGGLE_TIDY_SPACES -> togglePref(Prefs.TIDY_SPACES, !config.tidySpaces)
             EditorAction.TOGGLE_TYPING_SPEED -> togglePref(Prefs.TYPING_SPEED, !config.typingSpeed)
             EditorAction.TOGGLE_PECK_MODE -> togglePeckMode()
+            EditorAction.TOGGLE_INCOGNITO -> togglePref(Prefs.INCOGNITO, !config.incognito)
             EditorAction.TAB, EditorAction.ESCAPE, EditorAction.FORWARD_DELETE, EditorAction.HOME,
             EditorAction.END, EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT,
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
@@ -2513,8 +2539,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** A new primary clip, into the history; offered by itself on the idle bar for a short while. */
     private fun onClipChanged(cm: ClipboardManager) {
-        // A copy made in a password field stays out, whatever the copying app says.
-        if (isInputViewShown && editorState.privateMode) return
+        // A copy made in a password field stays out, whatever the copying app says, and so does
+        // every copy while incognito is on.
+        if (config.incognito || (isInputViewShown && editorState.privateMode)) return
         val clip = try {
             cm.primaryClip
         } catch (e: SecurityException) {
@@ -2773,6 +2800,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             tidySpaces = config.tidySpaces,
             typingSpeed = config.typingSpeed,
             peckMode = config.peckMode,
+            incognito = config.incognito,
             ctrlPending = ctrlPending,
         )
     }
@@ -3298,6 +3326,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     private fun vibrateForKeyPress() {
+        if (config.keySound) clickForKeyPress()
         if (!config.vibration) return
         val amplitude = when (config.vibrationIntensity) {
             1 -> 60
@@ -3312,6 +3341,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE)
         }
         v.vibrate(effect)
+    }
+
+    /**
+     * The system key click. At the phone's own touch-sound volume (-1), and silent when the
+     * ringer is on vibrate or silent, as the stock keyboards are.
+     */
+    private fun clickForKeyPress() {
+        val am = audioManager ?: getSystemService(AudioManager::class.java)?.also { audioManager = it } ?: return
+        if (am.ringerMode != AudioManager.RINGER_MODE_NORMAL) return
+        am.playSoundEffect(AudioManager.FX_KEY_CLICK, -1f)
     }
 
     private fun onSpace() {
@@ -4013,6 +4052,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (editorState.teachesNothing) return
         val w = word.lowercase()
         if (w.length > KineticaConstants.MAX_WORD_LEN || !WORD_RE.matches(w)) return
+        // A lone `s` is a slip for `a` wherever it stands; counting it would rank it above `a`.
+        if (amount > 0 && w.length == 1 && ShortSlips.isStrayLetter(w[0], standaloneLetters(lang))) {
+            DecodeTrace.log { "  learn refused word=$w stray-letter" }
+            return
+        }
         // A blocked word is not learned back: its row would count up again behind the block.
         if (amount > 0 && w in blockedSpellings) {
             DecodeTrace.log { "  learn refused word=$w blocked" }
@@ -4753,6 +4797,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private companion object {
         const val TAG = "KineticaIME"
+
+        /** On the spacebar while incognito is on: the shortcut's own glyph. */
+        val INCOGNITO_TAG = ActionRow.glyph(EditorAction.TOGGLE_INCOGNITO)
 
         // Its own file, not the settings: per-key averages, kept out of a settings backup.
         const val TOUCH_MODEL_PREFS = "touch_model"

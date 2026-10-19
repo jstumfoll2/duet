@@ -145,6 +145,8 @@
     <string name="pref_zen_summary">Disables trails and effects to save battery</string>
     <string name="pref_trail_custom_hue_title">Custom trail hue (degrees)</string>
     <string name="pref_vibration_title">Vibration on key press</string>
+    <string name="pref_key_sound_title">Sound on key press</string>
+    <string name="pref_key_sound_summary">The phone\'s key click, at its touch-sound volume. Silent while the ringer is on vibrate or silent</string>
     <string name="pref_vibration_intensity_title">Vibration intensity</string>
     <string name="pref_trail_color_title">Swipe trail colour</string>
     <string name="pref_language_title">Primary language</string>
@@ -159,6 +161,8 @@
     <string name="pref_british_spelling_summary">Rank colour, centre and organise above the American spellings. English only</string>
     <string name="pref_enabled_languages_summary">Languages the language switch cycles through (order: English, Italiano, Español, Polski, Čeština, Nederlands, Deutsch, Français, Norsk, then the experimental Русский, עברית, العربية, Українська)</string>
     <string name="pref_peck_mode_title">Peck-type mode</string>
+    <string name="pref_incognito_title">Incognito</string>
+    <string name="pref_incognito_summary">Learn nothing in any field: no new words, no word pairs, no recent emoji and no clipboard history. Suggestions and autocorrect keep working. The spacebar shows 🕶 while it is on</string>
     <!-- TAP is the spacebar's own label and stays in English. -->
     <string name="pref_peck_mode_summary">No swiping, suggestions or autocorrect: every tap types exactly its letter. For slang and words the dictionary keeps changing. The spacebar shows TAP while it is on</string>
     <string name="pref_sync_system_language_title">Follow the system keyboard language</string>
@@ -285,6 +289,7 @@
     <string name="action_toggle_number_row">Numbers row on or off</string>
     <string name="action_toggle_tidy_spaces">Tidy spaces on or off</string>
     <string name="action_toggle_peck_mode">Peck-type on or off</string>
+    <string name="action_toggle_incognito">Incognito on or off</string>
     <string name="action_toggle_typing_speed">Typing speed on or off</string>
     <string name="action_tab">Tab</string>
     <string name="action_backspace">Backspace</string>
@@ -303,6 +308,7 @@
     <string name="action_case_title">Capitalized word (Abc)</string>
     <string name="action_case_upper">Word in capitals (ABC)</string>
     <string name="notice_name_peck_mode">Peck-type</string>
+    <string name="notice_name_incognito">Incognito</string>
     <string name="notice_name_typing_speed">Typing speed</string>
     <string name="pref_no_primary_title">Follow the language I type (experimental)</string>
     <string name="pref_no_primary_summary">Up to three enabled languages count as equals; the one you are typing weighs most. Another language\'s words go in on their own far more often, right or wrong. Works without Mix enabled languages</string>

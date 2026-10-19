@@ -95,6 +95,12 @@ enum class EditorAction(val output: String) {
     TOGGLE_PECK_MODE("${ACTION_PREFIX}toggle_peck_mode"),
 
     /**
+     * Incognito on or off: while on, every field forgets as a no-learning field does, and the
+     * spacebar says so.
+     */
+    TOGGLE_INCOGNITO("${ACTION_PREFIX}toggle_incognito"),
+
+    /**
      * Keys the keyboard has no key for, sent as key events (SpecialKeys), as a hardware keyboard
      * would: Tab indents where the editor takes tabs and moves focus where it does not.
      */

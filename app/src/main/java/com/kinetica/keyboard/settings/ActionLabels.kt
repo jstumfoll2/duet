@@ -33,6 +33,7 @@ object ActionLabels {
         EditorAction.TOGGLE_TIDY_SPACES -> R.string.action_toggle_tidy_spaces
         EditorAction.TOGGLE_TYPING_SPEED -> R.string.action_toggle_typing_speed
         EditorAction.TOGGLE_PECK_MODE -> R.string.action_toggle_peck_mode
+        EditorAction.TOGGLE_INCOGNITO -> R.string.action_toggle_incognito
         EditorAction.BACKSPACE -> R.string.action_backspace
         EditorAction.CTRL_NEXT -> R.string.action_ctrl_next
         EditorAction.TAB -> R.string.action_tab
@@ -61,6 +62,7 @@ object ActionLabels {
         EditorAction.TOGGLE_TIDY_SPACES -> R.string.notice_name_tidy_spaces
         EditorAction.TOGGLE_TYPING_SPEED -> R.string.notice_name_typing_speed
         EditorAction.TOGGLE_PECK_MODE -> R.string.notice_name_peck_mode
+        EditorAction.TOGGLE_INCOGNITO -> R.string.notice_name_incognito
         EditorAction.CTRL_NEXT -> R.string.notice_name_ctrl
         else -> null
     }
@@ -99,7 +101,7 @@ object ActionLabels {
         EditorAction.ONE_HANDED, EditorAction.TOGGLE_NEXT_WORD, EditorAction.TOGGLE_RECENT_WORDS,
         EditorAction.TOGGLE_NUMBER_ROW, EditorAction.TOGGLE_TIDY_SPACES,
         EditorAction.TOGGLE_TYPING_SPEED, EditorAction.TOGGLE_PECK_MODE, EditorAction.CTRL_NEXT,
-        EditorAction.CLIPBOARD, EditorAction.VOICE,
+        EditorAction.TOGGLE_INCOGNITO, EditorAction.CLIPBOARD, EditorAction.VOICE,
         EditorAction.CASE_LOWER, EditorAction.CASE_TITLE, EditorAction.CASE_UPPER,
         -> null
     }

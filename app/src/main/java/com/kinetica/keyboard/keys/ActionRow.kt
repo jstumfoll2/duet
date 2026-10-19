@@ -47,6 +47,7 @@ object ActionRow {
         EditorAction.TOGGLE_TIDY_SPACES,
         EditorAction.TOGGLE_TYPING_SPEED,
         EditorAction.TOGGLE_PECK_MODE,
+        EditorAction.TOGGLE_INCOGNITO,
         EditorAction.TAB,
         EditorAction.ESCAPE,
         EditorAction.FORWARD_DELETE,
@@ -105,6 +106,7 @@ object ActionRow {
         EditorAction.TOGGLE_TIDY_SPACES -> "‿" // not `⎵`, which sat next to autospace's `␣`
         EditorAction.TOGGLE_TYPING_SPEED -> "wpm" // what the readout says, as `123` does
         EditorAction.TOGGLE_PECK_MODE -> "TAP"   // what the spacebar says in peck-type
+        EditorAction.TOGGLE_INCOGNITO -> "🕶"    // dark glasses, as the spacebar shows it
         EditorAction.TAB -> "⇥"
         EditorAction.ESCAPE -> "⎋"            // ISO 9995-7, the escape symbol
         EditorAction.FORWARD_DELETE -> "⌦"
@@ -158,7 +160,7 @@ object ActionRow {
         // Arrows are text a list may well hold (`→`), so in a list they type themselves.
         EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT, EditorAction.ARROW_RIGHT,
         // Emoji, which a list holds to type them.
-        EditorAction.CLIPBOARD, EditorAction.VOICE,
+        EditorAction.CLIPBOARD, EditorAction.VOICE, EditorAction.TOGGLE_INCOGNITO,
         EditorAction.CASE_LOWER, EditorAction.CASE_TITLE, EditorAction.CASE_UPPER,
     )
 
@@ -285,6 +287,7 @@ object ActionRow {
         EditorAction.TOGGLE_TIDY_SPACES -> Notice.Toggle(action, !before.tidySpaces)
         EditorAction.TOGGLE_TYPING_SPEED -> Notice.Toggle(action, !before.typingSpeed)
         EditorAction.TOGGLE_PECK_MODE -> Notice.Toggle(action, !before.peckMode)
+        EditorAction.TOGGLE_INCOGNITO -> Notice.Toggle(action, !before.incognito)
         EditorAction.CTRL_NEXT -> Notice.Toggle(action, !before.ctrlPending)
         EditorAction.NEXT_LANGUAGE ->
             nextLanguage(before.languages, before.language)?.let { Notice.Language(it) }
@@ -315,6 +318,7 @@ object ActionRow {
         val tidySpaces: Boolean = false,
         val typingSpeed: Boolean = false,
         val peckMode: Boolean = false,
+        val incognito: Boolean = false,
         val ctrlPending: Boolean = false,
     )
 

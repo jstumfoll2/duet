@@ -122,6 +122,8 @@
     <string name="pref_zen_summary">Disattiva scie ed effetti per risparmiare batteria</string>
     <string name="pref_trail_custom_hue_title">Tonalità della scia (gradi)</string>
     <string name="pref_vibration_title">Vibrazione alla pressione</string>
+    <string name="pref_key_sound_title">Suono alla pressione</string>
+    <string name="pref_key_sound_summary">Il clic dei tasti del telefono, al volume dei suoni al tocco. In silenzio quando la suoneria è su vibrazione o silenziosa</string>
     <string name="pref_vibration_intensity_title">Intensità della vibrazione</string>
     <string name="pref_trail_color_title">Colore della scia</string>
     <string name="pref_language_title">Lingua principale</string>
@@ -136,6 +138,8 @@
     <string name="pref_british_spelling_summary">Mette colour, centre e organise prima delle grafie americane. Solo inglese</string>
     <string name="pref_enabled_languages_summary">Le lingue tra cui passa il cambio lingua (ordine: English, Italiano, Español, Polski, Čeština, Nederlands, Deutsch, Français, Norsk, poi le sperimentali Русский, עברית, العربية, Українська)</string>
     <string name="pref_peck_mode_title">Modalità tasto per tasto</string>
+    <string name="pref_incognito_title">Incognito</string>
+    <string name="pref_incognito_summary">Non impara nulla in nessun campo: niente parole nuove, coppie di parole, emoji recenti o cronologia degli appunti. Suggerimenti e correzione automatica continuano a funzionare. Quando è attivo, la barra spaziatrice mostra 🕶</string>
     <string name="pref_peck_mode_summary">Niente swipe, suggerimenti o correzione automatica: ogni tocco scrive esattamente la sua lettera. Per il gergo e le parole che il dizionario continua a cambiare. Quando è attiva, la barra spaziatrice mostra TAP</string>
     <string name="pref_sync_system_language_title">Segui la lingua della tastiera di sistema</string>
     <string name="pref_sync_system_language_summary">A ogni apertura della tastiera, Android imposta la lingua dal selettore delle tastiere di sistema. Se disattivato, resta la lingua scelta qui, e il selettore la segue comunque</string>
@@ -255,6 +259,7 @@
     <string name="action_toggle_number_row">Riga dei numeri on/off</string>
     <string name="action_toggle_tidy_spaces">Spazi ordinati on/off</string>
     <string name="action_toggle_peck_mode">Tasto per tasto on/off</string>
+    <string name="action_toggle_incognito">Incognito on/off</string>
     <string name="action_toggle_typing_speed">Velocità di scrittura on/off</string>
     <string name="action_tab">Tab</string>
     <string name="action_backspace">Cancella</string>
@@ -273,6 +278,7 @@
     <string name="action_case_title">Iniziale maiuscola (Abc)</string>
     <string name="action_case_upper">Tutto maiuscolo (ABC)</string>
     <string name="notice_name_peck_mode">Tasto per tasto</string>
+    <string name="notice_name_incognito">Incognito</string>
     <string name="notice_name_typing_speed">Velocità di scrittura</string>
     <string name="pref_no_primary_title">Segui la lingua in cui scrivo (sperimentale)</string>
     <string name="pref_no_primary_summary">Fino a tre lingue attive alla pari, e conta di più quella che stai usando. Le parole di un\'altra lingua entrano da sole molto più spesso, giuste o sbagliate. Funziona anche senza Mescola le lingue attive</string>
