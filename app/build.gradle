@@ -103,8 +103,12 @@ android {
 
     testOptions {
         unitTests {
-            // Engine golden tests read the real dictionary and layout assets.
-            includeAndroidResources = false
+            // The engine golden tests read the real dictionary and layout assets off disk; the
+            // Robolectric tests of the service (ImeWiringTest) need them merged, as the APK has them.
+            includeAndroidResources = true
+            all {
+                maxHeapSize = '2g'
+            }
         }
     }
 }
@@ -140,4 +144,6 @@ dependencies {
     ksp 'androidx.room:room-compiler:2.6.1'
 
     testImplementation 'junit:junit:4.13.2'
+    // Runs the service itself on the JVM (ImeWiringTest); test-only, never in the APK.
+    testImplementation 'org.robolectric:robolectric:4.13'
 }

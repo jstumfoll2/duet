@@ -51,6 +51,19 @@ class InputContainerView(
     private val bottomGap = View(context)
     private var dragStartRawY = 0f
     private var dragStartHeight = 0
+    private var lastRawX = 0f
+    private var lastRawY = 0f
+
+    /**
+     * Set while the keyboard floats: the handle then moves the keyboard instead of resizing it,
+     * reporting each step's travel and then the drag's end.
+     */
+    var mover: Mover? = null
+
+    interface Mover {
+        fun onMove(dx: Float, dy: Float)
+        fun onMoveEnded()
+    }
     private var inlineStrip: View? = null
 
     init {
@@ -166,9 +179,16 @@ class InputContainerView(
                 MotionEvent.ACTION_DOWN -> {
                     dragStartRawY = ev.rawY
                     dragStartHeight = keyboardView.layoutParams.height
+                    lastRawX = ev.rawX
+                    lastRawY = ev.rawY
                     true
                 }
-                MotionEvent.ACTION_MOVE -> {
+                MotionEvent.ACTION_MOVE -> mover?.let {
+                    it.onMove(ev.rawX - lastRawX, ev.rawY - lastRawY)
+                    lastRawX = ev.rawX
+                    lastRawY = ev.rawY
+                    true
+                } ?: run {
                     val target = (dragStartHeight + (dragStartRawY - ev.rawY)).toInt()
                         .coerceIn(minKeyboardPx, maxKeyboardPx)
                     if (target != keyboardView.layoutParams.height) {
@@ -178,7 +198,8 @@ class InputContainerView(
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    onHeightCommitted(keyboardView.layoutParams.height)
+                    val m = mover
+                    if (m != null) m.onMoveEnded() else onHeightCommitted(keyboardView.layoutParams.height)
                     true
                 }
                 else -> false

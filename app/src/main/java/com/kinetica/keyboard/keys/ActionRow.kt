@@ -64,6 +64,7 @@ object ActionRow {
         EditorAction.CASE_LOWER,
         EditorAction.CASE_TITLE,
         EditorAction.CASE_UPPER,
+        EditorAction.TOGGLE_FLOATING,
     )
 
     /** What the row offers out of the box. */
@@ -127,6 +128,7 @@ object ActionRow {
         EditorAction.CASE_LOWER -> "abc"
         EditorAction.CASE_TITLE -> "Abc"
         EditorAction.CASE_UPPER -> "ABC"
+        EditorAction.TOGGLE_FLOATING -> "❐"     // a raised window, lifted off the page
     }
 
     /**
@@ -288,6 +290,7 @@ object ActionRow {
         EditorAction.TOGGLE_TYPING_SPEED -> Notice.Toggle(action, !before.typingSpeed)
         EditorAction.TOGGLE_PECK_MODE -> Notice.Toggle(action, !before.peckMode)
         EditorAction.TOGGLE_INCOGNITO -> Notice.Toggle(action, !before.incognito)
+        EditorAction.TOGGLE_FLOATING -> Notice.Toggle(action, !before.floating)
         EditorAction.CTRL_NEXT -> Notice.Toggle(action, !before.ctrlPending)
         EditorAction.NEXT_LANGUAGE ->
             nextLanguage(before.languages, before.language)?.let { Notice.Language(it) }
@@ -319,6 +322,7 @@ object ActionRow {
         val typingSpeed: Boolean = false,
         val peckMode: Boolean = false,
         val incognito: Boolean = false,
+        val floating: Boolean = false,
         val ctrlPending: Boolean = false,
     )
 
