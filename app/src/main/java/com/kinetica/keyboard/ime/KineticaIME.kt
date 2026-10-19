@@ -17,19 +17,14 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
 import android.util.Log
-import android.util.Size
 import android.util.TypedValue
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsRequest
 import android.view.inputmethod.InlineSuggestionsResponse
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
-import android.widget.HorizontalScrollView
-import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.view.WindowInsetsControllerCompat
@@ -2782,35 +2777,20 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             container.hideInlineStrip()
             return true
         }
-        val views = arrayOfNulls<View>(list.size)
-        var left = list.size
-        val size = Size(ViewGroup.LayoutParams.WRAP_CONTENT, inlineChipHeightPx())
-        for ((i, suggestion) in list.withIndex()) {
-            suggestion.inflate(this, size, mainExecutor) { v ->
-                views[i] = v
-                if (--left == 0 && generation == inlineGeneration) showInlineChips(views.filterNotNull())
-            }
+        InlineAutofill.inflate(this, response, inlineChipHeightPx()) { chips ->
+            if (generation == inlineGeneration) showInlineChips(chips)
         }
         return true
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun showInlineChips(chips: List<View>) {
         val container = containerView ?: return
         if (chips.isEmpty()) {
             container.hideInlineStrip()
             return
         }
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        for (chip in chips) row.addView(chip)
-        val strip = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            setBackgroundColor(suggestionBar?.theme?.suggestionBg ?: 0)
-            addView(row, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        }
-        container.showInlineStrip(strip)
+        container.showInlineStrip(InlineAutofill.strip(this, chips, suggestionBar?.theme?.suggestionBg ?: 0))
     }
 
     private fun inlineChipHeightPx(): Int = (dpToPx(barHeightDp()) * INLINE_CHIP_FRACTION).roundToInt()
@@ -2866,27 +2846,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             floating = config.floating,
             ctrlPending = ctrlPending,
         )
-    }
-
-    private fun noticeText(notice: ActionRow.Notice): String? = when (notice) {
-        is ActionRow.Notice.Sent -> ActionLabels.noticeRes(notice.action)?.let { getString(it) }
-        is ActionRow.Notice.Autospace -> getString(
-            if (notice.on) R.string.notice_autospace_on else R.string.notice_autospace_off,
-        )
-        is ActionRow.Notice.Toggle -> ActionLabels.toggleNameRes(notice.action)?.let {
-            getString(if (notice.on) R.string.notice_toggle_on else R.string.notice_toggle_off, getString(it))
-        }
-        is ActionRow.Notice.Language ->
-            entryFor(R.array.language_values, R.array.language_entries, notice.code)
-        is ActionRow.Notice.Layout ->
-            entryFor(R.array.layout_mode_values, R.array.layout_mode_entries, notice.mode)
-    }
-
-    /** The settings list's own wording for [value], so the spacebar and the chooser agree. */
-    private fun entryFor(valuesRes: Int, entriesRes: Int, value: String): String {
-        val values = resources.getStringArray(valuesRes)
-        val entries = resources.getStringArray(entriesRes)
-        return entries.getOrNull(values.indexOf(value)) ?: value
     }
 
     /**
