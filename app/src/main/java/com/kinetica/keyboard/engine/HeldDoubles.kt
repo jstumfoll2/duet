@@ -24,17 +24,17 @@ import com.kinetica.keyboard.engine.models.TapToken
  * the 26 held doubles on 2026-10-08 were turns back. A tap held as long as an interior contact
  * counts too (doubled taps on 2026-10-08: 5% held 250 ms or more, single taps none). A swipe
  * that never leaves its key does not: single letters were held that way as often as doubles.
- * A contact or tap while another token is down is a thumb parked for the other one, not a
- * hold, and does not count either.
+ * A contact or tap while another token is down may be a thumb parked for the other one, so
+ * only the time no other token was down counts ([KineticaConstants.HELD_DOUBLE_FREE_TIME]).
  */
 internal object HeldDoubles {
 
     /** Letter codes held on, in no order; empty for most buffers. */
-    fun heldKeys(tokens: List<InputToken>, midMs: Long, endMs: Long): IntArray {
+    fun heldKeys(tokens: List<InputToken>, midMs: Long, endMs: Long, freeTime: Boolean = KineticaConstants.HELD_DOUBLE_FREE_TIME): IntArray {
         var out = IntArray(0)
         for (t in tokens) {
             if (t is TapToken) {
-                if (t.tEnd - t.tStart >= midMs && !overlapsOther(tokens, t, t.tStart, t.tEnd) && t.code !in out) out += t.code
+                if (held(tokens, t, t.tStart, t.tEnd, midMs, freeTime) && t.code !in out) out += t.code
                 continue
             }
             if (t !is SwipeToken) continue
@@ -47,12 +47,35 @@ internal object HeldDoubles {
                 // A turn back the way the swipe came ("ana", "good") slows to a stop on its key
                 // whatever the typist meant, so it has to be held twice as long.
                 val turnBack = !last && cs[i - 1].code == cs[i + 1].code
-                if (dur < if (last) endMs else if (turnBack) 2 * midMs else midMs) continue
-                if (overlapsOther(tokens, t, c.tEnter, c.tExit)) continue
+                if (!held(tokens, t, c.tEnter, c.tExit, if (last) endMs else if (turnBack) 2 * midMs else midMs, freeTime)) continue
                 if (c.code !in out) out += c.code
             }
         }
         return out
+    }
+
+    /**
+     * Whether [from]..[to] on [t] is a hold of [need] ms. Without [freeTime] any overlap with
+     * another token disqualifies it; with it, only the time no other token was down counts.
+     */
+    private fun held(tokens: List<InputToken>, t: InputToken, from: Long, to: Long, need: Long, freeTime: Boolean): Boolean {
+        if (to - from < need) return false
+        if (!overlapsOther(tokens, t, from, to)) return true
+        if (!freeTime) return false
+        return freeMs(tokens, t, from, to) >= need
+    }
+
+    /** The part of [from]..[to] during which no token other than [t] was down. */
+    private fun freeMs(tokens: List<InputToken>, t: InputToken, from: Long, to: Long): Long {
+        val busy = tokens.filter { it !== t && it.tStart < to && it.tEnd > from }
+            .map { maxOf(it.tStart, from) to minOf(it.tEnd, to) }.sortedBy { it.first }
+        var covered = 0L
+        var end = from
+        for ((a, b) in busy) {
+            val s = maxOf(a, end)
+            if (b > s) { covered += b - s; end = b }
+        }
+        return (to - from) - covered
     }
 
     private fun overlapsOther(tokens: List<InputToken>, t: InputToken, from: Long, to: Long): Boolean =

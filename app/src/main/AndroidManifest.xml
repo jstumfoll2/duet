@@ -6,6 +6,9 @@
     <!-- Opt-in (Settings > Typing > Suggestion bar > Codes from text messages), asked for at
          runtime only when that switch is turned on: one-time codes for the bar. -->
     <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Opt-in (Settings > Typing > Names from contacts), asked for at runtime only when that
+         switch is turned on: the words of contact names, read at dictionary load, never kept. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- READ_SMS implies a telephony requirement; a tablet still gets the keyboard. -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 

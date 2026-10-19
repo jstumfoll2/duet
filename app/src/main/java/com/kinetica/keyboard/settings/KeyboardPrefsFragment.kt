@@ -58,6 +58,16 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         showSmsDenied()
     }
 
+    private val contactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            // The keyboard reloads on a preference change; the switch was already on, so nudge it.
+            findPreference<SwitchPreferenceCompat>(Prefs.CONTACT_NAMES)?.let { it.isChecked = false; it.isChecked = true }
+            return@registerForActivityResult
+        }
+        findPreference<SwitchPreferenceCompat>(Prefs.CONTACT_NAMES)?.isChecked = false
+        context?.let { Toast.makeText(it, R.string.pref_contact_names_denied, Toast.LENGTH_LONG).show() }
+    }
+
     // Set when the user leaves for the app's system page from the SMS dialogs: coming back with
     // the permission allowed turns the switch on, as it would have been.
     private var smsAwaitingSettings = false
@@ -66,6 +76,15 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         setPreferencesFromResource(R.xml.keyboard_prefs, rootKey)
         findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.setOnPreferenceChangeListener { _, on ->
             if (on == true && !smsAllowed()) explainSmsPermission()
+            true
+        }
+        findPreference<SwitchPreferenceCompat>(Prefs.CONTACT_NAMES)?.setOnPreferenceChangeListener { _, on ->
+            val ctx = context
+            if (on == true && ctx != null &&
+                ctx.checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                contactsPermission.launch(Manifest.permission.READ_CONTACTS)
+            }
             true
         }
         if (rootKey == SettingsSynonyms.LONGPRESS_GROUP) addLetterRows()

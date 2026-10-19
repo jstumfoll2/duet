@@ -484,6 +484,9 @@
     <string name="dict_clear_phrases">Cancella le frasi apprese</string>
     <string name="dict_clear_phrases_confirm">Dimenticare tutte le coppie di parole che Duet ha imparato per %1$s? Le parole apprese restano.</string>
     <string name="pref_learn_phrases_title">Impara le frasi che scrivi</string>
+    <string name="pref_contact_names_title">Nomi dai contatti</string>
+    <string name="pref_contact_names_summary">Puoi scrivere con lo swipe i nomi dei tuoi contatti prima di averli digitati. Serve il permesso di leggere i contatti. Duet legge solo i nomi, su questo telefono, non ne tiene copia e non ha accesso a internet. Le parole del dizionario personale di Android sono sempre incluse</string>
+    <string name="pref_contact_names_denied">Duet non ha il permesso di leggere i contatti, quindi i nomi restano disattivati. Per consentirlo più tardi, apri le info dell\'app Duet, poi Autorizzazioni, Contatti, Consenti</string>
     <string name="pref_learn_phrases_summary">Ricorda quale parola scrivi di solito dopo quale, per indovinare meglio la successiva. Resta solo su questo telefono, mai in un\'esportazione del dizionario</string>
     <string name="pref_double_space_period_title">Doppio spazio per il punto</string>
     <string name="pref_double_space_period_summary">Due tocchi rapidi sulla barra spaziatrice chiudono la frase invece di lasciare due spazi. Non a inizio riga né dopo la punteggiatura</string>

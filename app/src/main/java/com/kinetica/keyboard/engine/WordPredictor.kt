@@ -75,6 +75,8 @@ class WordPredictor(
     private val heldDoubleMissKeep: Float = 1f,
     /** Cap of the two-word context boost ([TrigramTable.multiplier]); 0 is off. */
     private val trigramBoostMax: Float = KineticaConstants.TRIGRAM_BOOST_MAX,
+    /** Count only the part of a hold the other thumb was up ([HeldDoubles.heldKeys]). */
+    private val heldDoubleFreeTime: Boolean = KineticaConstants.HELD_DOUBLE_FREE_TIME,
     /** Near-edge tap pass ([KineticaConstants.EDGE_TAP_GAP_KW]); 0 is off. */
     private val edgeTapGapKw: Float = KineticaConstants.EDGE_TAP_GAP_KW,
 ) {
@@ -377,7 +379,7 @@ class WordPredictor(
         val prevWord = context.lastOrNull()?.let { AccentFolder.fold(it.lowercase()) }
         val prevWordId = prevWord?.let { trie.nodeFor(it) } ?: -1
         val letters = withTrigrams(decodeLetters(input, context, beam), context, prevWordId)
-        val held = if (heldDoubleBoost == 1f) IntArray(0) else HeldDoubles.heldKeys(input, heldDoubleMs, heldDoubleEndMs)
+        val held = if (heldDoubleBoost == 1f) IntArray(0) else HeldDoubles.heldKeys(input, heldDoubleMs, heldDoubleEndMs, heldDoubleFreeTime)
         val missCharged = heldDoubleMissKeep != 1f && input.any { it is SwipeToken }
         val ranked = if (held.isEmpty() && !missCharged) letters else preferHeldDoubles(letters, held, prevWordId).also { out ->
             DecodeTrace.log { "held$langTag: ${held.joinToString("") { alphabet.charOf(it).toString() }} " + out.take(5).joinToString(" ") { it.word } }
