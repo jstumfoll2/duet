@@ -143,6 +143,12 @@ object KineticaConstants {
     const val TRANSPOSE_PENALTY = 0.15f
 
     /**
+     * A tap whose neighbour's centre is at most this much farther than its own key's also
+     * reads as that neighbour, at the fuzzy charge, even when the heap is full. 0 is off.
+     */
+    const val EDGE_TAP_GAP_KW = 0.3f
+
+    /**
      * Tap charge, in kw, for a skipped stray tap or an untapped letter. 0.5 fixes 1 035 of
      * 2 008 dropped taps and 1 764 of 2 008 stray ones and changes no captured commit or lead
      * but 19 empty decodes; 0.25 cost three autocorrections. Negative: off.
