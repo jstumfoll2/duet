@@ -310,7 +310,7 @@
     <string name="notice_name_peck_mode">Peck-type</string>
     <string name="notice_name_incognito">Incognito</string>
     <string name="notice_name_floating">Floating keyboard</string>
-    <string name="action_toggle_floating">Floating keyboard on or off</string>
+    <string name="action_toggle_floating">Floating on or off</string>
     <string name="pref_floating_title">Floating keyboard</string>
     <string name="pref_floating_summary">A narrower keyboard over the app, which stays usable around it. Drag the handle above the bar to move it</string>
     <string name="pref_float_width_title">Floating keyboard width (% of the screen)</string>
