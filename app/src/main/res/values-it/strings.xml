@@ -279,6 +279,11 @@
     <string name="action_case_upper">Tutto maiuscolo (ABC)</string>
     <string name="notice_name_peck_mode">Tasto per tasto</string>
     <string name="notice_name_incognito">Incognito</string>
+    <string name="notice_name_floating">Tastiera mobile</string>
+    <string name="action_toggle_floating">Tastiera mobile on/off</string>
+    <string name="pref_floating_title">Tastiera mobile</string>
+    <string name="pref_floating_summary">Una tastiera più stretta sopra l\'app, che resta utilizzabile intorno. Trascina la maniglia sopra la barra per spostarla</string>
+    <string name="pref_float_width_title">Larghezza della tastiera mobile (% dello schermo)</string>
     <string name="notice_name_typing_speed">Velocità di scrittura</string>
     <string name="pref_no_primary_title">Segui la lingua in cui scrivo (sperimentale)</string>
     <string name="pref_no_primary_summary">Fino a tre lingue attive alla pari, e conta di più quella che stai usando. Le parole di un\'altra lingua entrano da sole molto più spesso, giuste o sbagliate. Funziona anche senza Mescola le lingue attive</string>
@@ -358,6 +363,8 @@
     <string name="pref_number_row_title">Riga dei numeri</string>
     <string name="pref_number_row_summary">Cifre in una riga tutta loro sopra le lettere, solo a tocchi. La tastiera cresce di una riga, così le lettere restano grandi uguali</string>
     <string name="pref_recent_words_summary">Le ultime due parole restano a sinistra della barra, ognuna con sopra e sotto le due alternative scartate. Toccane una per scambiarla. La barra si allarga per contenerle</string>
+    <string name="pref_emoji_suggestions_title">Suggerimenti emoji</string>
+    <string name="pref_emoji_suggestions_summary">La barra propone emoji per la parola appena scritta (pizza propone 🍕) alla sua estremità destra. Un tocco aggiunge l\'emoji dopo la parola</string>
     <string name="pref_next_word_summary">Quando non stai scrivendo, la barra propone le parole che di solito vengono dopo, al posto delle scorciatoie (che restano nel menu di ?123). Con le parole recenti attive, compaiono dopo ogni parola</string>
     <string name="pref_bar_actions_summary">Compaiono quando non c\'è niente da suggerire. Ognuna si può assegnare anche a un accordo o a uno swipe sui tasti</string>
     <string name="pref_menu_actions_title">Scorciatoie nel menu di ?123</string>
@@ -532,6 +539,7 @@
     <string name="pref_theme_mode_title">Tema della tastiera</string>
     <string name="pref_theme_brightness_title">Chiaro o scuro</string>
     <string name="theme_preview_note_custom">Anteprima: trascina la tonalità qui sopra per cambiarla</string>
+    <string name="theme_preview_note_preset">Anteprima: i temi predefiniti hanno colori propri, quindi luminosità e tonalità non li cambiano.</string>
     <string name="theme_preview_note_fixed">Anteprima: questa tavolozza ignora la tonalità. Scegli Colore a scelta per usarla.</string>
     <string name="pref_theme_hue_title">Tonalità d\'accento</string>
     <string name="pref_theme_hue_summary">Posizione sulla ruota dei colori, da 0 a 360, per il tema a colore personalizzato. Ogni superficie la segue</string>

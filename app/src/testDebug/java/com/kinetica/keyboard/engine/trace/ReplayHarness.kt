@@ -66,6 +66,8 @@ class ReplayHarness(
      */
     val learner: Learner? = null,
     private val heldDoubleFree: Boolean = KineticaConstants.HELD_DOUBLE_FREE_TIME,
+    /** The near-edge tap pass's gap; 0 is off. */
+    private val edgeTapGap: Float = com.kinetica.keyboard.engine.KineticaConstants.EDGE_TAP_GAP_KW,
 ) {
     /**
      * The personal store one replay builds up: commit counts (merged into the trie at each
@@ -141,7 +143,7 @@ class ReplayHarness(
             reranker = r, rerankDepth = rerankDepth,
             interleave = interleave, interleaveWeight = interleaveWeight,
             heldDoubleBoost = heldDoubleBoost, heldDoubleMs = heldDoubleMs, heldDoubleEndMs = heldDoubleEndMs,
-            heldDoubleMissKeep = heldDoubleMissKeep, trigramBoostMax = trigramBoost,
+            heldDoubleMissKeep = heldDoubleMissKeep, trigramBoostMax = trigramBoost, edgeTapGapKw = edgeTapGap,
             personalCounts = learner?.countsOf(lang) ?: emptyMap(),
             personalBigrams = if (learner?.phrases == true) learner.pairsOf(lang) else emptyMap(),
             heldDoubleFreeTime = heldDoubleFree,

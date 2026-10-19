@@ -1,55 +1,148 @@
 # Duet
 
-Duet is a fork of [Kinetica](https://github.com/EZ-eta/kinetica) by EZ-eta, renamed with its own
-icon as Kinetica's README asks of forks. It adds an interleaved two-thumb decoder, a trace replay
-harness, a spell checker and dictionary work on top of upstream; see the commit history for every
-change. Report Duet bugs here, not upstream. The text below is upstream's README as is: its
-install links and release notes are Kinetica's, not Duet's.
-
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
+[![CI](https://github.com/jstumfoll2/kinetica/actions/workflows/ci.yml/badge.svg)](https://github.com/jstumfoll2/kinetica/actions/workflows/ci.yml)
 
-An open-source (GPL-3.0) Android keyboard built for **two thumbs at once**. Each thumb swipes or
-taps on its own, at the same time as the other, and both streams merge into one word. A spiritual
-successor to the discontinued Nintype (also known as Keyboard69), written from scratch on Android's
-public IME APIs: no fork, no third-party gesture library.
+Duet is an Android keyboard for **two thumbs at once**. Each thumb swipes or taps on its own, at
+the same time as the other, and both streams become one word. The goal is the accuracy and feel of
+Keymonk and Nintype.
 
-**No network permission.** Nothing you type can leave the phone. Decoding, prediction and learning
-run on the device; password and private fields turn off suggestions, trails and learning.
+Duet is a fork of [Kinetica](https://github.com/EZ-eta/kinetica) by Elia Zanella (EZ-eta), and
+keeps its GPL-3.0-or-later licence. Kinetica wrote the keyboard: the gesture engine, the decoder,
+the settings and nearly every feature listed below. Duet adds a two-thumb decoder of its own, a
+way to measure accuracy from real typing, and a set of English and everyday features on top. It
+has its own name, app id and icon, as Kinetica asks of forks. Report Duet bugs
+[here](https://github.com/jstumfoll2/kinetica/issues), not upstream.
 
 Typing SOMETHING:
 
 - the left thumb taps `S`, then `E`;
 - the right thumb swipes `O -> M`, then `T -> H -> I -> N -> G`, overlapping in time;
-- Kinetica merges `S + OM + E + THING` into "something".
+- Duet merges `S + OM + E + THING` into "something".
 
-## Video
-
-https://github.com/user-attachments/assets/7bfdabe4-c265-4b40-8db1-c9eb0d9b14d7
+**No network permission.** The manifest declares no `INTERNET` permission, so nothing you type can
+leave the phone. Decoding, prediction and learning run on the device; password and private fields
+turn off suggestions, trails and learning. The one other sensitive permission, `READ_SMS`, is
+asked for only if you turn on *Codes from text messages*.
 
 ## Install
 
-[<img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/com.kinetica.keyboard/)
+Every change merged to `main` that passes CI becomes a
+[GitHub release](https://github.com/jstumfoll2/kinetica/releases/latest). Each release carries:
 
-F-Droid is the recommended channel: it updates in the background and verifies the build. A new
-version reaches it a few days after it is tagged here.
-
-Or take `kinetica-<version>.apk` from the
-[latest release](https://github.com/EZ-eta/kinetica/releases/latest):
+- `duet-dev-<version>.apk`: the DEV build, which installs as **Duet DEV**
+  (`io.github.jstumfoll2.duet.dev`). It is signed with the fixed DEV key in
+  `app/duet-dev.keystore`, so each one installs as an update over the last.
+- `duet-<version>.apk`: the release build (`io.github.jstumfoll2.duet`), attached only once the
+  repository has its release signing secrets.
 
 ```bash
-adb install -r kinetica-*.apk
+adb install -r duet-dev-*.apk
 ```
 
-Then open the Kinetica icon and follow the three steps. A debug build has a different signing key,
-so Android refuses to upgrade it: back up first (Settings > Backup), then uninstall it.
+Or open the APK on the phone. Then open the Duet icon and follow the three steps to enable it.
 
-Release APKs are signed with the project's key by the tagged
-[release workflow](.github/workflows/release.yml), so the build behind every APK is public.
-F-Droid ships Kinetica as a [reproducible build](https://f-droid.org/docs/Reproducible_Builds): it
-rebuilds the tag, checks its output against the APK above and publishes the same signature. Either
-channel can install and update over the other.
+Every CI run, pull requests included, also uploads the DEV APK as the `duet-dev-apk` artifact
+(Actions > CI > the run > Artifacts), kept for 30 days.
 
-## Features
+Duet does not upgrade Kinetica or an older Kinetica DEV build: it is a different app, with its own
+data. Back up the old one first (Settings > Backup) and restore the file in Duet. Duet is not on
+F-Droid.
+
+## What Duet adds to Kinetica
+
+### Decoding
+
+- **Interleaved two-thumb reading.** When swipes from the two thumbs overlap in time, Duet also
+  reads them as one path on one timeline (`Interleave`, `InterleavedSearch`) instead of only
+  cutting them into pieces and merging the pieces. Its readings join the same ranked list as
+  Kinetica's. On by default for Latin-script boards.
+- **Touch repair.** When the thumbs come within about a key of each other, the touchscreen can
+  merge them into one contact for a few milliseconds. `ContactRepair` undoes that, and the two
+  streams carry on after a joint lift instead of swapping.
+- **Long swipes keep their length.** A long one-finger swipe across the board is no longer beaten
+  by a short, common word that fits only part of the path.
+- **Held doubles.** Pausing on a key mid-swipe reads as a doubled letter (`HeldDoubles`); a missing
+  pause is never counted against one.
+- **Per-thumb touch offsets.** Duet learns where each thumb lands relative to each key it meant
+  (`TouchModel`). It moves taps back toward the key meant only once it has proved more accurate
+  than the raw touches on your own recent taps, so for a precise typist it stays off.
+- **Short slips.** A short tapped word with one letter hit beside the one meant is fixed when the
+  previous word settles it (`going ti` becomes `going to`), and left alone when nothing does.
+- **Apostrophes, Nintype style.** Swipe out to the apostrophe key and back mid-word
+  (`w-e-'-r-e`) for "we're"; the trip is cut out of the path before it is decoded.
+
+### English
+
+- A larger English list, filtered with SCOWL, with everyday and technical words added. A
+  contraction whose letters spell another word (`we're`, `were`) is offered only when you asked for
+  the apostrophe, so it never competes with the plain word.
+- Word triples (`en_trigrams.txt`) for context, on top of Kinetica's word pairs.
+- A small grammar pass on the word before the one just written: `a`/`an`, `could of`, `he don't`,
+  and confusion pairs such as `then`/`than` when the next word settles them (`GrammarCheck`).
+- Language-aware learning: a new word needs three commits before it is learned, and a word is
+  learned in the language it belongs to, so English typed in Spanish mode does not fill the
+  Spanish list.
+
+### Everyday features
+
+- **Spell checker.** Duet's dictionaries as an Android spell checker (pick it in the system's
+  spell checker settings). A word is right if any enabled language spells it that way, so Spanish
+  on an English phone is not underlined.
+- **Clipboard history.** The last clips copied, offered back on the bar. Kept in memory only, and
+  a clip the copying app marks sensitive is never kept.
+- **Voice typing key.** An action that hands the field to the phone's voice input; bind it to a
+  chord, an edge swipe or a bar shortcut.
+- **Autofill chips.** On Android 11 and later, the password manager's saved logins, addresses and
+  codes appear as chips in the bar. The keyboard never sees the secret behind a chip.
+- **Codes from text messages** (off by default): the one-time code from a recent text, offered in a
+  code field. Asks for `READ_SMS`.
+- **Incognito** (off by default): learns nothing in any field, no new words, word pairs, recent
+  emoji or clipboard history, while suggestions keep working. The spacebar shows 🕶 while it is on.
+- **Sound on key press** (off by default).
+- **Theme presets.** Pure black (AMOLED), Ocean, Forest, Sunset, Paper, Lavender and High
+  contrast, in Keyboard theme next to Duet dark, Material You and Custom colour. Duet dark stays
+  the default.
+- **Colour swatches.** The accent and trail hue sliders show the picked colour as a dot, a tinted
+  thumb and a rainbow track, and the trail colour row shows its colour too.
+
+## For testers: the DEV build
+
+The DEV build has everything above, plus a **Duet DEV trace** icon in the launcher.
+
+- **Trace recording** (on by default in the DEV build, with a switch on the trace screen): each
+  word you type is saved on the phone with its touch samples and the list the bar showed.
+  Password and private fields and incognito are never recorded, and traces are kept out of cloud
+  backup.
+- **Practice mode** (*Duet DEV practice*, from the trace screen): prompts a word, asks for three
+  attempts, and records each as a labelled trace. *Discard last swipe* drops a bad attempt, and
+  the word length can be picked.
+- **Export**: *Export* and *Export word traces* write the traces to a file you choose through
+  Android's file picker. The app itself has no network access, so sending them anywhere is up to
+  you.
+- **Neural rerank** (off by default): a small CTC model, trained from scratch on FUTO's MIT swipe
+  dataset (never FUTO's weights), can reorder the bar's list. The trace screen turns it on and sets
+  its weight. Off builds exactly the release decoder.
+
+Traces are personal typing data: keep them out of this repository.
+
+## Measuring accuracy
+
+`tools/replay` replays recorded traces through today's decoder on the plain JVM (no Android SDK)
+and reports top-1, top-3, MRR and recall, overall and per input shape (one swipe, several swipes,
+two-thumb overlap, taps and swipes, taps only). It first checks that each line reproduces the list the phone showed, score for score.
+
+```bash
+./gradlew -p tools/replay replay --args="replay traces.jsonl"
+./gradlew -p tools/replay test     # engine JVM suite plus the exact-replay gate
+```
+
+See [tools/replay/README.md](tools/replay/README.md). The CTC model's training code is in
+[tools/experiment](tools/experiment/README.md); the `train` workflow runs it in GitHub Actions.
+
+## Features from Kinetica
+
+Everything below comes from Kinetica and works the same in Duet.
 
 ### Two thumbs
 
@@ -61,7 +154,7 @@ channel can install and update over the other.
   trie search, frequency and word-pair context.
 - A thumb left resting on the keys, a third finger while both thumbs draw, and a number-row digit
   brushed mid-swipe type nothing.
-- Practise two thumbs (Settings > Learn Kinetica): five words drawn over the keyboard, thumb by
+- Practise two thumbs (Settings > Learn Duet): five words drawn over the keyboard, thumb by
   thumb, typed in a practice field.
 
 ### Suggestions
@@ -170,9 +263,9 @@ channel can install and update over the other.
   the last restore can be undone.
 - Settings in English and Italian, by the phone's language or Android 13's per-app language;
   [CONTRIBUTING.md](CONTRIBUTING.md) says how to add a translation.
-- Learn Kinetica in Settings: the two-thumb practice, then short tips from the basics up.
+- Learn Duet in Settings: the two-thumb practice, then short tips from the basics up.
 
-## Worth a look in Settings
+### Worth a look in Settings
 
 - **Get rid of a word for good.** Hold it on the bar and slide past the lowest tier, or add it in
   Settings > Dictionary > *Blocked words*. A blocked word is never offered again and never learned
@@ -193,14 +286,16 @@ channel can install and update over the other.
   [aosp-dictionaries](https://codeberg.org/Helium314/aosp-dictionaries) under `wordlists/`.
 - **Search the settings** with the icon at the top; it knows several words for each setting.
 
-## Requirements
+## Build and test
+
+### Requirements
 
 - JDK 17
 - Android SDK: platform 34, build-tools 34.0.0 (the command-line tools are enough)
 - Gradle 8.7 through the bundled wrapper
 - minSdk 26 (Android 8.0), targetSdk 34
 
-### Toolchain from zero (macOS, Homebrew)
+#### Toolchain from zero (macOS, Homebrew)
 
 ```bash
 brew install openjdk@17
@@ -216,48 +311,39 @@ On Linux or Windows, any JDK 17 and the Android command-line tools work the same
 platform 34 and build-tools 34.0.0, then point `sdk.dir` in `local.properties` (or `ANDROID_HOME`)
 at the SDK.
 
-## Build and install
+### Build
 
 ```bash
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The debug build installs as Kinetica DEV beside the release app, with its own data.
+The debug build is Duet DEV (`io.github.jstumfoll2.duet.dev`), beside the release app with its
+own data. `assembleRelease` builds the release app, signed only when a `keystore.properties`
+points at a keystore (see `app/build.gradle`); without one the APK is unsigned.
 
-### Release build
+### Test
 
-Release APKs are signed with a local keystore that never enters version control. Once:
-
-```bash
-mkdir -p keystore
-keytool -genkeypair -v -keystore keystore/kinetica-release.keystore \
-  -alias kinetica -keyalg RSA -keysize 2048 -validity 10000
-cat > keystore.properties <<EOF
-storeFile=keystore/kinetica-release.keystore
-storePassword=<your store password>
-keyAlias=kinetica
-keyPassword=<your key password>
-EOF
-```
-
-Then:
+The gate every change must pass, the same one CI runs:
 
 ```bash
-./gradlew assembleRelease
-adb install -r app/build/outputs/apk/release/app-release.apk
+./gradlew assembleDebug test lint
 ```
 
-Without `keystore.properties`, `assembleRelease` builds an unsigned APK.
+The engine is pure Kotlin and tested on the JVM, including golden decodes against the real
+dictionaries. [CONTRIBUTING.md](CONTRIBUTING.md) has the hard rules: no Android types under
+`engine/`, no network, no third-party gesture or prediction libraries, tunables in
+`engine/KineticaConstants.kt`.
 
-The prediction engine is pure Kotlin and tested on the JVM, including golden decodes against the
-real dictionaries:
+### Releases
 
-```bash
-./gradlew test
-```
+Merging to `main` releases automatically once CI is green (`.github/workflows/auto-release.yml`):
+a patch bump by default, or label the pull request `release:minor`, `release:major` or
+`release:skip`.
 
 ## Architecture
+
+The code keeps Kinetica's package, `com.kinetica.keyboard`.
 
 ```
 MotionEvent
@@ -265,20 +351,22 @@ MotionEvent
    -> GestureEngine         up to two pointer streams, tap or swipe decided at lift
    -> InputToken            TapToken (anchor) | SwipeToken (resampled path + key contacts)
    -> WordComposer          the word's tokens, decoded on a dedicated thread
-   -> WordPredictor         merge orders -> trie search per thumb -> DTW -> ranked candidates
+   -> WordPredictor         merge orders + interleaved reading -> trie search -> DTW -> ranked list
    -> KineticaIME           commit-only text model through InputConnection, the bar, autocorrect
 ```
 
 | Package | Contents |
 |---|---|
-| `engine/` | Pure Kotlin: `GestureEngine`, `GestureStream`, `MergeAlternatives`, `WordPredictor`, `ThumbBeam`, `DtwMatcher`, `Trie`, `Alphabet` (one per script), `WordComposer`, `BigramTable`, `AccentFolder`, `DictionaryLoader`, `DictionaryMerger`, models |
-| `ime/` | `KineticaIME` (the InputMethodService), editor state, the selection and commit records |
-| `ui/` | `KeyboardView`, `SuggestionBarView`, `InputContainerView`, `EmojiPickerView`, theming, trails |
-| `layout/` | JSON layouts, mutations (numbers row, apostrophe key, middle row), layout-mode transforms |
-| `keys/` | Shift, spacebar and backspace controllers, edge swipes, editor actions, key combinations |
+| `engine/` | Pure Kotlin decoder: `GestureEngine`, `WordPredictor`, `ThumbBeam`, `DtwMatcher`, `Trie`, `Interleave`, `ContactRepair`, `TouchModel`, `GrammarCheck`, `CtcScorer`, dictionaries and tables |
+| `ime/` | `KineticaIME` (the InputMethodService), editor state, clipboard history, autofill, SMS codes |
+| `spell/` | `KineticaSpellChecker`, the system spell checker service |
+| `ui/` | `KeyboardView`, `SuggestionBarView`, emoji picker, theming, trails |
+| `layout/` | JSON layouts, mutations, layout-mode transforms |
+| `keys/` | Shift, spacebar and backspace controllers, edge swipes, editor actions, chords |
 | `settings/` | The settings screens, `Prefs`, `KeyboardConfig`, backup |
-| `data/` | Room: learned words per language, word pairs, blocked words, chords, expansions; imported word lists |
+| `data/` | Room: learned words, word pairs, blocked words, chords, expansions |
 | `onboarding/` | The enable flow and the two-thumb tutor |
+| `src/debug/` | DEV only: trace recorder, practice mode, export, neural rerank |
 
 ### Algorithm notes
 
@@ -319,11 +407,13 @@ en, it, es, pl, cs, nl, de, fr, no, ru, uk, he and ar.
   [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/), attribution tatoeba.org. The same
   conversational register as the word lists. Tatoeba also decides which accent-less spellings stay
   and which German nouns are capitalized.
+- English additions: SCOWL decides which entries the English list keeps; C4 web text counts add
+  words and the English word triples. Both are listed in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
 - Emoji: a hand-curated `assets/emoji_data.json` (478 emoji with names and keywords, up to
   Unicode 15). No ZWJ sequences, because a phone that cannot render one draws its
   parts; an emoji the phone's font cannot draw is left out.
 
-### Open keyboard dictionaries
+### Open keyboard dictionaries (from Kinetica)
 
 Considered as replacements for the OpenSubtitles word lists (July 2026):
 
@@ -354,60 +444,25 @@ other multiplier.
 - Learned words merge into the trie at load, so a word the dictionary lacks becomes a full
   candidate.
 
-## License
+## License and credit
 
-Copyright (C) 2026 Elia Zanella
+Duet is free software under the GNU General Public License, version 3 or (at your option) any
+later version. The full text is in [LICENSE](LICENSE); the SPDX identifier is `GPL-3.0-or-later`.
 
-Kinetica is free software: you can redistribute it and/or modify it under the
-terms of the GNU General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any later
-version.
+Kinetica is Copyright (C) 2026 Elia Zanella. Duet's changes are listed in this repository's commit
+history. The bundled dictionary data carries its own licences (MIT for FrequencyWords, CC BY 2.0
+FR for Tatoeba, and the SCOWL and C4 terms); the attributions are in
+[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and in the app under Settings > Open-source licenses.
+Shipping that file meets them.
 
-Kinetica is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+If you redistribute Duet, the GPL asks you to keep the licence notice, state your changes and make
+the source available to whoever receives your build. Kinetica asks forks to use their own name and
+icon; please do the same for a fork of Duet.
 
-You should have received a copy of the GNU General Public License along with
-this program. If not, see <https://www.gnu.org/licenses/>.
-
-The full text is in [LICENSE](LICENSE); the SPDX identifier is `GPL-3.0-or-later`. The bundled
-dictionary data carries its own permissive licences (MIT for the FrequencyWords lists, CC BY 2.0 FR
-for the Tatoeba word pairs); the attributions are in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and
-in the app under Settings > Open-source licenses.
-
-### Attribution requirements
-
-If you redistribute Kinetica, modified or not, the GPL asks you to keep the licence notice, state
-your changes and make the source available to whoever receives your build. The bundled data adds its
-own obligations, all met by shipping `THIRD_PARTY_NOTICES` (the in-app licences screen shows that
-file, so an unmodified build already complies):
-
-| What | Licence | What you must do |
-|---|---|---|
-| Word frequencies (`*_wordlist.txt`) | MIT (hermitdave/FrequencyWords) | Keep the MIT notice |
-| Word pairs (`*_bigrams.txt`) | CC BY 2.0 FR (Tatoeba) | Credit `tatoeba.org` |
-| An AOSP dictionary you merge in | Apache-2.0 | Keep the Apache-2.0 notice |
-| The app | GPL-3.0 | Licence notice, source offer, state changes |
-
-The emoji metadata was written for this project and carries no third-party obligation.
-
-### The name and the icon
-
-Kinetica is the name I use for this project, and the launcher icon is my own artwork. The GPL covers
-the code and forks are welcome: please give them a different name and icon, so users can tell your
-build from mine and bug reports land in the right place.
-
-No trademark is registered or asserted; this is a request for clarity, not a legal restriction.
-
-## Support
-
-If Kinetica is useful to you, you can [buy me a coffee](https://ko-fi.com/ez_eta).
-
-Entirely optional. The app is free and stays free, has no network permission, shows no ads, and
-never asks for anything.
+If Kinetica is useful to you, its author accepts tips at [ko-fi.com/ez_eta](https://ko-fi.com/ez_eta).
 
 ## Contributing
 
-[CONTRIBUTING.md](CONTRIBUTING.md) has the build, test and lint gate, the commit format, the test
-rules and how to translate the settings;
-[ADDING_A_LANGUAGE.md](ADDING_A_LANGUAGE.md) is the recipe for a new language.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the build, test and lint gate, the commit format and the
+test rules; [ADDING_A_LANGUAGE.md](ADDING_A_LANGUAGE.md) is the recipe for a new language. A change
+that would help Kinetica too is worth offering upstream.

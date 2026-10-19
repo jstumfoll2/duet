@@ -77,6 +77,8 @@ class WordPredictor(
     private val trigramBoostMax: Float = KineticaConstants.TRIGRAM_BOOST_MAX,
     /** Count only the part of a hold the other thumb was up ([HeldDoubles.heldKeys]). */
     private val heldDoubleFreeTime: Boolean = KineticaConstants.HELD_DOUBLE_FREE_TIME,
+    /** Near-edge tap pass ([KineticaConstants.EDGE_TAP_GAP_KW]); 0 is off. */
+    private val edgeTapGapKw: Float = KineticaConstants.EDGE_TAP_GAP_KW,
 ) {
     /** The letters this predictor's trie and geometry are spelled in. */
     val alphabet: Alphabet get() = trie.alphabet
@@ -596,7 +598,8 @@ class WordPredictor(
         // Fallback passes for sparse results: relaxed anchors (adjacent-key
         // typos, slightly missed taps in merged input), then transpositions
         // for all-tap sequences ("hte" -> "the").
-        if (heap.sparse) {
+        val fuzzyRan = heap.sparse
+        if (fuzzyRan) {
             for (p in patterns) {
                 if (p.any { it is Matcher.Anchor }) {
                     Search(p, g, prevWordId, prevWord, heap, fuzzyAnchors = true).run()
@@ -617,6 +620,16 @@ class WordPredictor(
                 KineticaConstants.TAP_EDIT_PEN_KW >= 0f && heap.sortedByScoreDesc().none { it.source.spelledAsTyped() }
             ) {
                 Search(primary, g, prevWordId, prevWord, heap, fuzzyAnchors = false, edits = true).run()
+            }
+        }
+        // A tap that landed near the edge it shares with a neighbour is that neighbour's
+        // almost as much as its own, and a full heap never runs the fuzzy pass above: a left
+        // thumb low on t read "need to" as "need go", with "to" never scored. Only those
+        // neighbours are tried, charged as fuzzy taps, so frequency and context decide.
+        if (!fuzzyRan && edgeTapGapKw > 0f) {
+            val p = patterns.firstOrNull()
+            if (p != null && p.any { it is Matcher.Anchor && nearEdge(it, g, edgeTapGapKw) }) {
+                Search(p, g, prevWordId, prevWord, heap, fuzzyAnchors = true, edgeGapKw = edgeTapGapKw).run()
             }
         }
         // Rescue: the lead fits its gesture poorly, which is where retyped words
@@ -1128,6 +1141,11 @@ class WordPredictor(
         private val rescue: Boolean = false,
         /** An all-tap pass that may skip one tap or add one untapped letter, charged. */
         private val edits: Boolean = false,
+        /**
+         * With [fuzzyAnchors], a neighbour is tried only when it sits at most this much
+         * farther from the tap than the tapped key does ([nearEdge]).
+         */
+        private val edgeGapKw: Float = Float.POSITIVE_INFINITY,
     ) {
         private var editsLeft = if (edits) 1 else 0
         private val cutting = itemStart != null && srcOf != null && cuts != null
@@ -1772,10 +1790,12 @@ class WordPredictor(
             if (!fuzzyAnchors) {
                 tryAnchor(node, m.code, 0f, ti, depth, tapPen, contactKeep)
             } else {
+                val own = if (g.hasKey(m.code)) g.distToCenter(m.x, m.y, m.code) else 0f
                 for (code in 0 until alphabet.letterCount) {
                     if (!g.hasKey(code)) continue
                     val d = g.distToCenter(m.x, m.y, code)
                     if (code != m.code && d > KineticaConstants.FUZZY_TAP_RADIUS_KW) continue
+                    if (code != m.code && d - own > edgeGapKw) continue
                     val pen = if (code == m.code) 0f else KineticaConstants.FUZZY_TAP_LAMBDA * d
                     tryAnchor(node, code, pen, ti, depth, tapPen, contactKeep)
                 }
@@ -2413,3 +2433,17 @@ private class Approach(val piece: Int, val idx: Int, val dist: Float, val contac
 /** The typed letters are a word or the start of one, so nothing was mistyped. */
 private fun WordCandidate.Source.spelledAsTyped(): Boolean =
     this == WordCandidate.Source.EXACT_TAP || this == WordCandidate.Source.COMPLETION
+
+/**
+ * True when some other key's centre is at most [gapKw] farther from the tap than its own key's:
+ * the tap sits near their shared edge, and either letter is a fair reading of it.
+ */
+internal fun nearEdge(m: Matcher.Anchor, g: KeyboardGeometry, gapKw: Float): Boolean {
+    if (!g.hasKey(m.code)) return false
+    val own = g.distToCenter(m.x, m.y, m.code)
+    for (code in 0 until g.alphabet.letterCount) {
+        if (code == m.code || !g.hasKey(code)) continue
+        if (g.distToCenter(m.x, m.y, code) - own <= gapKw) return true
+    }
+    return false
+}

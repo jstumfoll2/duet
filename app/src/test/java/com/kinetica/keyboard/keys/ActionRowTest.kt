@@ -254,6 +254,11 @@ class ActionRowTest {
             ActionRow.Notice.Toggle(EditorAction.TOGGLE_INCOGNITO, false),
             ActionRow.notice(EditorAction.TOGGLE_INCOGNITO, off.copy(incognito = true)),
         )
+        assertEquals(ActionRow.Notice.Toggle(EditorAction.TOGGLE_FLOATING, true), ActionRow.notice(EditorAction.TOGGLE_FLOATING, off))
+        assertEquals(
+            ActionRow.Notice.Toggle(EditorAction.TOGGLE_FLOATING, false),
+            ActionRow.notice(EditorAction.TOGGLE_FLOATING, off.copy(floating = true)),
+        )
     }
 
     @Test

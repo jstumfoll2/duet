@@ -486,6 +486,19 @@ object Prefs {
     /** The system's key-click sound on each key press, at the phone's touch-sound volume. */
     const val KEY_SOUND = "pref_key_sound"
 
+    /**
+     * The floating keyboard: narrower, and moved anywhere by its handle, with the app usable
+     * around it. Its width is [FLOAT_WIDTH_PCT]; where it sits is [FLOAT_LEFT_PCT] and
+     * [FLOAT_LIFT_DP], written by the handle, not by a settings row.
+     */
+    const val FLOATING = "pref_floating"
+    const val FLOAT_WIDTH_PCT = "pref_float_width_pct"
+    const val FLOAT_LEFT_PCT = "pref_float_left_pct"
+    const val FLOAT_LIFT_DP = "pref_float_lift_dp"
+
+    /** Emoji for the word before the cursor in the suggestion bar ("pizza" offers 🍕). */
+    const val EMOJI_SUGGESTIONS = "pref_emoji_suggestions"
+
     /** Legacy: the reserved peck-toggle letter, converted the same way as [LANG_CYCLE_KEY]. */
     const val PECK_CHORD_KEY = "pref_peck_chord_key"
     const val THEME_MODE = "pref_theme_mode"
@@ -681,6 +694,11 @@ object Prefs {
     const val DEFAULT_PECK_MODE = false
     const val DEFAULT_INCOGNITO = false
     const val DEFAULT_KEY_SOUND = false
+    const val DEFAULT_EMOJI_SUGGESTIONS = false
+    const val DEFAULT_FLOATING = false
+    const val DEFAULT_FLOAT_WIDTH_PCT = 80
+    const val DEFAULT_FLOAT_LEFT_PCT = 50
+    const val DEFAULT_FLOAT_LIFT_DP = 120
 
     /**
      * Canonical order of all bundled languages; cycling follows this order.

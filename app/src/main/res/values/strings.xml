@@ -309,6 +309,11 @@
     <string name="action_case_upper">Word in capitals (ABC)</string>
     <string name="notice_name_peck_mode">Peck-type</string>
     <string name="notice_name_incognito">Incognito</string>
+    <string name="notice_name_floating">Floating keyboard</string>
+    <string name="action_toggle_floating">Floating on or off</string>
+    <string name="pref_floating_title">Floating keyboard</string>
+    <string name="pref_floating_summary">A narrower keyboard over the app, which stays usable around it. Drag the handle above the bar to move it</string>
+    <string name="pref_float_width_title">Floating keyboard width (% of the screen)</string>
     <string name="notice_name_typing_speed">Typing speed</string>
     <string name="pref_no_primary_title">Follow the language I type (experimental)</string>
     <string name="pref_no_primary_summary">Up to three enabled languages count as equals; the one you are typing weighs most. Another language\'s words go in on their own far more often, right or wrong. Works without Mix enabled languages</string>
@@ -390,6 +395,8 @@
     <string name="pref_number_row_gap_title">Gap under the numbers row (%)</string>
     <string name="pref_number_row_gap_summary">How much of each digit key, from the bottom, types the letter below instead. More keeps a thumb reaching for the top letters from typing t9 for to. The letter keys do not move</string>
     <string name="pref_recent_words_summary">The last two words stay on the left of the bar, each with the two words it beat above and below it. Tap one to swap it in. The bar grows to fit</string>
+    <string name="pref_emoji_suggestions_title">Emoji suggestions</string>
+    <string name="pref_emoji_suggestions_summary">The bar offers emoji for the word just typed (pizza offers 🍕) at its right end. A tap adds the emoji after the word</string>
     <string name="pref_next_word_summary">When nothing is being typed, the bar offers the words that usually come next, in place of the shortcuts (the ?123 menu keeps them). With recent words on, they follow every word</string>
     <string name="pref_bar_actions_summary">Shown when there is nothing to suggest. Each is also assignable to a chord or an edge swipe</string>
     <string name="pref_menu_actions_title">Shortcuts in the ?123 long-press menu</string>
@@ -607,6 +614,7 @@
     <string name="pref_theme_mode_title">Keyboard theme</string>
     <string name="pref_theme_brightness_title">Light or dark</string>
     <string name="theme_preview_note_custom">Preview: drag the hue above to change it</string>
+    <string name="theme_preview_note_preset">Preview: presets keep their own colours, so the brightness and hue settings do not change them.</string>
     <string name="theme_preview_note_fixed">Preview: this palette ignores the hue. Choose Custom colour to use it.</string>
     <string name="pref_theme_hue_title">Accent hue</string>
     <string name="pref_theme_hue_summary">Position on the colour wheel, from 0 to 360, for the custom colour theme. Every surface follows it</string>

@@ -45,6 +45,8 @@ object ReplayCli {
                 val tri = opt(a, "--tri")?.toFloat() ?: KineticaConstants.TRIGRAM_BOOST_MAX
                 // --touch S: the per-user touch model, learning online at strength S (0 = off).
                 val touch = touchModel(opt(a, "--touch"))
+                // --edge G: the near-edge tap pass's gap in kw (0 = off).
+                val edge = opt(a, "--edge")?.toFloat() ?: KineticaConstants.EDGE_TAP_GAP_KW
                 if (a.isEmpty()) usage()
                 val harness = ReplayHarness(
                     assets, k, ctc, beta, depth,
@@ -52,6 +54,7 @@ object ReplayCli {
                     interleaveWeight = ilw ?: KineticaConstants.INTERLEAVE_WEIGHT,
                     touch = touch,
                     trigramBoost = tri,
+                    edgeTapGap = edge,
                 )
                 val report = run(harness, a.map { File(it) })
                 println(report.format())
@@ -68,7 +71,7 @@ object ReplayCli {
                 }
             }
             "ranks" -> {
-                // ranks [--ilw W] [--hdb B] [--hdms MS] [--hdend MS] [--hdmiss K] FILE...: one tab-separated
+                // ranks [--edge G] [--ilw W] [--hdb B] [--hdms MS] [--hdend MS] [--hdmiss K] FILE...: one tab-separated
                 // row per scored line, for slicing. --hd* set the held-double-letter terms.
                 val ilw = opt(a, "--ilw")?.toFloat()
                 // --tri B: the two-word context boost cap (0 = off).
@@ -80,6 +83,7 @@ object ReplayCli {
                 val touch = touchModel(opt(a, "--touch"))
                 val learner = learnerOf(opt(a, "--learn"), opt(a, "--seed"))
                 val hdfree = a.remove("--hdfree") || KineticaConstants.HELD_DOUBLE_FREE_TIME
+                val edge = opt(a, "--edge")?.toFloat() ?: KineticaConstants.EDGE_TAP_GAP_KW
                 if (a.isEmpty()) usage()
                 val h = ReplayHarness(
                     assets,
@@ -91,6 +95,7 @@ object ReplayCli {
                     trigramBoost = tri,
                     learner = learner,
                     heldDoubleFree = hdfree,
+                    edgeTapGap = edge,
                 )
                 val sink = ReplayReport(h.deepK)
                 for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {

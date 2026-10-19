@@ -14,7 +14,8 @@ committed word comes out on top. Plain JVM: it needs a JDK, not the Android SDK.
 ./gradlew -p tools/replay test
 ```
 
-Options: `--k N` sets the deep list for recall (default 50); `--assets DIR`
+Options: `--k N` sets the deep list for recall (default 50); `--edge G` sets the
+near-edge tap gap in kw (0 turns that pass off); `--assets DIR`
 points at `app/src/main/assets` when run from elsewhere. `replay` exits 1 if any
 comparable line fails to reproduce.
 

@@ -73,6 +73,9 @@ class SuggestionBarView @JvmOverloads constructor(
 
         /** A recent word's alternative was tapped: [back] commits before the newest, 0 the newest. */
         fun onRecentPicked(back: Int, word: String)
+
+        /** An emoji offered for the word before the cursor (see [emoji]) was tapped. */
+        fun onEmojiPicked(emoji: String) {}
     }
 
     /**
@@ -140,6 +143,18 @@ class SuggestionBarView @JvmOverloads constructor(
             if (field == clamped) return
             field = clamped
             invalidate()
+        }
+
+    /**
+     * Emoji offered for the word before the cursor, each in a cell of its own at the right of
+     * the words (left of the retype button). Empty, the default, gives the words the room.
+     */
+    var emoji: List<String> = emptyList()
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
         }
 
     /** Recent words, oldest first, left of the live zones; empty turns the columns off. */
@@ -411,6 +426,7 @@ class SuggestionBarView @JvmOverloads constructor(
         // the partition would stay sized for the old width.
         val key = words.hashCode() * 31 * 31 + width * 31 + height +
             (if (retypeButton) 7919 else 0) + retypeButtonDp + recent.size * 131 + (tallFactor * 100).toInt() +
+            emoji.size * 7177 +
             (textScale * 1000).toInt() * 17 + (if (compactWords) 104729 else 0)
         if (key != zoneKey) {
             zoneKey = key
@@ -511,6 +527,15 @@ class SuggestionBarView @JvmOverloads constructor(
             val bw = retypeWidth()
             canvas.drawText(RETYPE_GLYPH, w - bw / 2f, baseY, textPaint)
             canvas.drawRect(w - bw - 1f, h * 0.2f, w - bw + 1f, h * 0.8f, dividerPaint)
+        }
+        if (emoji.isNotEmpty()) {
+            val cw = emojiCellWidth()
+            val right = w - retypeWidth()
+            for ((i, e) in emoji.withIndex()) {
+                canvas.drawText(e, right - cw * (i + 0.5f), baseY, textPaint)
+            }
+            val left = right - cw * emoji.size
+            canvas.drawRect(left - 1f, h * 0.2f, left + 1f, h * 0.8f, dividerPaint)
         }
         // Everything from here is laid out from the left edge of the live words.
         canvas.save()
@@ -713,7 +738,8 @@ class SuggestionBarView @JvmOverloads constructor(
                 resetAdjust()
                 // Anywhere on the words, in either direction, once there is a page to go to.
                 // Not from the retype button or a recent column, which are not word zones.
-                pageSwipeCandidate = pageCount() > 1 && downZone != ZONE_RETYPE && downZone != ZONE_RECENT
+                pageSwipeCandidate = pageCount() > 1 && downZone != ZONE_RETYPE && downZone != ZONE_RECENT &&
+                    downZone > ZONE_EMOJI_BASE
                 pageSwipeConsumed = false
                 recentDownCell = if (downZone == ZONE_RECENT) recentCellAt(ev.x, ev.y) else -1
                 if (downZone == ZONE_RECENT) downWord = recentCellSuggestion(recentDownCell)?.word
@@ -856,6 +882,13 @@ class SuggestionBarView @JvmOverloads constructor(
                     recycleTracker()
                     return true
                 }
+                if (zone <= ZONE_EMOJI_BASE && zone == downZone) {
+                    emoji.getOrNull(ZONE_EMOJI_BASE - zone)?.let { listener?.onEmojiPicked(it) }
+                    performClick()
+                    downZone = -1
+                    recycleTracker()
+                    return true
+                }
                 if (zone <= ZONE_ACTION_BASE && zone == downZone) {
                     listener?.onBarAction(ZONE_ACTION_BASE - zone)
                     performClick()
@@ -919,8 +952,18 @@ class SuggestionBarView @JvmOverloads constructor(
     private fun retypeWidth(): Float =
         if (retypeButton) (retypeButtonDp * density).coerceAtMost(width / 4f) else 0f
 
+    /**
+     * One emoji cell: a square of the row, at least the retype button's smallest target, and
+     * never more than an eighth of the bar.
+     */
+    private fun emojiCellWidth(): Float =
+        rowHeight().coerceAtLeast(BarMetrics.RETYPE_MIN_DP * density).coerceAtMost(width / 8f)
+
+    /** Width the emoji cells take left of the retype button, or 0 with none offered. */
+    private fun emojiWidth(): Float = if (emoji.isEmpty()) 0f else emojiCellWidth() * emoji.size
+
     /** Width the word zones divide between them. */
-    private fun wordsWidth(): Float = width - retypeWidth() - wordsLeft()
+    private fun wordsWidth(): Float = width - retypeWidth() - emojiWidth() - wordsLeft()
 
     /** One row's height: the bar's own unless [tallFactor] made room for recent words. */
     private fun rowHeight(): Float = height / tallFactor.coerceAtLeast(1f)
@@ -943,6 +986,10 @@ class SuggestionBarView @JvmOverloads constructor(
         // The button is not a word zone: it is outside the paging arithmetic, so MAX_ZONES,
         // visible and pageCount ignore it.
         if (retypeButton && xRaw >= width - retypeWidth()) return ZONE_RETYPE
+        if (emoji.isNotEmpty() && xRaw >= width - retypeWidth() - emojiWidth()) {
+            val i = ((width - retypeWidth() - xRaw) / emojiCellWidth()).toInt().coerceIn(0, emoji.size - 1)
+            return ZONE_EMOJI_BASE - i
+        }
         if (recent.isNotEmpty() && xRaw < wordsLeft()) return ZONE_RECENT
         val x = xRaw - wordsLeft()
         val acts = visibleActions()
@@ -1004,6 +1051,12 @@ class SuggestionBarView @JvmOverloads constructor(
          * and the upward flick stay off a row with no words behind it.
          */
         const val ZONE_ACTION_BASE = -10
+
+        /**
+         * First emoji cell, counted from the right; cell i is `ZONE_EMOJI_BASE - i`. Far below
+         * the shortcut cells so the two ranges never meet, and checked before them.
+         */
+        const val ZONE_EMOJI_BASE = -100
         // U+21BB. A symbol, not an icon: it themes with the text, scales with the bar and needs
         // no drawable.
         const val RETYPE_GLYPH = "\u21bb"

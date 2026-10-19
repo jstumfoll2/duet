@@ -142,6 +142,9 @@ enum class EditorAction(val output: String) {
     CASE_LOWER("${ACTION_PREFIX}case_lower"),
     CASE_TITLE("${ACTION_PREFIX}case_title"),
     CASE_UPPER("${ACTION_PREFIX}case_upper"),
+
+    /** The floating keyboard on or off: a narrower keyboard the handle moves anywhere. */
+    TOGGLE_FLOATING("${ACTION_PREFIX}toggle_floating"),
     ;
 
     companion object {

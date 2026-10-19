@@ -89,6 +89,12 @@
             android:summary="@string/pref_next_word_summary"
             android:defaultValue="true" />
         <SwitchPreferenceCompat
+            android:key="pref_emoji_suggestions"
+            android:title="@string/pref_emoji_suggestions_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_emoji_suggestions_summary"
+            android:defaultValue="false" />
+        <SwitchPreferenceCompat
             android:key="pref_enter_action"
             android:title="@string/pref_enter_action_title"
             app:singleLineTitle="false"
@@ -394,7 +400,7 @@
             android:entryValues="@array/theme_brightness_values"
             android:defaultValue="dark"
             app:useSimpleSummaryProvider="true" />
-        <SeekBarPreference
+        <com.kinetica.keyboard.settings.HueSliderPreference
             android:key="pref_theme_hue"
             android:title="@string/pref_theme_hue_title"
             app:singleLineTitle="false"
@@ -416,11 +422,12 @@
             android:entryValues="@array/trail_color_values"
             android:defaultValue="rainbow"
             app:useSimpleSummaryProvider="true" />
-        <SeekBarPreference
+        <com.kinetica.keyboard.settings.HueSliderPreference
             android:key="pref_trail_color_custom_hue"
             android:title="@string/pref_trail_custom_hue_title"
             app:singleLineTitle="false"
             android:defaultValue="200"
+            app:swatchSaturation="0.85"
             android:max="360"
             app:min="0"
             app:showSeekBarValue="true" />
@@ -508,6 +515,22 @@
             android:entryValues="@array/layout_mode_values"
             android:defaultValue="full"
             app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            android:key="pref_floating"
+            android:title="@string/pref_floating_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_floating_summary"
+            android:defaultValue="false" />
+        <SeekBarPreference
+            android:key="pref_float_width_pct"
+            android:title="@string/pref_float_width_title"
+            app:singleLineTitle="false"
+            android:dependency="pref_floating"
+            android:defaultValue="80"
+            android:max="100"
+            app:min="50"
+            app:seekBarIncrement="5"
+            app:showSeekBarValue="true" />
         <ListPreference
             android:key="pref_key_arrangement"
             android:title="@string/pref_key_arrangement_title"

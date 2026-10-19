@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -41,7 +42,9 @@ import com.kinetica.keyboard.keys.ActionRow
 import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutLoader
 import com.kinetica.keyboard.layout.LayoutTransforms
+import com.kinetica.keyboard.ui.Hsv
 import com.kinetica.keyboard.ui.KeyboardTheme
+import com.kinetica.keyboard.ui.ThemePresets
 import com.kinetica.keyboard.ui.SizePreviewView
 
 class KeyboardPrefsFragment : PreferenceFragmentCompat() {
@@ -554,6 +557,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
      * before the value is persisted, so reading preferences here would show the previous palette.
      */
     private fun wireThemePreview() {
+        wireTrailSwatch()
         val preview = findPreference<ThemePreviewPreference>(PREVIEW_KEY) ?: return
         val hue = findPreference<SeekBarPreference>(Prefs.THEME_HUE)
         val mode = findPreference<ListPreference>(Prefs.THEME_MODE)
@@ -570,18 +574,21 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
             val primary = newHue?.let { KeyboardTheme.primaryForHue(it.toFloat()) }
                 ?: config.themeColor
             val resolvedMode = newMode ?: config.themeMode
+            val theme = KeyboardTheme.resolve(
+                requireContext(),
+                resolvedMode,
+                primary,
+                newBrightness ?: config.themeBrightness,
+            )
+            // The "theme colour" trail follows the accent, so its swatch moves with the theme.
+            trailSwatch?.themeAccentHue = theme.accentHue
             preview.show(
-                KeyboardTheme.resolve(
-                    requireContext(),
-                    resolvedMode,
-                    primary,
-                    newBrightness ?: config.themeBrightness,
-                ),
+                theme,
                 getString(
-                    if (KeyboardTheme.hueAffects(resolvedMode)) {
-                        R.string.theme_preview_note_custom
-                    } else {
-                        R.string.theme_preview_note_fixed
+                    when {
+                        KeyboardTheme.hueAffects(resolvedMode) -> R.string.theme_preview_note_custom
+                        ThemePresets.isPreset(resolvedMode) -> R.string.theme_preview_note_preset
+                        else -> R.string.theme_preview_note_fixed
                     },
                 ),
             )
@@ -602,6 +609,63 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         refresh()
     }
 
+    /**
+     * The trail colour row shows the colour it is set to as a dot in its icon slot: a list
+     * summary saying "Custom hue" or "Theme colour" did not show which colour that was. Rainbow
+     * is a sweep of every hue. Fed new values from the change callbacks, before they persist.
+     */
+    private inner class TrailSwatch(private val row: ListPreference) {
+        var mode: String? = row.value
+            set(v) { field = v; paint() }
+        var customHue: Int = preferenceManager.sharedPreferences
+            ?.getInt(Prefs.TRAIL_COLOR_CUSTOM_HUE, 200) ?: 200
+            set(v) { field = v; paint() }
+        var themeAccentHue: Float = 0f
+            set(v) { field = v; paint() }
+
+        fun paint() {
+            val px = (TRAIL_DOT_DP * resources.displayMetrics.density).toInt()
+            row.icon = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setSize(px, px)
+                when (mode) {
+                    "rainbow", null -> {
+                        gradientType = GradientDrawable.SWEEP_GRADIENT
+                        colors = IntArray(7) { i -> Hsv.toColor(i * 60f % 360f, TRAIL_SAT, 1f) }
+                    }
+                    "theme" -> setColor(Hsv.toColor(themeAccentHue, TRAIL_SAT, 1f))
+                    else -> setColor(
+                        Hsv.toColor(KeyboardConfig.trailHueFor(mode, customHue), TRAIL_SAT, 1f),
+                    )
+                }
+            }
+        }
+    }
+
+    private var trailSwatch: TrailSwatch? = null
+
+    private fun wireTrailSwatch() {
+        val row = findPreference<ListPreference>(Prefs.TRAIL_COLOR) ?: return
+        val swatch = TrailSwatch(row)
+        trailSwatch = swatch
+        row.setOnPreferenceChangeListener { _, value ->
+            swatch.mode = value as? String
+            true
+        }
+        findPreference<HueSliderPreference>(Prefs.TRAIL_COLOR_CUSTOM_HUE)
+            ?.setOnPreferenceChangeListener { _, value ->
+                (value as? Int)?.let { swatch.customHue = it }
+                true
+            }
+        // Covers screens without the theme rows, where wireThemePreview never sets the accent.
+        preferenceManager.sharedPreferences?.let { prefs ->
+            val config = KeyboardConfig.from(prefs)
+            swatch.themeAccentHue = KeyboardTheme.resolve(
+                requireContext(), config.themeMode, config.themeColor, config.themeBrightness,
+            ).accentHue
+        }
+    }
+
     private var revealKey: String? = null
 
     private companion object {
@@ -609,6 +673,9 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         const val RESET_LETTER_LISTS_KEY = "pref_letter_alternates_reset"
         const val LETTER_NOTE_KEY = "pref_letter_alternates_note"
         const val PREVIEW_KEY = "pref_theme_preview"
+        const val TRAIL_DOT_DP = 24f
+        // TrailRenderer's stroke saturation, so the dot is the colour the trail draws.
+        const val TRAIL_SAT = 0.85f
         val SIZE_PREVIEW_KEYS = listOf("pref_size_preview", "pref_bar_preview")
         val SIZE_SLIDERS = listOf(
             Prefs.KEYBOARD_HEIGHT_PCT, Prefs.KEYBOARD_HEIGHT_PCT_LANDSCAPE, Prefs.SUGGESTION_BAR_DP,
