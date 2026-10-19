@@ -135,6 +135,40 @@ class SwipeTraceReplayTest {
         }
     }
 
+    @Test
+    fun retypedWordsTakeTheRetypeAsLabel() {
+        assumeTrue(haveAssets("en"))
+        val lines = ArrayList<String>()
+        SyntheticSession(assets).record(listOf("go", "to", "ca", "can", "the", "j"), "en", null) { lines.add(it) }
+        fun w(i: Int) = SwipeTrace.decode(lines[i])
+        val abandoned = SwipeTrace.encode(w(0).copy(committed = null))
+        val bs = SwipeTrace.encodeKey("backspace", 0)
+        val f = File.createTempFile("trace", ".jsonl")
+        try {
+            // go, backspace, to: a retype. ca, abandoned buffer, can: a stray mid-word space.
+            // the, j: no undo in between, so both stand.
+            f.writeText(listOf(lines[0], bs, lines[1], lines[2], abandoned, lines[3], lines[4], lines[5]).joinToString("\n"))
+            val report = ReplayReport(ReplayHarness.DEFAULT_DEEP_K)
+            val words = ReplayCli.read(f, report).map { it.second }
+            assertEquals(listOf("to", "to", null, null, "can", "the", "j"), words.map { it.label })
+            assertEquals("retyped", words[0].how)
+            assertEquals(1, report.retyped)
+            assertEquals(1, report.extended)
+        } finally {
+            f.delete()
+        }
+    }
+
+    @Test
+    fun retypeNeedsACloseWord() {
+        assertEquals(ReplayCli.Retype.CLOSE, ReplayCli.retypeOf("gels", "tells"))
+        assertEquals(ReplayCli.Retype.CLOSE, ReplayCli.retypeOf("foe", "for"))
+        assertEquals(ReplayCli.Retype.EXTENDS, ReplayCli.retypeOf("ca", "can"))
+        assertEquals(ReplayCli.Retype.NONE, ReplayCli.retypeOf("j", "the"))
+        assertEquals(ReplayCli.Retype.NONE, ReplayCli.retypeOf("do", "with"))
+        assertEquals(ReplayCli.Retype.NONE, ReplayCli.retypeOf("go", "Go"))
+    }
+
     private fun replayAll(lines: List<String>): ReplayReport {
         val h = ReplayHarness(assets)
         val r = ReplayReport(h.deepK)

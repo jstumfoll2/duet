@@ -47,6 +47,9 @@ class ReplayReport(private val deepK: Int) {
     val byBucket = LinkedHashMap<String, Tally>().apply { for (b in ReplayHarness.BUCKETS) put(b, Tally()) }
     var lines = 0
     var unlabelled = 0
+    /** Commits relabelled as the close word the user retyped, and stray mid-word commits dropped. */
+    var retyped = 0
+    var extended = 0
     var comparable = 0
     var exact = 0
     var failed = 0
@@ -84,6 +87,7 @@ class ReplayReport(private val deepK: Int) {
         byLength.getValue(if (n <= 2) "1-2 letters" else if (n <= 6) "3-6 letters" else if (n <= 9) "7-9 letters" else "10+ letters").add(r)
         val source = when {
             r.word.target != null -> "practice"
+            r.word.how == "retyped" -> "retyped"
             r.word.how == "tentative" -> "space commit"
             else -> "you typed"
         }
@@ -99,6 +103,7 @@ class ReplayReport(private val deepK: Int) {
     fun format(): String = buildString {
         appendLine("lines=$lines scored=${all.n} abandoned=$unlabelled unreadable=$failed")
         appendLine("exact replay: $exact/$comparable comparable lines (identical list, scores bit for bit)")
+        if (retyped + extended > 0) appendLine("retyped: $retyped commits relabelled as the word retyped, $extended mid-word commits unlabelled (--plain keeps them)")
         appendLine()
         appendLine(
             String.format(
@@ -164,7 +169,7 @@ class ReplayReport(private val deepK: Int) {
     }
 
     private companion object {
-        val SOURCES = listOf("practice", "you typed", "space commit")
+        val SOURCES = listOf("practice", "you typed", "space commit", "retyped")
         val LENGTHS = listOf("1-2 letters", "3-6 letters", "7-9 letters", "10+ letters")
 
         const val MAX_EXAMPLES = 10

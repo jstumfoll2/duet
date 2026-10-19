@@ -11,7 +11,8 @@ import java.io.File
  *   replay [--assets DIR] [--k N] TRACE.jsonl...
  *       Replays every v1 line, checks exactness, prints top-1, top-3, MRR and
  *       recall@N (default 50) overall and per bucket. Exits 1 when any
- *       comparable line fails to reproduce.
+ *       comparable line fails to reproduce. Every command relabels retyped
+ *       words (see [read]); --plain keeps the committed labels.
  *       With --ctc MODEL.kctc [--beta B] [--depth D] the shipping run adds the
  *       stage-A CTC rerank over a heap D deep (default 50).
  *   ranks [--learn words|phrases] [--seed FILE] [--hdfree] TRACE.jsonl...
@@ -32,6 +33,7 @@ object ReplayCli {
     fun main(args: Array<String>) {
         val a = args.toMutableList()
         val cmd = a.removeFirstOrNull() ?: usage()
+        retypes = !a.remove("--plain")
         forceTouch = a.remove("--touchforce")
         val assets = File(opt(a, "--assets") ?: defaultAssets())
         when (cmd) {
@@ -186,20 +188,68 @@ object ReplayCli {
     }
 
     /**
+     * Relabel retyped words (on by default; `--plain` turns it off). Plain labels score a typo
+     * the user deleted and retyped as right, so a change that fixes it reads as a loss.
+     */
+    var retypes = true
+
+    /**
      * Word lines of [f] with their line numbers, correction and discard lines
      * applied: a correction relabels the most recent earlier word committed as
      * its `from`, a discard drops the most recent earlier word.
+     *
+     * With [retypes], a free-typed commit that the user undid (a backspace, or a buffer
+     * abandoned after it) is relabelled as the next word they committed, when that word is close
+     * (see [retypeOf]). A retype that only extends the commit ("ca" then "can") means the
+     * first commit was a stray space mid-word, so its line is left unlabelled.
      */
     fun read(f: File, report: ReplayReport): List<Pair<Int, SwipeTrace.Word>> {
         val words = ArrayList<Pair<Int, SwipeTrace.Word>>()
+        // Indexes in [words] of the last free-typed commit and the earlier commits relabelled to it.
+        var chain = ArrayList<Int>()
+        var undone = false
         f.useLines { lines ->
             for ((i, line) in lines.withIndex()) {
                 if (line.isBlank()) continue
                 try {
                     when (val l = SwipeTrace.decodeLine(line)) {
-                        is SwipeTrace.Line.WordLine -> words.add(i + 1 to l.word)
-                        is SwipeTrace.Line.Discard -> words.removeLastOrNull()
-                        is SwipeTrace.Line.Key -> Unit
+                        is SwipeTrace.Line.WordLine -> {
+                            val w = l.word
+                            val committed = w.committed
+                            if (committed == null) {
+                                // A buffer cleared without a commit: older traces log no keys,
+                                // and backspaces inside a buffer aren't logged as keys either.
+                                if (chain.isNotEmpty()) undone = true
+                                words.add(i + 1 to w)
+                                continue
+                            }
+                            if (retypes && undone && chain.isNotEmpty()) {
+                                val prev = words[chain.last()].second.committed
+                                when (retypeOf(prev, committed)) {
+                                    Retype.CLOSE -> for (k in chain) {
+                                        val (n, old) = words[k]
+                                        words[k] = n to old.copy(committed = committed, how = "retyped")
+                                        report.retyped++
+                                    }
+                                    Retype.EXTENDS -> {
+                                        for (k in chain) {
+                                            val (n, old) = words[k]
+                                            words[k] = n to old.copy(committed = null)
+                                            report.extended++
+                                        }
+                                        chain = ArrayList()
+                                    }
+                                    Retype.NONE -> chain = ArrayList()
+                                }
+                            } else {
+                                chain = ArrayList()
+                            }
+                            undone = false
+                            words.add(i + 1 to w)
+                            if (w.target == null) chain.add(words.size - 1) else chain = ArrayList()
+                        }
+                        is SwipeTrace.Line.Discard -> { words.removeLastOrNull(); chain = ArrayList() }
+                        is SwipeTrace.Line.Key -> if (l.name == "backspace" && chain.isNotEmpty()) undone = true
                         is SwipeTrace.Line.Correction -> {
                             val k = words.indexOfLast { it.second.committed.equals(l.from, ignoreCase = true) }
                             if (k >= 0) {
@@ -214,6 +264,34 @@ object ReplayCli {
             }
         }
         return words
+    }
+
+    enum class Retype { NONE, CLOSE, EXTENDS }
+
+    /**
+     * How [retyped] relates to the earlier commit [was]: CLOSE when it differs by at most half
+     * the longer word's letters (go/to, gels/tells, bit/but), EXTENDS when it only adds letters
+     * at the end, NONE otherwise (a stray "j" before "the", or a different word altogether).
+     */
+    fun retypeOf(was: String?, retyped: String): Retype {
+        val a = was?.lowercase() ?: return Retype.NONE
+        val b = retyped.lowercase()
+        if (a == b || a.isEmpty()) return Retype.NONE
+        if (b.startsWith(a)) return Retype.EXTENDS
+        return if (editDistance(a, b) <= maxOf(1, maxOf(a.length, b.length) / 2)) Retype.CLOSE else Retype.NONE
+    }
+
+    private fun editDistance(a: String, b: String): Int {
+        var prev = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            val cur = IntArray(b.length + 1)
+            cur[0] = i
+            for (j in 1..b.length) {
+                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+            }
+            prev = cur
+        }
+        return prev[b.length]
     }
 
     /**
