@@ -506,6 +506,9 @@ class KeyboardView @JvmOverloads constructor(
     private var spaceChordFired = false
     /** The held space was already typed when the next letter landed; see [rollSpace]. */
     private var spaceRolled = false
+
+    // The spacebar touch landed mid-word: it cannot slide the cursor (TouchRules.locksSpaceSlide).
+    private var spaceSlideLocked = false
     private val chordTriggerByPointer = arrayOfNulls<ChordTrigger>(MAX_POINTERS)
     private val holdHandler = Handler(Looper.getMainLooper())
     private val holdRunnable = Runnable { onHoldTimerFired() }
@@ -1158,8 +1161,13 @@ class KeyboardView @JvmOverloads constructor(
                 spaceHoldMoved = false
                 spaceChordFired = false
                 spaceRolled = false
+                spaceSlideLocked = TouchRules.locksSpaceSlide(
+                    otherSwiping = (0 until MAX_POINTERS).any { it != pid && routeByPointer[it] == ROUTE_ENGINE },
+                    sinceLetterLiftMs = t - lastEngineUpTime,
+                )
+                if (spaceSlideLocked) DecodeTrace.log { "  space slide locked mid-word since=${t - lastEngineUpTime}ms" }
                 val r = keyRects.getOrNull(keyIdx)
-                spaceController.onDown(x, r?.left ?: 0f, r?.width() ?: 0f)
+                spaceController.onDown(x, r?.left ?: 0f, r?.width() ?: 0f, spaceSlideLocked)
                 if (chordLabelsEnabled) {
                     holdHandler.postDelayed(spaceLabelRunnable, maxOf(spaceChordArmMs, SPACE_LABEL_MIN_DELAY_MS))
                 }
@@ -1228,6 +1236,43 @@ class KeyboardView @JvmOverloads constructor(
         peakDyByPointer[pid] = 0f
         downTimeByPointer[pid] = t
         digitDuringSwipe[pid] = false
+        markOverlap(pid)
+        engine?.streamIdOf(pid)?.let { if (!zenMode && trailsEnabled) trailRenderer.startStream(it) }
+    }
+
+    /**
+     * A mid-word spacebar touch that moved well onto a letter becomes a stroke of the word, as a
+     * digit does above: the thumb landed low, and its letters belong to the word.
+     */
+    private fun maybeHandOverSpace(pid: Int, x: Float, y: Float, t: Long) {
+        if (routeByPointer[pid] != ROUTE_SPACE || pid != spacePointer || !engineActive) return
+        if (spaceRolled || spaceChordFired) return
+        val l = layout ?: return
+        val idx = keyIndexAt(x, y)
+        val onLetter = idx in l.keys.indices && l.keys[idx].isLetter
+        val dx = x - downXByPointer[pid]
+        val dy = y - downYByPointer[pid]
+        val travel = kotlin.math.sqrt(dx * dx + dy * dy)
+        if (!TouchRules.spaceHandsOverToSwipe(spaceSlideLocked, travel, spaceController.driftLimitPx(), onLetter)) return
+        if (engine?.onPointerDown(pid, x, y, t) != true) return
+        spaceController.consume()
+        spacePointer = -1
+        spaceHoldMoved = false
+        spaceSlideLocked = false
+        dropChordLabels(ChordTrigger.SPACE)
+        pressedKeys.remove(downKeyByPointer[pid])
+        pressedKeys.add(idx)
+        invalidate()
+        DecodeTrace.log { "  touch handover from=space to=${l.keys[idx].output}" }
+        routeByPointer[pid] = ROUTE_ENGINE
+        // Lifted before it drew a swipe, it is the space it began as (see the lift).
+        handoverFrom[pid] = downKeyByPointer[pid]
+        downKeyByPointer[pid] = idx
+        downXByPointer[pid] = x
+        downYByPointer[pid] = y
+        peakDxByPointer[pid] = 0f
+        peakDyByPointer[pid] = 0f
+        downTimeByPointer[pid] = t
         markOverlap(pid)
         engine?.streamIdOf(pid)?.let { if (!zenMode && trailsEnabled) trailRenderer.startStream(it) }
     }
@@ -1647,6 +1692,7 @@ class KeyboardView @JvmOverloads constructor(
                 }
             }
             maybeHandOverDigit(pid, x, y, ev.eventTime)
+            maybeHandOverSpace(pid, x, y, ev.eventTime)
             when (routeByPointer[pid]) {
                 ROUTE_ENGINE -> if (e != null) {
                     e.onPointerMove(pid, x, y, ev.eventTime)
@@ -1716,12 +1762,12 @@ class KeyboardView @JvmOverloads constructor(
         when (routeByPointer[pid]) {
             ROUTE_ENGINE -> {
                 if (handoverFrom[pid] != -1 && engine?.isSwipeCommitted(pid) == false) {
-                    // Handed over from a digit and lifted without drawing a swipe: a digit tap
-                    // that drifted onto a letter, so the digit it began on is what it types.
+                    // Handed over from a digit or the spacebar and lifted without drawing a
+                    // swipe: a tap that drifted onto a letter, so the key it began on is what it types.
                     engine?.cancelPointer(pid)
                     pressedKeys.remove(downKeyByPointer[pid])
                     downKeyByPointer[pid] = handoverFrom[pid]
-                    DecodeTrace.log { "  touch handover undone, a digit tap" }
+                    DecodeTrace.log { "  touch handover undone, a tap" }
                     dispatchTap(pid, t)
                 } else if (chordLift(pid, dx, dy) == ChordLift.FIRE) {
                     // The letter was a chord after all: it never becomes a token.
@@ -1758,6 +1804,7 @@ class KeyboardView @JvmOverloads constructor(
                 spaceHoldMoved = false
                 spaceChordFired = false
                 spaceRolled = false
+                spaceSlideLocked = false
                 dropChordLabels(ChordTrigger.SPACE)
             }
             ROUTE_BACKSPACE -> {
@@ -1917,6 +1964,7 @@ class KeyboardView @JvmOverloads constructor(
         spaceHoldMoved = false
         spaceChordFired = false
         spaceRolled = false
+        spaceSlideLocked = false
         backspacePointer = -1
         java.util.Arrays.fill(routeByPointer, ROUTE_NONE)
         java.util.Arrays.fill(chordTriggerByPointer, null)

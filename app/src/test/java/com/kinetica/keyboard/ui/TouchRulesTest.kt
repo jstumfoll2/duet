@@ -52,4 +52,23 @@ class TouchRulesTest {
         assertFalse(TouchRules.holdOpensMenu(otherOnLetters = true))
         assertTrue(TouchRules.holdOpensMenu(otherOnLetters = false))
     }
+
+    @Test
+    fun aSpacebarTouchMidWordCannotSlideTheCursor() {
+        assertTrue("other thumb drawing", TouchRules.locksSpaceSlide(otherSwiping = true, sinceLetterLiftMs = 5_000))
+        assertTrue("a letter just lifted", TouchRules.locksSpaceSlide(otherSwiping = false, sinceLetterLiftMs = 120))
+        assertFalse("after a pause", TouchRules.locksSpaceSlide(otherSwiping = false, sinceLetterLiftMs = 900))
+        assertFalse(
+            "nothing typed yet",
+            TouchRules.locksSpaceSlide(otherSwiping = false, sinceLetterLiftMs = Long.MAX_VALUE / 2),
+        )
+    }
+
+    @Test
+    fun aMidWordSpaceTouchHandsOverOnlyPastTheDrift() {
+        assertTrue(TouchRules.spaceHandsOverToSwipe(locked = true, travelPx = 40f, driftLimitPx = 28f, onLetter = true))
+        assertFalse("a drift", TouchRules.spaceHandsOverToSwipe(locked = true, travelPx = 20f, driftLimitPx = 28f, onLetter = true))
+        assertFalse("still on space", TouchRules.spaceHandsOverToSwipe(locked = true, travelPx = 40f, driftLimitPx = 28f, onLetter = false))
+        assertFalse("not mid-word", TouchRules.spaceHandsOverToSwipe(locked = false, travelPx = 40f, driftLimitPx = 28f, onLetter = true))
+    }
 }

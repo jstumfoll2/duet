@@ -47,6 +47,7 @@ class SpacebarCursorController(
     private var stepped = false
     private var maxTravel = 0f
     private var inSpacelessZone = false
+    private var slideLocked = false
 
     /** Whether this touch has become a cursor slide, which ends it as a chord trigger. */
     val sliding: Boolean get() = cursorMode
@@ -65,8 +66,13 @@ class SpacebarCursorController(
      * [keyLeft] and [keyWidth] are the spacebar's own rect, in the same coordinates as
      * [x]. Zero width means the caller does not know it, and then no touch is ever in the zone,
      * as with an unconfigured controller.
+     *
+     * [lockSlide] keeps this touch from ever moving the cursor: it landed in the middle of a
+     * word, and a cursor step there abandons the word being drawn (owner report, 2026-10-19). It
+     * lifts as a space, however far it travelled.
      */
-    fun onDown(x: Float, keyLeft: Float = 0f, keyWidth: Float = 0f) {
+    fun onDown(x: Float, keyLeft: Float = 0f, keyWidth: Float = 0f, lockSlide: Boolean = false) {
+        slideLocked = lockSlide
         startX = x
         anchorX = x
         cursorMode = false
@@ -78,6 +84,7 @@ class SpacebarCursorController(
 
     fun onMove(x: Float) {
         maxTravel = maxOf(maxTravel, abs(x - startX))
+        if (slideLocked) return
         if (!cursorMode && abs(x - startX) >= ENTER_SLIDE_DP * density) {
             cursorMode = true
             anchorX = x
@@ -106,7 +113,7 @@ class SpacebarCursorController(
      * nothing to show for it.
      */
     fun onUp(nowMs: Long = 0L): Lift {
-        val drift = !stepped && maxTravel < (ENTER_SLIDE_DP + effectiveStepDp()) * density
+        val drift = !stepped && maxTravel < driftLimitPx()
         val lift = when {
             cursorMode && !drift -> Lift.SLIDE
             inSpacelessZone -> Lift.SPACELESS
@@ -123,6 +130,9 @@ class SpacebarCursorController(
 
     /** Outcome of a spacebar touch. */
     enum class Lift { SPACE, SPACELESS, SLIDE, DOUBLE }
+
+    /** Travel past which a touch is no longer a drift: the enter threshold plus one step. */
+    fun driftLimitPx(): Float = (ENTER_SLIDE_DP + effectiveStepDp()) * density
 
     internal fun effectiveStepDp(): Float = stepDp.coerceIn(ENTER_SLIDE_DP, MAX_STEP_DP)
 

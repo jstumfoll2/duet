@@ -55,6 +55,27 @@ object PracticeWords {
         Kind.CENTER to 5, Kind.CROSSING to 4, Kind.ANY to 2,
     )
 
+    /**
+     * The word lengths practice asks for, chosen on the practice screen. [ALL] is the default and
+     * asks as before; the others narrow the list first, so the shape mix still applies inside the
+     * chosen lengths (a kind with no word of that length draws any word of the narrowed list).
+     */
+    enum class Length(val range: IntRange) {
+        ALL(1..Int.MAX_VALUE),
+        SHORT(2..3),
+        MEDIUM(4..6),
+        LONG(7..9),
+        VERY_LONG(10..Int.MAX_VALUE),
+        ;
+
+        val label: String
+            get() = when {
+                this == ALL -> "All lengths"
+                range.last == Int.MAX_VALUE -> "${range.first}+ letters"
+                else -> "${range.first}-${range.last} letters"
+            }
+    }
+
     class Pool(words: List<String>) {
         private val all = words
         private val byKind: Map<Kind, List<String>> = Kind.values().associateWith { k ->
@@ -63,12 +84,22 @@ object PracticeWords {
 
         fun size(k: Kind) = byKind[k]?.size ?: 0
 
+        /** This pool cut to [length]; the whole pool when no word fits, so there is always a prompt. */
+        fun ofLength(length: Length): Pool {
+            if (length == Length.ALL) return this
+            val kept = all.filter { it.length in length.range }
+            return if (kept.isEmpty()) this else Pool(kept)
+        }
+
         fun pick(rnd: Random): Pair<String, Kind> {
             if (all.isEmpty()) return "hello" to Kind.ANY
             var r = rnd.nextInt(MIX.sumOf { it.second })
             for ((k, share) in MIX) {
                 if (r < share) {
-                    val pool = byKind[k].orEmpty().ifEmpty { all }
+                    // No word of this shape (common once cut to one length): any word, and no
+                    // hint for a shape it does not have.
+                    val pool = byKind[k].orEmpty()
+                    if (pool.isEmpty()) return all[rnd.nextInt(all.size)] to Kind.ANY
                     return pool[rnd.nextInt(pool.size)] to k
                 }
                 r -= share
