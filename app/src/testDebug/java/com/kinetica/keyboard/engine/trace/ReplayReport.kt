@@ -41,6 +41,9 @@ class ReplayReport(private val deepK: Int) {
     val bySource = LinkedHashMap<String, Tally>().apply { for (s in SOURCES) put(s, Tally()) }
     var asTypedHits = 0
 
+    /** Lines by label length in letters: short words and long ones fail for different reasons. */
+    val byLength = LinkedHashMap<String, Tally>().apply { for (l in LENGTHS) put(l, Tally()) }
+
     val byBucket = LinkedHashMap<String, Tally>().apply { for (b in ReplayHarness.BUCKETS) put(b, Tally()) }
     var lines = 0
     var unlabelled = 0
@@ -77,6 +80,8 @@ class ReplayReport(private val deepK: Int) {
         }
         all.add(r)
         for (b in r.buckets) byBucket.getValue(b).add(r)
+        val n = r.word.label?.length ?: 0
+        byLength.getValue(if (n <= 2) "1-2 letters" else if (n <= 6) "3-6 letters" else if (n <= 9) "7-9 letters" else "10+ letters").add(r)
         val source = when {
             r.word.target != null -> "practice"
             r.word.how == "tentative" -> "space commit"
@@ -105,6 +110,9 @@ class ReplayReport(private val deepK: Int) {
         row("all", all)
         for ((b, t) in byBucket) if (t.n > 0) row(b, t)
         appendLine()
+        appendLine("by label length")
+        for ((b, t) in byLength) if (t.n > 0) row(b, t)
+        appendLine()
         appendLine("by label source")
         for ((b, t) in bySource) if (t.n > 0) row(b, t)
         val typed = bySource.getValue("you typed")
@@ -121,7 +129,10 @@ class ReplayReport(private val deepK: Int) {
             fun pct(p: Double) = sorted[((sorted.size - 1) * p).toInt()] / 1000.0
             appendLine()
             appendLine(
-                String.format(Locale.ROOT, "decode time on this JVM (not a phone): p50 %.1f ms, p95 %.1f ms", pct(0.5), pct(0.95)),
+                String.format(
+                    Locale.ROOT, "decode time on this JVM (not a phone): p50 %.1f ms, p95 %.1f ms, p99 %.1f ms, max %.1f ms",
+                    pct(0.5), pct(0.95), pct(0.99), sorted.last() / 1000.0,
+                ),
             )
         }
         if (deepLost > 0) {
@@ -154,6 +165,7 @@ class ReplayReport(private val deepK: Int) {
 
     private companion object {
         val SOURCES = listOf("practice", "you typed", "space commit")
+        val LENGTHS = listOf("1-2 letters", "3-6 letters", "7-9 letters", "10+ letters")
 
         const val MAX_EXAMPLES = 10
     }

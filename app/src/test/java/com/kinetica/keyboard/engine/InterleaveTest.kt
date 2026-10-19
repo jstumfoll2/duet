@@ -76,6 +76,29 @@ class InterleaveTest {
     }
 
     @Test
+    fun strokeIdealSumsTheLettersEachThumbCarries() {
+        val il = Interleave.of(discussion(), g)!!
+        val ideal = il.strokeIdeal("discussion")!!
+        fun d(a: Char, b: Char): Float {
+            val dx = g.centerX(a - 'a') - g.centerX(b - 'a')
+            val dy = g.centerY(a - 'a') - g.centerY(b - 'a')
+            return sqrt(dx * dx + dy * dy)
+        }
+        // Left d-s-c-s (the doubled s is one visit), right i-u-i-o-n.
+        assertEquals(d('d', 's') + d('s', 'c') + d('c', 's'), ideal[0], 1e-4f)
+        assertEquals(d('i', 'u') + d('u', 'i') + d('i', 'o') + d('o', 'n'), ideal[1], 1e-4f)
+        assertNull(il.strokeIdeal("zzz"))
+    }
+
+    @Test
+    fun aLongStrokeCarryingFewLettersIsCharged() {
+        // Below the arc floor nothing is charged; above it, in proportion to the shortfall.
+        assertEquals(1f, KineticaConstants.interleavedShortKeep(1f, 7.9f), 0f)
+        assertEquals(1f, KineticaConstants.interleavedShortKeep(9f, 11.4f), 0f)
+        assertEquals(4f / (0.75f * 11.4f), KineticaConstants.interleavedShortKeep(4f, 11.4f), 1e-6f)
+    }
+
+    @Test
     fun overlappingThumbsDecodeTheWordFirst() {
         val out = WordPredictor(words, BigramTable.EMPTY, g).decode(discussion(), emptyList())
         assertEquals("discussion", out.first().word)
