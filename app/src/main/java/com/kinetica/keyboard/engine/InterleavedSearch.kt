@@ -50,7 +50,7 @@ class InterleavedSearch(
                 rows[depth].copyInto(next)
                 depth > 0
             } else {
-                il.step(rows[depth], code, visits[depth] == 0, next, PRUNE_MEAN_KW * (visits[depth] + 1) + CELL_SLACK_KW) &&
+                il.step(rows[depth], code, visits[depth] == 0, next, PRUNE_MEAN_KW * (visits[depth] + 1) + CELL_SLACK_KW, visits[depth] >= Interleave.SKIP_FROM) &&
                     // Already too far off on average to come back: the word's
                     // remaining letters would have to sit on their keys.
                     il.lastMin <= PRUNE_MEAN_KW * (visits[depth] + 1)

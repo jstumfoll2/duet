@@ -24,6 +24,10 @@ import java.io.File
  *       it once against beta 0 on the other half. With several files the
  *       split is by file, which keeps a session on one side; with one file it
  *       alternates lines.
+ *   labelcost TRACE.jsonl...
+ *       For each two-thumb overlapped line: the label's interleaved cost (Infinity when no
+ *       reading exists), whether the interleaved search found it, and its best hit.
+ *       --skip KW and --skipfrom N (any command) set Interleave.SKIP_KW / SKIP_FROM.
  *   synth [--assets DIR] [--words N] [--alt LANG] [--noise X] [--seed S] OUT.jsonl
  *       Records a synthetic English session to OUT (default 300 words).
  */
@@ -34,6 +38,8 @@ object ReplayCli {
         val a = args.toMutableList()
         val cmd = a.removeFirstOrNull() ?: usage()
         retypes = !a.remove("--plain")
+        opt(a, "--skipfrom")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_FROM = it.toInt() }
+        opt(a, "--skip")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_KW = it.toFloat() }
         forceTouch = a.remove("--touchforce")
         val assets = File(opt(a, "--assets") ?: defaultAssets())
         when (cmd) {
@@ -145,6 +151,18 @@ object ReplayCli {
                     val r = try { h.replay(w) } catch (e: RuntimeException) { println("  failed: $e"); null }
                     com.kinetica.keyboard.engine.DecodeTrace.sink = null
                     if (r != null) println(describe(n, r))
+                }
+            }
+            "labelcost" -> {
+                val h = ReplayHarness(assets)
+                for (f in a.map { File(it) }) for ((n, w) in read(f, ReplayReport(h.deepK))) {
+                    val label = w.label?.lowercase() ?: continue
+                    val il = com.kinetica.keyboard.engine.Interleave.of(SwipeTrace.replayTokens(w), w.geometry.build())
+                    if (il == null) { println("${f.name}\t$n\t$label\tnoIL"); continue }
+                    val trie = h.trieFor(w.config.language, w.config.britishSpelling)
+                    val hits = com.kinetica.keyboard.engine.InterleavedSearch(trie, il).run(400)
+                    val best = hits.minByOrNull { it.cost }
+                    println("${f.name}\t$n\t$label\t${il.cost(label)}\t${hits.any { it.word == label }}\t${best?.word}\t${best?.cost}\t${label.length}")
                 }
             }
             "interleave" -> {
