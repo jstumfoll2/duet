@@ -149,6 +149,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** Resident emoji pick counts, so the picker fills without touching Room. */
     private val emojiStore by lazy { EmojiStore(this, dbExecutor, mainHandler) }
+    private val learnedStore by lazy { LearnedStore(this, dbExecutor) }
 
     private val ich = InputConnectionHelper { currentInputConnection }
     private val engine = GestureEngine(this)
@@ -4133,14 +4134,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             (before + amount).coerceAtLeast(0)
         } ?: 0
         val now = System.currentTimeMillis()
-        dbExecutor.execute {
-            try {
-                KineticaDb.get(this).userWords().upsertAdd(w, lang, amount, now)
-            } catch (e: RuntimeException) {
-                Log.w(TAG, "learn failed", e)
-            }
-            // Queued behind the write above: the reload reads userWords itself, and out of
-            // order it would miss the count this call is adding and drop the word again.
+        // Behind the write: the reload reads userWords itself, and out of order it would miss
+        // the count this call is adding and drop the word again.
+        learnedStore.addWord(w, lang, amount, now, "learn failed") {
             mainHandler.post {
                 askUserDictReload(w, lang, before, after)
                 // A demoted learned word keeps its merged trie frequency (count x 1000) until the
@@ -4167,13 +4163,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         map[w] = next
         val reload = leadChanged(old, next)
         DecodeTrace.log { "  learn capital word=$w display=${next.display} votes=${next.votes} lang=$lang" }
-        dbExecutor.execute {
-            try {
-                KineticaDb.get(this).userWords().setCase(w, lang, next.display, next.votes)
-            } catch (e: RuntimeException) {
-                Log.w(TAG, "case vote failed", e)
-                return@execute
-            }
+        learnedStore.setCase(w, lang, next.display, next.votes) {
             if (reload) mainHandler.post { scheduleUserDictReload() }
         }
     }
@@ -4478,13 +4468,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         lastLearnedPairLang = lang
         pairsFor(lang).compute(pairKey(p, w)) { _, v -> (v ?: 0) + 1 }
         val now = System.currentTimeMillis()
-        dbExecutor.execute {
-            try {
-                KineticaDb.get(this).userBigrams().upsertAdd(p, w, lang, 1, now)
-            } catch (e: RuntimeException) {
-                Log.w(TAG, "phrase learn failed", e)
-            }
-        }
+        learnedStore.addPair(p, w, lang, 1, now, "phrase learn failed")
     }
 
     /**
@@ -4505,23 +4489,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             pairsFor(lang).compute(key) { _, v -> (v ?: 0) + delta }
         }
         val now = System.currentTimeMillis()
-        dbExecutor.execute {
-            try {
-                val dao = KineticaDb.get(this).userBigrams()
-                if (delta > 0) {
-                    dao.upsertAdd(p, w, lang, delta, now)
-                } else {
-                    // The count above is every spelling of the pair added up under its folded
-                    // key, so the decrement goes to the rows that hold it, not to this spelling,
-                    // which may not exist and would come back at the next load.
-                    val stored = dao.topN(lang, Int.MAX_VALUE).map { StoredPair(it.prev, it.next, it.count) }
-                    for ((row, take) in pickPairRows(stored, key, -delta)) {
-                        dao.upsertAdd(row.prev, row.next, lang, -take, now)
-                    }
-                }
-            } catch (e: RuntimeException) {
-                Log.w(TAG, "phrase adjust failed", e)
-            }
+        if (delta > 0) {
+            learnedStore.addPair(p, w, lang, delta, now, "phrase adjust failed")
+        } else {
+            learnedStore.takePair(key, lang, -delta, now)
         }
     }
 
@@ -4534,13 +4505,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val key = pairKey(pair.first, pair.second)
         pairsFor(lang).computeIfPresent(key) { _, v -> (v - 1).coerceAtLeast(0) }
         val now = System.currentTimeMillis()
-        dbExecutor.execute {
-            try {
-                KineticaDb.get(this).userBigrams().upsertAdd(pair.first, pair.second, lang, -1, now)
-            } catch (e: RuntimeException) {
-                Log.w(TAG, "phrase unlearn failed", e)
-            }
-        }
+        learnedStore.addPair(pair.first, pair.second, lang, -1, now, "phrase unlearn failed")
     }
 
     /** Inverse of [learnWord] for commits the user explicitly took back. */
@@ -4551,13 +4516,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val lang = lastLearnedWordLang?.takeIf { w == lastLearnedWord } ?: languageOf(word)
         countsFor(lang).computeIfPresent(w) { _, v -> (v - 1).coerceAtLeast(0) }
         val now = System.currentTimeMillis()
-        dbExecutor.execute {
-            try {
-                KineticaDb.get(this).userWords().upsertAdd(w, lang, -1, now)
-            } catch (e: RuntimeException) {
-                Log.w(TAG, "unlearn failed", e)
-            }
-        }
+        learnedStore.addWord(w, lang, -1, now, "unlearn failed")
     }
 
     private fun commitWordInternal(word: String) {
