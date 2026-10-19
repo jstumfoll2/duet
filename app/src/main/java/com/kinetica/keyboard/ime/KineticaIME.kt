@@ -1,5 +1,6 @@
 package com.kinetica.keyboard.ime
 
+import android.app.KeyguardManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -1139,6 +1140,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         synchronizeLanguageOnStart()
         editorState = EditorState.from(attribute)
+        // The DEV build's trace names what is typed; a private field leaves no line in it.
+        DecodeTrace.suppressed = editorState.teachesNothing
         backspaceTarget = null
         abandonWord()
         composer?.reset()
@@ -2245,7 +2248,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     db.userWords().delete(lower, lang)
                 }
             } catch (e: RuntimeException) {
-                Log.w(TAG, "could not block $lower", e)
+                Log.w(TAG, "could not block a word", e)
                 return@execute
             }
             // Queued behind the write on the same executor: a reload that overtakes
@@ -2525,10 +2528,22 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (!sensitive && isInputViewShown) refreshPredictions()
     }
 
+    /**
+     * True while the lock screen shows. The keyboard there serves whoever holds the phone, so
+     * the clips copied before it locked stay off the bar until it is unlocked.
+     */
+    private fun clipsHidden(): Boolean =
+        getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+
     /** The clipboard action: the recent clips on the bar, newest first, a tap pastes one. */
     private fun offerClipboard() {
         cancelAutospace()
         finalizePendingWord()
+        if (clipsHidden()) {
+            DecodeTrace.log { "  clipboard offer refused=locked" }
+            Toast.makeText(this, R.string.clipboard_locked, Toast.LENGTH_SHORT).show()
+            return
+        }
         val now = System.currentTimeMillis()
         if (clipboardHistory.recent(now).isEmpty()) {
             // What was copied before the keyboard started; not offered as fresh.
@@ -2553,6 +2568,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** The clip copied a moment ago, alone on the idle bar; true when it is shown. */
     private fun offerFreshClip(): Boolean {
+        if (clipsHidden()) return false
         val clip = clipboardHistory.fresh(System.currentTimeMillis()) ?: return false
         showBarOffer(BarOffer.Kind.FRESH_CLIP, listOf(clip.text))
         return true
@@ -4015,7 +4031,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             try {
                 KineticaDb.get(this).userWords().upsertAdd(w, lang, amount, now)
             } catch (e: RuntimeException) {
-                Log.w(TAG, "learn failed for $w", e)
+                Log.w(TAG, "learn failed", e)
             }
             // Queued behind the write above: the reload reads userWords itself, and out of
             // order it would miss the count this call is adding and drop the word again.
@@ -4049,7 +4065,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             try {
                 KineticaDb.get(this).userWords().setCase(w, lang, next.display, next.votes)
             } catch (e: RuntimeException) {
-                Log.w(TAG, "case vote failed for $w", e)
+                Log.w(TAG, "case vote failed", e)
                 return@execute
             }
             if (reload) mainHandler.post { scheduleUserDictReload() }
@@ -4456,7 +4472,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             try {
                 KineticaDb.get(this).userWords().upsertAdd(w, lang, -1, now)
             } catch (e: RuntimeException) {
-                Log.w(TAG, "unlearn failed for $w", e)
+                Log.w(TAG, "unlearn failed", e)
             }
         }
     }

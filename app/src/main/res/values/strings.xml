@@ -606,6 +606,7 @@
     <string name="action_clipboard">Clipboard history</string>
     <string name="action_voice">Voice typing</string>
     <string name="clipboard_empty">Nothing copied in the last hour</string>
+    <string name="clipboard_locked">Clipboard history is hidden while the phone is locked</string>
     <string name="voice_none">No voice typing keyboard is turned on. Turn one on here, then press the key again</string>
     <string name="pref_sms_codes_title">Codes from text messages</string>
     <string name="pref_sms_codes_summary">In a field that asks for a code, offer the code from a text message received in the last ten minutes. Needs permission to read text messages. Duet only reads them on this phone and has no internet access</string>

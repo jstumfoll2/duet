@@ -16,12 +16,22 @@ object DecodeTrace {
 
     val enabled: Boolean get() = sink != null
 
+    /**
+     * True while the field being typed in may record nothing (a password, or a field that asks
+     * for no personalized learning, such as an incognito tab): every line is dropped, because a
+     * decode line names the candidates and the letters typed. Set by the service on each field.
+     * [enabled] stays as it is, so a predictor built during a private field still traces later.
+     */
+    @Volatile
+    var suppressed: Boolean = false
+
     /** This thread's held lines while it decodes beside another thread, else null. */
     @PublishedApi
     internal val heldLines = ThreadLocal<ArrayList<String>?>()
 
     inline fun log(message: () -> String) {
         val s = sink ?: return
+        if (suppressed) return
         val held = heldLines.get()
         if (held != null) held.add(message()) else s(message())
     }
@@ -45,6 +55,7 @@ object DecodeTrace {
     /** Writes lines [holding] kept back, in order. */
     fun write(lines: List<String>) {
         val s = sink ?: return
+        if (suppressed) return
         for (l in lines) s(l)
     }
 }
