@@ -6,7 +6,6 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Configuration
-import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
 import android.media.AudioManager
 import android.os.Build
@@ -90,10 +89,7 @@ import com.kinetica.keyboard.settings.Prefs
 import com.kinetica.keyboard.settings.SettingsActivity
 import com.kinetica.keyboard.settings.SettingsSynonyms
 import com.kinetica.keyboard.ui.EmojiPickerView
-import com.kinetica.keyboard.ui.EmojiRecents
 import com.kinetica.keyboard.ui.EmojiSuggest
-import com.kinetica.keyboard.ui.EmojiSuggestAsset
-import com.kinetica.keyboard.ui.FloatPlacement
 import com.kinetica.keyboard.ui.FloatingFrame
 import com.kinetica.keyboard.ui.BarAdjust
 import com.kinetica.keyboard.ui.InputContainerView
@@ -152,11 +148,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     /** Resident emoji pick counts, so the picker fills without touching Room. */
-    private val emojiUses = ConcurrentHashMap<String, EmojiRecents.Use>()
-
-    /** The bar's emoji keywords, read off the main thread the first time the setting is on. */
-    @Volatile private var emojiIndex: EmojiSuggest.Index? = null
-    private var emojiIndexRequested = false
+    private val emojiStore by lazy { EmojiStore(this, dbExecutor, mainHandler) }
 
     private val ich = InputConnectionHelper { currentInputConnection }
     private val engine = GestureEngine(this)
@@ -274,10 +266,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private var suggestionBar: SuggestionBarView? = null
     private var containerView: InputContainerView? = null
 
-    /** The input view's root, which floats [containerView] when the setting is on. */
-    private var floatFrame: FloatingFrame? = null
-    private val floatRect = Rect()
-    private val floatOrigin = IntArray(2)
+    /** Floats [containerView] when the setting is on. */
+    private val floating = FloatingKeyboard(this)
     private var emojiPicker: EmojiPickerView? = null
     private var currentGeometry: KeyboardGeometry? = null
 
@@ -950,42 +940,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         )
         containerView = container
         val frame = FloatingFrame(this, container)
-        floatFrame = frame
+        floating.frame = frame
         applyViewConfig()
         return frame
     }
 
-    /**
-     * Docks or floats the keyboard. Floating, the handle moves it instead of resizing it, and
-     * shows even when its height setting is zero, since it is the only way to move it.
-     */
     private fun applyFloating() {
-        val frame = floatFrame ?: return
         val container = containerView ?: return
-        val on = config.floating
-        frame.setFloating(
-            on,
-            FloatPlacement.widthFraction(config.floatWidthPct),
-            config.floatLeftPct / 100f,
-            dpToPx(config.floatLiftDp.toFloat()),
-        )
-        container.mover = if (on) floatMover else null
-        val handleDp = if (on) maxOf(config.dragHandleDp, FLOAT_HANDLE_DP) else config.dragHandleDp
-        container.setHandleHeight(dpToPx(handleDp.toFloat()))
-    }
-
-    private val floatMover = object : InputContainerView.Mover {
-        override fun onMove(dx: Float, dy: Float) {
-            floatFrame?.moveBy(dx, dy)
-        }
-
-        override fun onMoveEnded() {
-            val frame = floatFrame ?: return
-            PreferenceManager.getDefaultSharedPreferences(this@KineticaIME).edit()
-                .putInt(Prefs.FLOAT_LEFT_PCT, (frame.leftFraction() * 100f).roundToInt())
-                .putInt(Prefs.FLOAT_LIFT_DP, (frame.liftPx() / resources.displayMetrics.density).roundToInt())
-                .apply()
-        }
+        floating.apply(config, container) { dpToPx(it) }
     }
 
     /**
@@ -994,16 +956,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      */
     override fun onComputeInsets(outInsets: Insets) {
         super.onComputeInsets(outInsets)
-        val frame = floatFrame ?: return
-        if (!frame.floating || !isInputViewShown || frame.height <= 0) return
-        frame.getLocationInWindow(floatOrigin)
-        val bottom = floatOrigin[1] + frame.height
-        outInsets.contentTopInsets = bottom
-        outInsets.visibleTopInsets = bottom
-        frame.touchableRect(floatRect)
-        floatRect.offset(floatOrigin[0], floatOrigin[1])
-        outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
-        outInsets.touchableRegion.set(floatRect)
+        floating.computeInsets(outInsets, isInputViewShown)
     }
 
     private fun openEmojiPicker() {
@@ -1029,7 +982,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         )
         // On open, not on every pick: the panel stays up while the user taps, and
         // re-ordering the first tab under a moving finger would shift the next cell.
-        picker.recents = EmojiRecents.ordered(emojiUses.values)
+        picker.recents = emojiStore.recents()
         container.showEmojiPicker(picker)
     }
 
@@ -1245,7 +1198,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         updateAutoShift()
         reloadChords()
-        reloadEmojiUses()
+        emojiStore.reload()
     }
 
     /** Mirrors the expansion table into memory, on the database thread. */
@@ -1975,9 +1928,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      */
     private fun refreshEmojiOffer() {
         val bar = suggestionBar ?: return
-        val index = emojiIndex
+        val index = if (config.emojiSuggestions) emojiStore.index { refreshEmojiOffer() } else null
         if (!config.emojiSuggestions || editorState.privateMode || index == null) {
-            if (config.emojiSuggestions && index == null) loadEmojiIndex()
             bar.emoji = emptyList()
             return
         }
@@ -1986,24 +1938,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         bar.emoji = if (word == null) {
             emptyList()
         } else {
-            index.lookup(word, emojiUses.mapValues { it.value.count })
-        }
-    }
-
-    private fun loadEmojiIndex() {
-        if (emojiIndexRequested) return
-        emojiIndexRequested = true
-        dbExecutor.execute {
-            emojiIndex = try {
-                EmojiSuggestAsset.load(assets)
-            } catch (e: RuntimeException) {
-                Log.w(TAG, "emoji keywords unusable", e)
-                null
-            } catch (e: IOException) {
-                Log.w(TAG, "emoji keywords unreadable", e)
-                null
-            }
-            if (emojiIndex != null) mainHandler.post { refreshEmojiOffer() }
+            emojiStore.lookup(index, word)
         }
     }
 
@@ -4284,30 +4219,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // A field that must not teach the dictionary must not populate a visible list
         // of what was typed in it either.
         if (editorState.teachesNothing || emoji.isEmpty()) return
-        val now = System.currentTimeMillis()
-        emojiUses.compute(emoji) { _, v -> EmojiRecents.Use(emoji, (v?.count ?: 0) + 1, now) }
-        dbExecutor.execute {
-            try {
-                KineticaDb.get(this).emojiUses().upsertAdd(emoji, 1, now)
-            } catch (e: RuntimeException) {
-                Log.w(TAG, "emoji use not recorded", e)
-            }
-        }
-    }
-
-    /** Seeds [emojiUses] once, so opening the picker never reads Room on the main thread. */
-    private fun reloadEmojiUses() {
-        dbExecutor.execute {
-            val rows = try {
-                KineticaDb.get(this).emojiUses().topN(EmojiRecents.MAX)
-            } catch (e: RuntimeException) {
-                Log.w(TAG, "emoji use table unavailable", e)
-                emptyList()
-            }
-            for (row in rows) {
-                emojiUses[row.emoji] = EmojiRecents.Use(row.emoji, row.count, row.updatedAt)
-            }
-        }
+        emojiStore.record(emoji)
     }
 
     /** Peck-type on or off; the pref listener applies the state change. */
@@ -4933,9 +4845,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private companion object {
         const val TAG = "KineticaIME"
-
-        /** The floating keyboard's handle when the handle setting is smaller: a target to drag. */
-        const val FLOAT_HANDLE_DP = 18
 
         /** On the spacebar while incognito is on: the shortcut's own glyph. */
         val INCOGNITO_TAG = ActionRow.glyph(EditorAction.TOGGLE_INCOGNITO)
