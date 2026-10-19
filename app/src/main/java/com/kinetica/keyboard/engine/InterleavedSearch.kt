@@ -42,14 +42,15 @@ class InterleavedSearch(
             cursor[depth]++
             visited++
             val code = trie.letter(child)
-            // A doubled letter, or an apostrophe (no key), adds no visit.
+            // A doubled letter, or an apostrophe (no key), adds no visit. Readings past the
+            // prefix bound are not written, so the row only carries what can still pass it.
             val repeat = code == Alphabet.APOSTROPHE || (depth > 0 && letters[depth - 1] == code)
             val next = rows[depth + 1]
             val ok = if (repeat) {
                 rows[depth].copyInto(next)
                 depth > 0
             } else {
-                il.step(rows[depth], code, visits[depth] == 0, next) &&
+                il.step(rows[depth], code, visits[depth] == 0, next, PRUNE_MEAN_KW * (visits[depth] + 1) + CELL_SLACK_KW) &&
                     // Already too far off on average to come back: the word's
                     // remaining letters would have to sit on their keys.
                     il.lastMin <= PRUNE_MEAN_KW * (visits[depth] + 1)
@@ -79,6 +80,14 @@ class InterleavedSearch(
 
         /** A prefix whose best reading averages more than this per key is dropped. */
         const val PRUNE_MEAN_KW = 0.9f
+
+        /**
+         * Each reading, not only the best, is dropped once it is this far past the prefix
+         * bound: most stroke-state masks then die early instead of being carried to the end
+         * of every branch. Without the slack, `tomorrow` and `brethren` lost their leads
+         * (their right reading starts a key off); at 0.5 no top-1 changed on the eight batches.
+         */
+        const val CELL_SLACK_KW = 0.5f
 
         /** How sharply the interleaved fit discounts: per kw of mean distance. */
         const val COST_SCALE = 3.0f

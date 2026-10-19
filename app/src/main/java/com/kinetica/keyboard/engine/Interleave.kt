@@ -31,7 +31,10 @@ import kotlin.math.sqrt
  * The dynamic programme runs letter by letter, so the search can extend it one
  * trie edge at a time ([step]). A row is indexed by (stroke states, moment):
  * each stroke is unused, open or closed, base 3, and the moment is the grid
- * index of the latest letter.
+ * index of the latest letter. After the `masks * grid` costs a row holds one
+ * flag per stroke-state mask, 1 when that mask's block has a live reading: most
+ * masks are dead at any letter, and a dead block is never read, filled or
+ * scanned, so its costs may be stale.
  */
 class Interleave private constructor(
     val strokes: Int,
@@ -41,10 +44,13 @@ class Interleave private constructor(
     private val start: IntArray,
     private val end: IntArray,
     private val geometry: KeyboardGeometry,
+    /** Each stroke's arc length in kw, in stroke order (0 for a tap). */
+    val arcs: FloatArray,
 ) {
     val grid: Int = times.size
     val masks: Int = pow3(strokes)
-    val rowSize: Int = masks * grid
+    private val flags: Int = masks * grid
+    val rowSize: Int = flags + masks
     private val allClosed = masks - 1
 
     // Per grid index: the last index within the order slack, for the free part
@@ -70,15 +76,19 @@ class Interleave private constructor(
     }
 
     /** The row before any letter: nothing assigned, no moment yet. */
-    fun initialRow(): FloatArray = FloatArray(rowSize) { INF }.also { it[0] = 0f }
+    fun initialRow(): FloatArray = FloatArray(rowSize) { INF }.also {
+        java.util.Arrays.fill(it, flags, rowSize, 0f)
+        it[0] = 0f
+        it[flags] = 1f
+    }
 
     /**
      * Extends [prev] by the letter [code] into [out]; returns false when no
      * reading survives. [first] marks the word's first letter, which has no
      * moment to follow.
      */
-    fun step(prev: FloatArray, code: Int, first: Boolean, out: FloatArray): Boolean {
-        java.util.Arrays.fill(out, INF)
+    fun step(prev: FloatArray, code: Int, first: Boolean, out: FloatArray, bound: Float = INF): Boolean {
+        java.util.Arrays.fill(out, flags, rowSize, 0f)
         lastMin = INF
         if (!geometry.hasKey(code)) return false
         val dOff = code * strokes * grid
@@ -86,7 +96,7 @@ class Interleave private constructor(
             fillDist(code, dOff)
             distReady[code] = true
         }
-        var any = false
+        var best = INF
         for (m in 0 until masks) {
             val base = m * grid
             // reach[i]: best previous reading that letter at moment i may follow.
@@ -95,9 +105,7 @@ class Interleave private constructor(
                 if (m != 0) continue
                 java.util.Arrays.fill(reach, 0f)
             } else {
-                var live = false
-                for (i in 0 until grid) if (prev[base + i] < INF) { live = true; break }
-                if (!live) continue
+                if (prev[flags + m] == 0f) continue
                 reachOf(prev, base, reach)
             }
             var p = 1
@@ -112,12 +120,18 @@ class Interleave private constructor(
                         if (r < INF) {
                             // Opened at touch-down.
                             val v = r + dist[dBase + g0]
-                            val o = (m + p) * grid + g0
-                            if (v < out[o]) { out[o] = v; any = any || v < INF }
+                            if (v < INF && v <= bound) {
+                                val o = open(out, m + p) + g0
+                                if (v < out[o]) out[o] = v
+                                if (v < best) best = v
+                            }
                             // A one-letter stroke: down and lift on the same key.
                             val v2 = r + 0.5f * (dist[dBase + g0] + dist[dBase + g1])
-                            val o2 = (m + 2 * p) * grid + g1
-                            if (v2 < out[o2]) { out[o2] = v2; any = any || v2 < INF }
+                            if (v2 < INF && v2 <= bound) {
+                                val o2 = open(out, m + 2 * p) + g1
+                                if (v2 < out[o2]) out[o2] = v2
+                                if (v2 < best) best = v2
+                            }
                         }
                     }
                     1 -> {
@@ -127,29 +141,35 @@ class Interleave private constructor(
                             val r = reach[i]
                             if (r >= INF) continue
                             val v = r + dist[dBase + i]
-                            if (v >= INF) continue
-                            if (i == g1) {
-                                // Closed at the lift.
-                                val o = (m + p) * grid + i
-                                if (v < out[o]) out[o] = v
-                            } else {
-                                val o = base + i
-                                if (v < out[o]) out[o] = v
-                            }
-                            any = true
+                            if (v >= INF || v > bound) continue
+                            // Closed at the lift, or still open.
+                            val o = open(out, if (i == g1) m + p else m) + i
+                            if (v < out[o]) out[o] = v
+                            if (v < best) best = v
                         }
                     }
                 }
                 p *= 3
             }
         }
-        if (any) for (v in out) if (v < lastMin) lastMin = v
-        return any
+        lastMin = best
+        return best < INF
+    }
+
+    /** The start of mask [m]'s block in [row], cleared to INF the first time a step writes it. */
+    private fun open(row: FloatArray, m: Int): Int {
+        val base = m * grid
+        if (row[flags + m] == 0f) {
+            java.util.Arrays.fill(row, base, base + grid, INF)
+            row[flags + m] = 1f
+        }
+        return base
     }
 
     /** Mean cost per key visit of the best complete reading in [row], or INF. */
     fun finalCost(row: FloatArray, visits: Int): Float {
         var best = INF
+        if (row[flags + allClosed] == 0f) return INF
         val base = allClosed * grid
         for (i in 0 until grid) if (row[base + i] < best) best = row[base + i]
         return if (best >= INF || visits == 0) INF else best / visits
@@ -157,7 +177,7 @@ class Interleave private constructor(
 
     /** Whether any reading in [row] is still alive. */
     fun alive(row: FloatArray): Boolean {
-        for (v in row) if (v < INF) return true
+        for (m in 0 until masks) if (row[flags + m] != 0f) return true
         return false
     }
 
@@ -177,6 +197,109 @@ class Interleave private constructor(
             prevCode = code
         }
         return finalCost(row, visits)
+    }
+
+    /**
+     * The centre-to-centre length, kw, of the letters the best reading of [word] puts on each
+     * stroke, in stroke order: what a thumb that drew exactly those letters would have
+     * travelled. Null when [word] has no reading.
+     *
+     * Rebuilt by walking the best reading back through its rows. Each step is re-derived with
+     * the same arithmetic [step] used, and the closest match is taken at each letter, so a
+     * float tie picks one of the equal readings rather than failing.
+     */
+    fun strokeIdeal(word: String): FloatArray? {
+        val codes = ArrayList<Int>(word.length)
+        var prevCode = -1
+        for (ch in word) {
+            val code = Alphabet.codeOf(ch)
+            if (code < 0) return null
+            if (code == prevCode || code == Alphabet.APOSTROPHE) continue
+            codes.add(code)
+            prevCode = code
+        }
+        if (codes.isEmpty()) return null
+        val rows = ArrayList<FloatArray>(codes.size + 1)
+        rows.add(initialRow())
+        for ((k, code) in codes.withIndex()) {
+            val next = FloatArray(rowSize)
+            if (!step(rows[k], code, k == 0, next)) return null
+            rows.add(next)
+        }
+        val last = rows[codes.size]
+        if (last[flags + allClosed] == 0f) return null
+        var m = allClosed
+        var i = -1
+        var v = INF
+        for (g in 0 until grid) if (last[m * grid + g] < v) { v = last[m * grid + g]; i = g }
+        if (i < 0) return null
+        val strokeOf = IntArray(codes.size)
+        val reach = FloatArray(grid)
+        for (k in codes.size - 1 downTo 0) {
+            val prev = rows[k]
+            val dOff = codes[k] * strokes * grid
+            var bestErr = INF
+            var bestS = -1
+            var bestM = -1
+            var p = 1
+            for (st in 0 until strokes) {
+                val state = (m / p) % 3
+                val d = dOff + st * grid
+                // (previous mask, value the letter added) for each way this stroke could have
+                // taken the letter at moment i.
+                val ways = ArrayList<Pair<Int, Float>>(2)
+                if (state == 1 && i == start[st]) ways.add((m - p) to dist[d + i])
+                if (state == 1 && i > start[st] && i < end[st]) ways.add(m to dist[d + i])
+                if (state == 2 && i == end[st]) {
+                    if (end[st] > start[st]) ways.add((m - p) to dist[d + i])
+                    ways.add((m - 2 * p) to 0.5f * (dist[d + start[st]] + dist[d + end[st]]))
+                }
+                for ((pm, add) in ways) {
+                    val r = if (k == 0) {
+                        if (pm != 0) continue
+                        0f
+                    } else {
+                        if (prev[flags + pm] == 0f) continue
+                        reachOf(prev, pm * grid, reach)
+                        reach[i]
+                    }
+                    if (r >= INF) continue
+                    val err = kotlin.math.abs(r + add - v)
+                    if (err < bestErr) { bestErr = err; bestS = st; bestM = pm }
+                }
+                p *= 3
+            }
+            if (bestS < 0) return null
+            strokeOf[k] = bestS
+            if (k == 0) break
+            // The previous letter's moment: the one the reach at i was taken from.
+            val base = bestM * grid
+            var bj = -1
+            var bv = INF
+            for (j in 0 until grid) {
+                val pv = prev[base + j]
+                if (pv >= INF) continue
+                val w = if (j <= hi[i]) pv else pv + ORDER_PENALTY_PER_MS * (times[j] - times[i] - ORDER_SLACK_MS)
+                if (w < bv) { bv = w; bj = j }
+            }
+            if (bj < 0) return null
+            m = bestM
+            i = bj
+            v = prev[base + bj]
+        }
+        val ideal = FloatArray(strokes)
+        val lastOn = IntArray(strokes) { -1 }
+        for ((k, code) in codes.withIndex()) {
+            val st = strokeOf[k]
+            val pc = lastOn[st]
+            if (pc >= 0) {
+                val dx = geometry.centerX(code) - geometry.centerX(pc)
+                val dy = geometry.centerY(code) - geometry.centerY(pc)
+                ideal[st] += sqrt(dx * dx + dy * dy)
+            }
+            lastOn[st] = code
+        }
+        return ideal
     }
 
     private fun fillDist(code: Int, off: Int) {
@@ -233,8 +356,12 @@ class Interleave private constructor(
         /** More strokes than this and the state space (3^n) is not worth it. */
         const val MAX_STROKES = 4
 
-        /** Timeline resolution: union of sample times, thinned to this many. */
-        const val GRID_MAX = 96
+        /**
+         * Timeline resolution: union of sample times, thinned to this many (plus stroke ends).
+         * Step cost is linear in it. 96 -> 64 on the developer's eight trace batches: the same
+         * top-1 on all but two lines (both gained) and about a third less search time.
+         */
+        const val GRID_MAX = 64
 
         /** Two thumbs are this far out of step for free. */
         const val ORDER_SLACK_MS = 60L
@@ -295,7 +422,8 @@ class Interleave private constructor(
                 }
                 if (start[s] < 0 || end[s] < start[s]) return null
             }
-            return Interleave(n, times, px, py, start, end, g)
+            val arcs = FloatArray(n) { (strokes[it] as? SwipeToken)?.arcLen ?: 0f }
+            return Interleave(n, times, px, py, start, end, g, arcs)
         }
 
         /** Whether two swipes from different thumbs overlap in time: both thumbs drawing at once. */

@@ -472,6 +472,24 @@ object KineticaConstants {
     const val SHORT_READING_ARC_KW = 12f
     const val SHORT_READING_FRACTION = 0.75f
 
+    /**
+     * [shortReadingKeep] for one stroke of an interleaved two-thumb reading ([Interleave]),
+     * whose cost is the mean thumb-to-key distance at the letters' moments and so never
+     * notices a stroke that travels far past its few letters. On the developer's
+     * 2026-10-19 practice traces "starring" (left swipe 11.4 kw) read as "sing" (s..g on it,
+     * 4 kw of letters), "guaranteed" as "haunted". Applied per stroke with an arc of at least
+     * [INTERLEAVE_SHORT_ARC_KW]: two thumbs split a word, so each stroke is shorter than a
+     * one-finger swipe of the same word. Eight batches, top-1 by label length: 7-9 letters
+     * 75.1 -> 76.4%, 10+ 56.8 -> 67.8%, 3-6 unchanged, all 81.3 -> 81.9%.
+     */
+    fun interleavedShortKeep(idealKw: Float, arcKw: Float): Float {
+        if (arcKw < INTERLEAVE_SHORT_ARC_KW) return 1f
+        val r = idealKw / (SHORT_READING_FRACTION * arcKw)
+        return if (r >= 1f) 1f else r
+    }
+
+    const val INTERLEAVE_SHORT_ARC_KW = 8f
+
     // Geometric term of the candidate score:
     //   score = fw * geometricTerm(dTotal) * bigram * personalBoost
     // A bare 1/(1+d) spans 1.0 -> 0.4 over the useful range while fw*bm*pb spans ~3x, so a

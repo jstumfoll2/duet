@@ -312,7 +312,7 @@ class WordPredictor(
         val hits = search.run(KineticaConstants.INTERLEAVE_KEEP)
         val out = ArrayList<WordCandidate>(hits.size)
         for (h in hits) {
-            val geo = InterleavedSearch.geometric(h.cost)
+            val geo = InterleavedSearch.geometric(h.cost) * interleavedShortKeep(il, h.word)
             val bm = bigrams.multiplier(prevWordId, h.node)
             val variants = forms[h.node]
             if (variants == null) {
@@ -331,6 +331,17 @@ class WordPredictor(
         val ranked = out.sortedByDescending { it.score }.filter { seen.add(it.word) }.take(topK)
         DecodeTrace.log { "interleave$langTag: nodes=${search.visited} " + ranked.take(5).joinToString(" ") { "${it.word}:${(it.dtwDistance * 100).toInt() / 100f}" } }
         return ranked
+    }
+
+    /**
+     * [KineticaConstants.interleavedShortKeep] for [word]'s best interleaved reading: the
+     * centre-to-centre length of the letters each stroke carries against that stroke's arc.
+     */
+    private fun interleavedShortKeep(il: Interleave, word: String): Float {
+        val ideal = il.strokeIdeal(word) ?: return 1f
+        var keep = 1f
+        for (s in 0 until il.strokes) keep *= KineticaConstants.interleavedShortKeep(ideal[s], il.arcs[s])
+        return keep
     }
 
     /** The passes' list with the interleaved reading folded in, when there is one. */
@@ -1394,14 +1405,15 @@ class WordPredictor(
                 lastIdx = -KineticaConstants.MONOTONE_SLACK, prevLetter = -1, tapPen = tapPen,
                 contactKeep = contactKeep, seg = seg, nextTi = 0,
             )
-            val times = streamCutTimes(token, origin)
-            val ownStart = ownFrom
+            val cuts = streamCuts(token, origin)
+            val times = cuts.times
+            val ownStart = cuts.ownFrom
             if (times.isNotEmpty() && sCutsMade < KineticaConstants.STREAM_SEARCH_MAX_CUTS) {
                 for (i in times.indices) {
                     if (passExhausted()) break
                     val t = times[i]
                     if (t <= token.tStart || t >= token.tEnd) continue
-                    val halves = (if (i < ownStart) cutHalves(token, t) else ownHalves(token, t)) ?: continue
+                    val halves = cuts.halves(i) ?: continue
                     sCutsMade++
                     sParked[s] = halves.tail
                     sParkedToken[s] = halves.tailToken
@@ -1434,23 +1446,39 @@ class WordPredictor(
             openCloseEnter = savedCloseEnter
         }
 
-        // Where the swipe's own key boundaries begin in the last list streamCutTimes built.
-        private var ownFrom = 0
-
         /**
-         * The candidate cut times for [token]: the other thumb's events inside the whole
-         * swipe, then, from [ownFrom], the token's own interior key boundaries.
+         * A piece's candidate cuts: the other thumb's events inside the whole swipe, then,
+         * from [ownFrom], the token's own interior key boundaries, with each cut's halves
+         * built on first use. The stream pass opens the same piece at every hand-over, so
+         * both are kept per (piece, origin) for the pass.
          */
-        private fun streamCutTimes(token: SwipeToken, origin: SwipeToken): LongArray {
-            val other = plan!!.cuts[origin] ?: LongArray(0)
-            ownFrom = other.size
-            if (!KineticaConstants.STREAM_SEARCH_OWN_CUTS) return other
-            val own = ArrayList<Long>(token.keyContacts.size)
-            for (c in token.keyContacts) {
-                if (c.tExit > token.tStart && c.tExit < token.tEnd && c.tExit !in other) own.add(c.tExit)
+        private inner class StreamCuts(val token: SwipeToken, val times: LongArray, val ownFrom: Int) {
+            private val built = arrayOfNulls<Halves>(times.size)
+            private val tried = BooleanArray(times.size)
+
+            fun halves(i: Int): Halves? {
+                if (!tried[i]) {
+                    tried[i] = true
+                    built[i] = if (i < ownFrom) cutHalves(token, times[i]) else ownHalves(token, times[i])
+                }
+                return built[i]
             }
-            return other + own.toLongArray()
         }
+
+        private val streamCutsCache = java.util.IdentityHashMap<SwipeToken, java.util.IdentityHashMap<SwipeToken, StreamCuts>>()
+
+        private fun streamCuts(token: SwipeToken, origin: SwipeToken): StreamCuts =
+            streamCutsCache.getOrPut(token) { java.util.IdentityHashMap() }.getOrPut(origin) {
+                val other = plan!!.cuts[origin] ?: LongArray(0)
+                val times = if (!KineticaConstants.STREAM_SEARCH_OWN_CUTS) other else {
+                    val own = ArrayList<Long>(token.keyContacts.size)
+                    for (c in token.keyContacts) {
+                        if (c.tExit > token.tStart && c.tExit < token.tEnd && c.tExit !in other) own.add(c.tExit)
+                    }
+                    other + own.toLongArray()
+                }
+                StreamCuts(token, times, other.size)
+            }
 
         private val ownCache = HashMap<SwipeToken, HashMap<Long, Halves?>>()
 
