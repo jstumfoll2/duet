@@ -23,16 +23,31 @@ object TouchRules {
      * so its letters were committed as drawn and the rest of the word started over at the new
      * cursor, where autocorrect only ever saw the pieces. Owner traces, 2026-10-19: the gap
      * between strokes of one word is under 250 ms for 95% of words.
+     *
+     * A space typed since that letter ([spacedSinceLetter]) ended the word, so the next spacebar
+     * touch is not mid-word. Locked anyway, it handed a thumb resting on the bar after `they `
+     * over as a stroke and typed `cd` (batch 10).
      */
-    fun locksSpaceSlide(otherSwiping: Boolean, sinceLetterLiftMs: Long): Boolean =
-        otherSwiping || sinceLetterLiftMs in 0 until MID_WORD_SPACE_MS
+    fun locksSpaceSlide(otherSwiping: Boolean, sinceLetterLiftMs: Long, spacedSinceLetter: Boolean = false): Boolean =
+        otherSwiping || (!spacedSinceLetter && sinceLetterLiftMs in 0 until MID_WORD_SPACE_MS)
 
     /**
-     * A mid-word spacebar touch that travels past the drift allowance onto a letter is a stroke
-     * of the word that landed low, and goes to the engine like a digit handed over.
+     * A spacebar touch that travels past the drift allowance onto a letter is a stroke that
+     * landed low, and goes to the engine like a digit handed over: mid-word ([locked]) whichever
+     * way it went, and at a word's start when it [rose] (more up than sideways) without having
+     * become a cursor slide. A cursor slide runs along the bar, so a rise onto the letters is a
+     * word being started from the spacebar; before this it typed a space and dropped every
+     * letter the thumb crossed (owner report, 2026-10-19: touching the spacebar first ruins the
+     * word).
      */
-    fun spaceHandsOverToSwipe(locked: Boolean, travelPx: Float, driftLimitPx: Float, onLetter: Boolean): Boolean =
-        locked && onLetter && travelPx >= driftLimitPx
+    fun spaceHandsOverToSwipe(
+        locked: Boolean,
+        travelPx: Float,
+        driftLimitPx: Float,
+        onLetter: Boolean,
+        rose: Boolean = false,
+        sliding: Boolean = false,
+    ): Boolean = onLetter && travelPx >= driftLimitPx && (locked || (rose && !sliding))
 
     const val MID_WORD_SPACE_MS = 300L
 

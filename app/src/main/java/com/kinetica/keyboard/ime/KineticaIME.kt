@@ -818,6 +818,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         TraceRecorder.attachComposer(it)
                         it.extraPredictor = extraPredictor
                         it.languageWeights = equalWeights()
+                        it.oneLetterWord = { c -> StandaloneLetters.isWord(c, config.language) }
                     }
                     Log.i(
                         TAG,
@@ -1431,6 +1432,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     return
                 }
                 seededWithoutTokens = false
+                comp.peckSplit = comp.hasPendingWord && peckSplitAllowed()
                 comp.onToken(token)
                 if (shift.state == ShiftState.State.SHIFT) {
                     shift.onLetterCommitted()
@@ -1470,6 +1472,51 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             tentative
         }
         onCandidatesRanked(ranked, lead, literal)
+    }
+
+    // True while finalizeSplitHead commits the tapped head, which goes through
+    // finalizePendingWord itself.
+    private var splitting = false
+
+    /**
+     * Ends the tapped word at the head of the buffer in hand as a word of its own, then a space,
+     * and leaves the swipe after it as the word in hand ([com.kinetica.keyboard.engine.PeckSplit]):
+     * `to` pecked and `help` swiped with no space between, which decoded as `othello`. The head
+     * is committed as a delimiter would commit those taps alone, autocorrect included; the
+     * caller then finishes the swipe's word as usual.
+     */
+    private fun finalizeSplitHead(comp: WordComposer) {
+        val s = comp.splitHead() ?: return
+        splitting = true
+        try {
+            val literal = comp.literal()
+            DecodeTrace.log { "  peck split commit head=$literal shown=$tentativeWord" }
+            // What the editor would hold had the swipe not come: the letters as tapped, with
+            // the taps' own decode behind them for autocorrect.
+            replaceTentative(displayWord(literal))
+            lastCandidates = s.tap
+            lastTentative = s.tap.firstOrNull()
+            lastLiteral = literal
+            candidateLanguages = provenanceOf(s.tap)
+            finalizePendingWord()
+            commitTracked(" ")
+            if (wordShift == ShiftState.State.SHIFT) wordShift = ShiftState.State.NONE
+            comp.rejoinTail(s)
+        } finally {
+            splitting = false
+        }
+    }
+
+    /**
+     * Whether a swipe may end the tapped word in hand ([com.kinetica.keyboard.engine.PeckSplit]):
+     * only where a swiped word earns an automatic space, and only for a word of its own, not
+     * the tail of `don't` or a word reopened from the editor.
+     */
+    private fun peckSplitAllowed(): Boolean {
+        if (!config.autospace || config.wordEndsOnSpace || editorState.privateMode) return false
+        if (editorState.addressField || reloadedWord != null) return false
+        val joiner = ich.textBeforeCursor(tentativeLength + 1)?.dropLast(tentativeLength) ?: ""
+        return !joinsPrecedingToken(joiner)
     }
 
     private fun onCandidatesRanked(
@@ -1634,6 +1681,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * default to 300 ms, since the middles barely differ; the sliders let a thumb find the rest.
      */
     private fun scheduleAutospace() {
+        // The word whose candidates arrived is being committed right now.
+        if (splitting) return
         if (!config.autospace || editorState.privateMode || config.wordEndsOnSpace) {
             // Traced so a capture can say why no space came.
             DecodeTrace.log {
@@ -1821,6 +1870,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
 
         override fun onMenuAction(index: Int) = this@KineticaIME.performMenuAction(index)
+
+        override fun onSpaceStartsWord() {
+            if (composer?.hasPendingWord != true) return
+            TraceRecorder.key("space", android.os.SystemClock.uptimeMillis())
+            onSpace()
+        }
 
         override fun onRestingFingerDropped() {
             if (!engine.hasActivePointers()) composer?.redecode()
@@ -3982,6 +4037,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             if (keptBar != null) abandonWord()
             return false
         }
+
+        if (!splitting && comp.split != null && peckSplitAllowed()) finalizeSplitHead(comp)
 
         var finalWord = tentativeWord
         var how = if (comp.hasSwipeToken()) "tentative" else "typed"

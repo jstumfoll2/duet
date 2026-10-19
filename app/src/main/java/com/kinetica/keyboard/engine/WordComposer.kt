@@ -112,6 +112,7 @@ class WordComposer(
         val extra: WordPredictor? = null,
         val weights: Map<String, Float>? = null,
         val apostrophe: Boolean = false,
+        val peckSplit: Boolean = false,
     )
 
     private val decodeLock = Any()
@@ -162,6 +163,29 @@ class WordComposer(
      */
     @Volatile
     var languageWeights: Map<String, Float>? = null
+
+    /**
+     * Whether a tapped word followed by a swipe may end at the swipe ([PeckSplit]). Only with
+     * automatic spaces on: there the swipe would have given the tapped word its space, had it
+     * been swiped. Main thread writes, decode thread reads.
+     */
+    @Volatile
+    var peckSplit = false
+
+    /** Which single letters are words of their own in the active language, for [PeckSplit]. */
+    @Volatile
+    var oneLetterWord: (Char) -> Boolean = { false }
+
+    /**
+     * The two words the buffer in hand reads as, when [PeckSplit] prefers them to one: decided
+     * with the candidates, applied when the word ends ([splitHead]), when the whole buffer is
+     * there. Null otherwise. Main thread.
+     */
+    var split: PeckSplit.Split? = null
+        private set
+
+    // The tokens after a split's head, held while the head is committed.
+    private var tail: List<InputToken> = emptyList()
 
     val hasPendingWord: Boolean get() = tokens.isNotEmpty()
 
@@ -231,6 +255,42 @@ class WordComposer(
 
     fun literal(): String = buildLiteral(tokens)
 
+    /**
+     * Applies [split]: keeps only its tapped head in the buffer, so the caller can commit it as
+     * a word, and holds the rest for [rejoinTail]. Null, changing nothing, without a split.
+     */
+    fun splitHead(): PeckSplit.Split? {
+        val s = split ?: return null
+        val sorted = tokens.sortedBy { it.tStart }
+        if (s.head >= sorted.size || sorted.take(s.head).any { it !is TapToken }) return null
+        split = null
+        tail = sorted.drop(s.head)
+        tokens.clear()
+        tokens.addAll(sorted.take(s.head))
+        if (observer != null) {
+            shown = s.tap
+            shownFor = s.head
+        }
+        generation.incrementAndGet()
+        return s
+    }
+
+    /**
+     * Makes the tokens [splitHead] held the word in hand, with [s]'s reading of them delivered
+     * at once, on this thread: the caller is ending the word now and cannot wait for a decode.
+     */
+    fun rejoinTail(s: PeckSplit.Split) {
+        if (tail.isEmpty()) return
+        tokens.addAll(tail)
+        tail = emptyList()
+        val gen = generation.incrementAndGet()
+        if (observer != null) {
+            shown = s.rest
+            shownFor = tokens.size
+        }
+        callbacks.onCandidates(s.rest, s.rest.firstOrNull(), "", gen)
+    }
+
     /** Word committed to the editor: becomes bigram context, buffer resets. */
     fun commitWord(word: String) {
         if (DecodeTrace.enabled) traceCommitMiss(word)
@@ -241,6 +301,7 @@ class WordComposer(
         while (context.size > 2) context.removeFirst()
         tokens.clear()
         seeded = 0
+        split = null
         generation.incrementAndGet()
     }
 
@@ -329,6 +390,8 @@ class WordComposer(
         endBuffer(null)
         tokens.clear()
         seeded = 0
+        split = null
+        tail = emptyList()
         generation.incrementAndGet()
     }
 
@@ -353,6 +416,7 @@ class WordComposer(
     }
 
     private fun requestDecode() {
+        split = null
         val snapshot = ArrayList(tokens)
         val request = DecodeRequest(
             tokens = snapshot,
@@ -363,6 +427,8 @@ class WordComposer(
             extra = extraPredictor,
             weights = languageWeights,
             apostrophe = apostropheMarked,
+            // A word reloaded from the editor and swiped on is one word by intent.
+            peckSplit = peckSplit && seeded == 0,
         )
         val scheduleWorker = synchronized(decodeLock) {
             pendingDecode = request
@@ -418,6 +484,11 @@ class WordComposer(
                 null
             }
             val active = predictor.decode(request.tokens, request.context, apostrophe = request.apostrophe)
+            val split = if (request.peckSplit && request.literal.isEmpty()) {
+                PeckSplit.split(predictor, request.tokens, request.context, active, oneLetterWord)
+            } else {
+                null
+            }
             // If input advanced during the active-language pass, drop the second-language pass
             // and immediately drain the newest snapshot instead.
             if (request.generation != generation.get()) {
@@ -451,13 +522,14 @@ class WordComposer(
             } else {
                 Merged(active, active.firstOrNull(), foreignKept = 0, reason = "single")
             }.let { rescueHeld(it) }
-            deliver(request, merged)
+            deliver(request, merged, split)
         }
     }
 
-    private fun deliver(request: DecodeRequest, merged: Merged) {
+    private fun deliver(request: DecodeRequest, merged: Merged, split: PeckSplit.Split? = null) {
         mainExecutor.execute {
             if (request.generation == generation.get()) {
+                this.split = split
                 if (observer != null) {
                     shown = merged.candidates
                     shownFor = request.tokens.size

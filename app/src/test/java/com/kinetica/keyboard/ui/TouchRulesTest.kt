@@ -59,6 +59,10 @@ class TouchRulesTest {
         assertTrue("a letter just lifted", TouchRules.locksSpaceSlide(otherSwiping = false, sinceLetterLiftMs = 120))
         assertFalse("after a pause", TouchRules.locksSpaceSlide(otherSwiping = false, sinceLetterLiftMs = 900))
         assertFalse(
+            "a space already ended the word",
+            TouchRules.locksSpaceSlide(otherSwiping = false, sinceLetterLiftMs = 120, spacedSinceLetter = true),
+        )
+        assertFalse(
             "nothing typed yet",
             TouchRules.locksSpaceSlide(otherSwiping = false, sinceLetterLiftMs = Long.MAX_VALUE / 2),
         )
@@ -70,5 +74,22 @@ class TouchRulesTest {
         assertFalse("a drift", TouchRules.spaceHandsOverToSwipe(locked = true, travelPx = 20f, driftLimitPx = 28f, onLetter = true))
         assertFalse("still on space", TouchRules.spaceHandsOverToSwipe(locked = true, travelPx = 40f, driftLimitPx = 28f, onLetter = false))
         assertFalse("not mid-word", TouchRules.spaceHandsOverToSwipe(locked = false, travelPx = 40f, driftLimitPx = 28f, onLetter = true))
+    }
+
+    @Test
+    fun aWordStartedOnTheSpacebarHandsOverWhenItRises() {
+        assertTrue(
+            TouchRules.spaceHandsOverToSwipe(locked = false, travelPx = 40f, driftLimitPx = 28f, onLetter = true, rose = true),
+        )
+        assertFalse(
+            "a cursor slide that drifted up",
+            TouchRules.spaceHandsOverToSwipe(
+                locked = false, travelPx = 40f, driftLimitPx = 28f, onLetter = true, rose = true, sliding = true,
+            ),
+        )
+        assertFalse(
+            "a drift",
+            TouchRules.spaceHandsOverToSwipe(locked = false, travelPx = 20f, driftLimitPx = 28f, onLetter = true, rose = true),
+        )
     }
 }
