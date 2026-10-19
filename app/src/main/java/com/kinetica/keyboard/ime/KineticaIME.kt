@@ -2713,19 +2713,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         cancelAutospace()
         finalizePendingWord()
         val imm = getSystemService(InputMethodManager::class.java) ?: return
-        var target: Pair<String, InputMethodSubtype?>? = null
-        for (imi in imm.enabledInputMethodList) {
-            if (imi.packageName == packageName) continue
-            val voice = imm.getEnabledInputMethodSubtypeList(imi, true).firstOrNull { it.mode == VOICE_MODE }
-            if (voice != null) {
-                target = imi.id to voice
-                break
-            }
-            // A voice-only input method that declares no subtypes.
-            if (target == null && imi.subtypeCount == 0 && imi.id.contains("voice", ignoreCase = true)) {
-                target = imi.id to null
-            }
-        }
+        val target = VoiceInput.target(imm, packageName)
         DecodeTrace.log { "  voice switch to=${target?.first ?: "none"}" }
         if (target == null) {
             Toast.makeText(this, R.string.voice_none, Toast.LENGTH_LONG).show()
@@ -4900,9 +4888,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
         /** ClipDescription.EXTRA_IS_SENSITIVE, which Android 13 added and password managers set. */
         const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
-
-        /** InputMethodSubtype.getMode() of a voice typing subtype. */
-        const val VOICE_MODE = "voice"
 
         /** Autofill chip height as a share of the bar's, so a chip never touches its edges. */
         const val INLINE_CHIP_FRACTION = 0.8f
