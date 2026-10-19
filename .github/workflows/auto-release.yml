@@ -16,8 +16,8 @@ name: Auto release
 #
 # Signing: with the KEYSTORE_* repository secrets that release.yml uses, the
 # release APK is signed with that key and installs as an update over the
-# previous release. Without them only the DEV APK is attached, signed with this
-# runner's throwaway debug key, so each one needs an uninstall first.
+# previous release. The DEV APK is always attached, signed with the fixed DEV
+# key in app/duet-dev.keystore, so it too installs as an update.
 
 on:
   workflow_run:
@@ -152,10 +152,11 @@ jobs:
           SIGNED: ${{ steps.keystore.outputs.signed }}
         run: |
           set -euo pipefail
+          dev_code=$(( $(git log -1 --format=%ct) / 60 ))
           if [ "$SIGNED" = true ]; then
-            ./gradlew assembleDebug assembleRelease
+            ./gradlew assembleDebug assembleRelease -PdevVersionCode="$dev_code"
           else
-            ./gradlew assembleDebug
+            ./gradlew assembleDebug -PdevVersionCode="$dev_code"
           fi
 
       - name: Remove the keystore from the workspace
@@ -224,6 +225,6 @@ jobs:
           args=(--title "Duet $VERSION" --generate-notes --verify-tag)
           if [ -n "$PREVIOUS" ]; then args+=(--notes-start-tag "$PREVIOUS"); fi
           if [ "$SIGNED" != true ]; then
-            args+=(--notes "Only the DEV build is attached. It is signed with a throwaway debug key, so uninstall the previous DEV build (export traces first) before installing it.")
+            args+=(--notes "Only the DEV build is attached. It is signed with the fixed DEV key, so it installs as an update over any earlier DEV build signed with that key.")
           fi
           gh release create "v$VERSION" "${args[@]}" dist/*.apk
