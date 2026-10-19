@@ -108,10 +108,21 @@ class HeldDoubleLetterTest {
     }
 
     @Test
-    fun aThumbParkedWhileTheOtherTypesIsNoHold() {
+    fun aThumbParkedWhileTheOtherSwipesIsNoHold() {
+        // The other thumb draws through most of the stop: that is waiting for it, not a hold.
         val left = heldSwipe("holy", 2, 400, stream = StreamId.LEFT)
-        val other = TestData.tap('p', g, left.tStart + 120, StreamId.RIGHT)
+        val other = heldSwipe("pk", -1, 0, t0 = left.tStart + 150, legMs = 300, stream = StreamId.RIGHT)
         assertEquals("", held(left, other))
+    }
+
+    @Test
+    fun onlyTheTimeTheOtherThumbIsUpCounts() {
+        // "starring" on 2026-10-19: r held 240 ms before the right thumb came down and 210 ms
+        // more while it drew "in". A quick tap during a long stop leaves the hold standing.
+        val left = heldSwipe("holy", 2, 400, stream = StreamId.LEFT)
+        val tap = TestData.tap('p', g, left.tStart + 200, StreamId.RIGHT)
+        assertEquals("l", held(left, tap))
+        assertEquals("", HeldDoubles.heldKeys(listOf(left, tap), KineticaConstants.HELD_DOUBLE_MS, KineticaConstants.HELD_DOUBLE_END_MS, freeTime = false).joinToString(""))
     }
 
     @Test

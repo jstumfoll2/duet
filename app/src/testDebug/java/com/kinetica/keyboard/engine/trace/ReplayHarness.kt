@@ -60,7 +60,37 @@ class ReplayHarness(
     val touch: com.kinetica.keyboard.engine.TouchModel? = null,
     /** Cap of the two-word context boost; 0 decodes without the trigram table. */
     private val trigramBoost: Float = com.kinetica.keyboard.engine.KineticaConstants.TRIGRAM_BOOST_MAX,
+    /**
+     * Personal learning as the keyboard does it, in trace order: each line decodes with what
+     * the lines before it taught, then teaches its own label. Null replays bundled only.
+     */
+    val learner: Learner? = null,
+    private val heldDoubleFree: Boolean = KineticaConstants.HELD_DOUBLE_FREE_TIME,
 ) {
+    /**
+     * The personal store one replay builds up: commit counts (merged into the trie at each
+     * [reloadEvery] lines, as a dictionary reload does), and with [phrases] the learned pairs.
+     */
+    class Learner(
+        val phrases: Boolean = false,
+        val reloadEvery: Int = 300,
+        /** Words merged into the trie from the start, as an imported user dictionary would. */
+        val seedWords: Map<String, List<String>> = emptyMap(),
+    ) {
+        val counts = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
+        val pairs = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
+        internal var sinceReload = 0
+
+        fun countsOf(lang: String) = counts.getOrPut(lang) { java.util.concurrent.ConcurrentHashMap() }
+        fun pairsOf(lang: String) = pairs.getOrPut(lang) { java.util.concurrent.ConcurrentHashMap() }
+
+        fun learn(lang: String, context: List<String>, label: String) {
+            val w = label.lowercase()
+            countsOf(lang).merge(w, 1, Int::plus)
+            if (phrases && context.isNotEmpty()) pairsOf(lang).merge(WordPredictor.pairKey(context.last(), w), 1, Int::plus)
+        }
+    }
+
     private class Dict(
         val d: LoadedDictionary,
         val bigrams: BigramTable,
@@ -76,8 +106,12 @@ class ReplayHarness(
         } else {
             emptyMap()
         }
+        val extra = learner?.let { l ->
+            DictionaryLoader.userWordsForMerge(l.countsOf(lang).entries.map { it.key to it.value }) +
+                l.seedWords[lang].orEmpty().map { it to DictionaryLoader.NEW_WORD_MIN_WEIGHT }
+        }.orEmpty()
         val d = File(dir, "${lang}_wordlist.txt").bufferedReader().use {
-            DictionaryLoader.load(it, spellingSwaps = swaps)
+            DictionaryLoader.load(it, extra, spellingSwaps = swaps, newWordMinWeight = if (learner != null) DictionaryLoader.NEW_WORD_MIN_WEIGHT else 0)
         }
         val b = File(dir, "${lang}_bigrams.txt").bufferedReader().use { DictionaryLoader.loadBigrams(it, d.trie) }
         val tf = File(dir, "${lang}_trigrams.txt")
@@ -108,6 +142,9 @@ class ReplayHarness(
             interleave = interleave, interleaveWeight = interleaveWeight,
             heldDoubleBoost = heldDoubleBoost, heldDoubleMs = heldDoubleMs, heldDoubleEndMs = heldDoubleEndMs,
             heldDoubleMissKeep = heldDoubleMissKeep, trigramBoostMax = trigramBoost,
+            personalCounts = learner?.countsOf(lang) ?: emptyMap(),
+            personalBigrams = if (learner?.phrases == true) learner.pairsOf(lang) else emptyMap(),
+            heldDoubleFreeTime = heldDoubleFree,
         ).also {
             it.touchModel = touch
             it.trigrams = d.trigrams
@@ -149,6 +186,13 @@ class ReplayHarness(
         val deep = deepDecode(deepActive, deepAlt, tokens, w.context, w.apostropheMark)
 
         val label = w.label?.lowercase()
+        if (learner != null && label != null) {
+            learner.learn(cfg.language, w.context, label)
+            if (++learner.sinceReload >= learner.reloadEvery) {
+                learner.sinceReload = 0
+                dicts.clear()
+            }
+        }
         if (touch != null && label != null) {
             val codes = active.alphabet.encode(com.kinetica.keyboard.engine.AccentFolder.fold(label))
             if (codes != null) touch.learn(codes, tokens, g)

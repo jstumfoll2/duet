@@ -107,6 +107,15 @@ object KineticaConstants {
     const val HELD_DOUBLE_BOOST = 2f
 
     /**
+     * A stop on a key while the other thumb is down counts only for the time the other thumb was
+     * up. Before, any overlap disqualified it, so "starring" (r held 240 ms, then 210 ms more
+     * while the right thumb drew "in") read as "staring" four times on 2026-10-19. Replay over
+     * all nine batches (5,385 words, 2026-10-19): +6 (starring twice, filled, lobby, deeper,
+     * off) and -3 (passion, period, crying), double-letter bucket 77.8% to 78.3%.
+     */
+    const val HELD_DOUBLE_FREE_TIME = true
+
+    /**
      * Share of the learned per-thumb, per-key touch offset ([TouchModel]) applied to a tap before
      * decoding. Swept on the developer's traces with the model learning online, line by line.
      */

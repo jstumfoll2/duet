@@ -14,6 +14,10 @@ import java.io.File
  *       comparable line fails to reproduce.
  *       With --ctc MODEL.kctc [--beta B] [--depth D] the shipping run adds the
  *       stage-A CTC rerank over a heap D deep (default 50).
+ *   ranks [--learn words|phrases] [--seed FILE] [--hdfree] TRACE.jsonl...
+ *       One tab-separated row per scored line. --learn replays the files in order and learns
+ *       each label after decoding it, as the keyboard does; --seed merges lang<TAB>word rows
+ *       from the start, as the phone's user dictionary and contact names do.
  *   tune --ctc MODEL.kctc [--betas 0,0.05,...] [--depth D] TRACE.jsonl...
  *       Picks beta on one half of the lines (by top-1, then MRR) and reports
  *       it once against beta 0 on the other half. With several files the
@@ -74,6 +78,8 @@ object ReplayCli {
                 val hdend = opt(a, "--hdend")?.toLong() ?: KineticaConstants.HELD_DOUBLE_END_MS
                 val hdmiss = opt(a, "--hdmiss")?.toFloat() ?: 1f
                 val touch = touchModel(opt(a, "--touch"))
+                val learner = learnerOf(opt(a, "--learn"), opt(a, "--seed"))
+                val hdfree = a.remove("--hdfree") || KineticaConstants.HELD_DOUBLE_FREE_TIME
                 if (a.isEmpty()) usage()
                 val h = ReplayHarness(
                     assets,
@@ -83,6 +89,8 @@ object ReplayCli {
                     heldDoubleMissKeep = hdmiss,
                     touch = touch,
                     trigramBoost = tri,
+                    learner = learner,
+                    heldDoubleFree = hdfree,
                 )
                 val sink = ReplayReport(h.deepK)
                 for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
@@ -322,6 +330,22 @@ object ReplayCli {
     }
 
     private var forceTouch = false
+
+    /**
+     * --learn words|phrases: learn in trace order (see [ReplayHarness.Learner]).
+     * --seed FILE: lang<TAB>word lines merged from the start, as an imported user dictionary.
+     */
+    private fun learnerOf(mode: String?, seed: String?): ReplayHarness.Learner? {
+        if (mode == null && seed == null) return null
+        val words = seed?.let { f ->
+            File(f).readLines().mapNotNull { l -> l.split('\t').takeIf { it.size >= 2 } }
+                .groupBy({ it[0] }, { it[1] })
+        }.orEmpty()
+        return ReplayHarness.Learner(
+            phrases = mode == "phrases",
+            seedWords = words,
+        )
+    }
 
     /** A fresh online-learning touch model at strength [s], or null when [s] is absent or 0. */
     private fun touchModel(s: String?): com.kinetica.keyboard.engine.TouchModel? {
