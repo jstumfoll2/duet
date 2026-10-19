@@ -572,15 +572,20 @@ data class KeyboardConfig(
             return ordered.ifEmpty { listOf(active) }
         }
 
-        private fun trailHue(prefs: SharedPreferences): Float =
-            when (prefs.getString(Prefs.TRAIL_COLOR, Prefs.DEFAULT_TRAIL_COLOR)) {
+        private fun trailHue(prefs: SharedPreferences): Float = trailHueFor(
+            prefs.getString(Prefs.TRAIL_COLOR, Prefs.DEFAULT_TRAIL_COLOR),
+            prefs.getInt(Prefs.TRAIL_COLOR_CUSTOM_HUE, 200),
+        )
+
+        /** Base trail hue for a trail selection; shared with the settings swatch. */
+        fun trailHueFor(mode: String?, customHue: Int): Float =
+            when (mode) {
                 "red" -> 0f
                 "orange" -> 30f
                 "green" -> 120f
                 "cyan" -> 180f
                 "violet" -> 275f
-                "custom" -> prefs.getInt(Prefs.TRAIL_COLOR_CUSTOM_HUE, 200)
-                    .coerceIn(0, 360).toFloat()
+                "custom" -> customHue.coerceIn(0, 360).toFloat()
                 else -> 0f   // rainbow: base 0, the per-key cycling does the rest
             }
     }

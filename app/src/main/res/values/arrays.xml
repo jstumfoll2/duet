@@ -192,11 +192,25 @@
         <item>Duet dark (default)</item>
         <item>Material You (Android 12+)</item>
         <item>Custom colour</item>
+        <item>Pure black (AMOLED)</item>
+        <item>Ocean</item>
+        <item>Forest</item>
+        <item>Sunset</item>
+        <item>Paper (light)</item>
+        <item>Lavender (light)</item>
+        <item>High contrast</item>
     </string-array>
     <string-array name="theme_mode_values" translatable="false">
         <item>default</item>
         <item>dynamic</item>
         <item>custom</item>
+        <item>preset_amoled</item>
+        <item>preset_ocean</item>
+        <item>preset_forest</item>
+        <item>preset_sunset</item>
+        <item>preset_paper</item>
+        <item>preset_lavender</item>
+        <item>preset_contrast</item>
     </string-array>
 
     <string-array name="theme_color_entries">

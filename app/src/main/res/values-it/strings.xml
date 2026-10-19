@@ -529,6 +529,7 @@
     <string name="pref_theme_mode_title">Tema della tastiera</string>
     <string name="pref_theme_brightness_title">Chiaro o scuro</string>
     <string name="theme_preview_note_custom">Anteprima: trascina la tonalità qui sopra per cambiarla</string>
+    <string name="theme_preview_note_preset">Anteprima: i temi predefiniti hanno colori propri, quindi luminosità e tonalità non li cambiano.</string>
     <string name="theme_preview_note_fixed">Anteprima: questa tavolozza ignora la tonalità. Scegli Colore a scelta per usarla.</string>
     <string name="pref_theme_hue_title">Tonalità d\'accento</string>
     <string name="pref_theme_hue_summary">Posizione sulla ruota dei colori, da 0 a 360, per il tema a colore personalizzato. Ogni superficie la segue</string>
