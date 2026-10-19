@@ -135,6 +135,7 @@ object SettingsSynonyms {
         Prefs.AUTO_DETECT_LANGUAGE to listOf("multilingual", "bilingual", "switch"),
         Prefs.REINFORCE_INCREMENT to listOf("learn", "weight", "boost", "personal"),
         Prefs.LEARN_PHRASES to listOf("bigram", "context", "pairs", "personal"),
+        Prefs.CONTACT_NAMES to listOf("contacts", "names", "people", "address book", "vocabulary"),
         Prefs.RETYPE_AVOIDS_REJECTED to listOf("retype", "again", "reject"),
         Prefs.RETYPE_BUTTON to listOf("redo", "again", "undo", "try again"),
         Prefs.RETYPE_BUTTON_DP to listOf("redo", "again", "size", "width"),

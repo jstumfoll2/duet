@@ -573,6 +573,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 config.noPrimary != previous.noPrimary ||
                 config.enabledLanguages != previous.enabledLanguages ||
                 config.learnPhrases != previous.learnPhrases ||
+                config.contactNames != previous.contactNames ||
                 // British spelling is applied while the trie is built, so it
                 // needs the same reload a stored-data change needs.
                 config.britishSpelling != previous.britishSpelling
@@ -663,9 +664,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 val blocked = blockedWords(lang)
                 val allBlocked = allBlockedWords()
                 val swaps = spellingSwaps(lang)
+                val vocabulary = SystemVocabulary.words(this, lang, config.contactNames)
                 val dict = openWordlist(lang).bufferedReader().use {
                     DictionaryLoader.load(
                         it, userWords, blocked, swaps, Alphabet.forLanguage(lang), DictionaryLoader.NEW_WORD_MIN_WEIGHT, casesOf(userRows),
+                        vocabulary,
                     )
                 }
                 val bigrams = assets.open(bigramsAsset(lang)).bufferedReader().use {

@@ -171,6 +171,8 @@ data class KeyboardConfig(
     val nextWord: Boolean,
     /** One-time codes from text messages on the bar in a code field ([Prefs.SMS_CODES]). */
     val smsCodes: Boolean = Prefs.DEFAULT_SMS_CODES,
+    /** Contact names as dictionary words ([Prefs.CONTACT_NAMES]). */
+    val contactNames: Boolean = Prefs.DEFAULT_CONTACT_NAMES,
     /** Recent words and their alternatives on a taller bar. */
     val recentWords: Boolean,
     /** Digits in their own row above the letters. */
@@ -407,6 +409,7 @@ data class KeyboardConfig(
             menuActionOrder = ActionRow.decodeOrder(prefs.getString(Prefs.MENU_ACTIONS_ORDER, null)),
             nextWord = prefs.getBoolean(Prefs.NEXT_WORD, Prefs.DEFAULT_NEXT_WORD),
             smsCodes = prefs.getBoolean(Prefs.SMS_CODES, Prefs.DEFAULT_SMS_CODES),
+            contactNames = prefs.getBoolean(Prefs.CONTACT_NAMES, Prefs.DEFAULT_CONTACT_NAMES),
             recentWords = prefs.getBoolean(Prefs.RECENT_WORDS, Prefs.DEFAULT_RECENT_WORDS),
             numberRow = prefs.getBoolean(Prefs.NUMBER_ROW, Prefs.DEFAULT_NUMBER_ROW),
             numberRowGapPct = prefs.getInt(Prefs.NUMBER_ROW_GAP_PCT, Prefs.DEFAULT_NUMBER_ROW_GAP_PCT)

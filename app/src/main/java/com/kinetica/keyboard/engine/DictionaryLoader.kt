@@ -47,6 +47,7 @@ object DictionaryLoader {
         alphabet: Alphabet = Alphabet.LATIN,
         newWordMinWeight: Int = 0,
         cases: Map<String, LearnedCase> = emptyMap(),
+        vocabulary: Collection<String> = emptyList(),
     ): LoadedDictionary {
         // Duplicate displays (corpus word also in the user dictionary) merge
         // by summing counts, so personal use adds to corpus evidence.
@@ -107,6 +108,8 @@ object DictionaryLoader {
             countByDisplay[target] = (countByDisplay[target] ?: 0) + count
         }
 
+        if (vocabulary.isNotEmpty()) addVocabulary(countByDisplay, vocabulary, blocked)
+
         // After both sources are counted, so a personal commit of either spelling is exchanged
         // too. Only when the preferred spelling trails: four pairs already have it ahead
         // ("dialogue" 5 975 against "dialog" 399), and swapping those would demote it.
@@ -144,6 +147,32 @@ object DictionaryLoader {
                 .map { WordForm(it.first, Trie.freqByteFor(it.second, maxCount)) }
         }
         return LoadedDictionary(trie, forms)
+    }
+
+    /**
+     * Words from outside the keyboard (the phone's user dictionary, contact names) that no list
+     * spells yet, each at [KineticaConstants.SYSTEM_WORD_WEIGHT]: decodable from the first
+     * swipe, ranked like a word typed a few times. A spelling the lists already hold in any
+     * case is left alone, so "Will" in an address book never shadows "will", and the accent and
+     * apostrophe rules for learned words apply here too.
+     */
+    private fun addVocabulary(counts: LinkedHashMap<String, Int>, vocabulary: Collection<String>, blocked: Set<String>) {
+        val spellings = HashSet<String>(counts.size * 2)
+        val keys = HashSet<String>(counts.size * 2)
+        val unapostrophed = HashSet<String>()
+        for (w in counts.keys) {
+            val lower = w.lowercase()
+            spellings.add(lower)
+            keys.add(AccentFolder.fold(lower))
+            if ('\'' in lower) unapostrophed.add(lower.replace("'", ""))
+        }
+        for (word in vocabulary) {
+            val lower = word.lowercase()
+            if (lower in blocked || lower in spellings || lower in unapostrophed) continue
+            if (AccentFolder.fold(lower) == lower && lower in keys) continue
+            spellings.add(lower)
+            counts[word] = KineticaConstants.SYSTEM_WORD_WEIGHT
+        }
     }
 
     /**

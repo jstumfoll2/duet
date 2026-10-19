@@ -353,6 +353,12 @@
                 android:summary="@string/pref_learn_phrases_summary"
                 android:defaultValue="false" />
             <SwitchPreferenceCompat
+                android:key="pref_contact_names"
+                android:title="@string/pref_contact_names_title"
+                app:singleLineTitle="false"
+                android:summary="@string/pref_contact_names_summary"
+                android:defaultValue="false" />
+            <SwitchPreferenceCompat
                 android:key="pref_retype_avoids_rejected"
                 android:title="@string/pref_retype_avoids_title"
                 app:singleLineTitle="false"

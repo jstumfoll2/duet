@@ -681,6 +681,11 @@ object KineticaConstants {
     const val WRONG_LANGUAGE_STREAK = 3
     const val USER_FREQ_SCALE = 1000
 
+    // A word from the phone's user dictionary or a contact name (DictionaryLoader vocabulary)
+    // counts as one a new word needs to merge: the user wrote it down once on purpose, which is
+    // better evidence than a commit, and it should not outrank words they type every day.
+    const val SYSTEM_WORD_WEIGHT = NEW_WORD_MERGE_MIN_COUNT * USER_FREQ_SCALE
+
     /**
      * Votes before a learned capital leads its word: up one for each mid-sentence commit written
      * with it, down one for each without. Two, as for the merge floor, is the smallest signal
