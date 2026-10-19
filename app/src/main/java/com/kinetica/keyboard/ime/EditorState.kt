@@ -55,6 +55,13 @@ data class EditorState(
      */
     val offersCorrections: Boolean get() = !privateMode
 
+    /**
+     * This field as the keyboard's incognito switch leaves it: on, it forgets as a
+     * no-learning field does, and keeps its suggestions. Applied to the field's own state, so
+     * turning incognito off restores what the app asked for.
+     */
+    fun withIncognito(on: Boolean): EditorState = if (on && !noLearning) copy(noLearning = true) else this
+
     companion object {
         /**
          * The private option Kinetica's own settings put on a field that holds one token, an

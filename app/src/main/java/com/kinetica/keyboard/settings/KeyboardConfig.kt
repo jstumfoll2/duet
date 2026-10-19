@@ -187,6 +187,10 @@ data class KeyboardConfig(
     val britishSpelling: Boolean,
     /** Peck-type mode: swipes/predictions off, taps commit literally. */
     val peckMode: Boolean,
+    /** Incognito: every field is treated as asking for no learning. */
+    val incognito: Boolean = false,
+    /** The system key click on each key press. */
+    val keySound: Boolean = false,
 ) {
     companion object {
         fun from(prefs: SharedPreferences): KeyboardConfig {
@@ -419,6 +423,8 @@ data class KeyboardConfig(
                 Prefs.SYNC_SYSTEM_LANGUAGE, Prefs.DEFAULT_SYNC_SYSTEM_LANGUAGE,
             ),
             peckMode = prefs.getBoolean(Prefs.PECK_MODE, Prefs.DEFAULT_PECK_MODE),
+            incognito = prefs.getBoolean(Prefs.INCOGNITO, Prefs.DEFAULT_INCOGNITO),
+            keySound = prefs.getBoolean(Prefs.KEY_SOUND, Prefs.DEFAULT_KEY_SOUND),
         )
         }
 

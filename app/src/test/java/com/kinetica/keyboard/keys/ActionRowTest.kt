@@ -229,7 +229,7 @@ class ActionRowTest {
             EditorAction.SELECT_ALL, EditorAction.TOGGLE_NUMBER_ROW, EditorAction.EXPANDIFY,
             EditorAction.TOGGLE_TYPING_SPEED, EditorAction.TOGGLE_PECK_MODE,
             EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT, EditorAction.ARROW_RIGHT,
-            EditorAction.CLIPBOARD, EditorAction.VOICE,
+            EditorAction.CLIPBOARD, EditorAction.VOICE, EditorAction.TOGGLE_INCOGNITO,
             EditorAction.CASE_LOWER, EditorAction.CASE_TITLE, EditorAction.CASE_UPPER,
         )
         for (a in EditorAction.entries) {
@@ -249,6 +249,11 @@ class ActionRowTest {
         assertEquals(ActionRow.Notice.Toggle(EditorAction.TOGGLE_NEXT_WORD, false), ActionRow.notice(EditorAction.TOGGLE_NEXT_WORD, on))
         assertEquals(ActionRow.Notice.Toggle(EditorAction.TOGGLE_RECENT_WORDS, false), ActionRow.notice(EditorAction.TOGGLE_RECENT_WORDS, on))
         assertEquals(ActionRow.Notice.Toggle(EditorAction.TOGGLE_TIDY_SPACES, false), ActionRow.notice(EditorAction.TOGGLE_TIDY_SPACES, on))
+        assertEquals(ActionRow.Notice.Toggle(EditorAction.TOGGLE_INCOGNITO, true), ActionRow.notice(EditorAction.TOGGLE_INCOGNITO, off))
+        assertEquals(
+            ActionRow.Notice.Toggle(EditorAction.TOGGLE_INCOGNITO, false),
+            ActionRow.notice(EditorAction.TOGGLE_INCOGNITO, off.copy(incognito = true)),
+        )
     }
 
     @Test
