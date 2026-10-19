@@ -721,6 +721,9 @@ object KineticaConstants {
     const val SLIP_MIN_FREQ_GAP = 60
     const val SLIP_MIN_PAIR_BYTE = 100
     const val SLIP_MIN_PAIR_GAP = 60
+    // Commits that make two or three letters a word the user means. Above the merge floor of 2:
+    // until this fix shipped, every slip was committed and counted (`ti`, `tbe`).
+    const val SLIP_KEEP_COUNT = 5
 
     // Numbers-row slips (DigitSlips): at most two digits in the run, and the word they spell as
     // letters at byte 160 or more (a corpus count near 45 000). `to` 247, `of` 237, `with` 224 and

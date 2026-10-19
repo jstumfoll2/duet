@@ -4,7 +4,9 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.BeforeClass
 import org.junit.Test
@@ -38,10 +40,19 @@ class ShortSlipsTest {
     }
 
     @Test
-    fun nothingChangesWithoutContext() {
+    fun aWordNeedsTheWordBeforeItButALoneLetterDoesNot() {
         assertNull(slip("ti", null))
-        assertNull(slip("s", null))
         assertNull(slip("ti", ""))
+        // `s` alone is no English word anywhere: at the start, and after a word with no pair.
+        assertEquals("a", slip("s", null))
+        assertEquals("a", slip("s", "mushroom"))
+        assertEquals("a", slip("q", null))
+    }
+
+    @Test
+    fun aLoneLetterIsFixedHoweverOftenItWasCommitted() {
+        // Jason's keyboard held `s` at 8 commits, all slips for `a`.
+        assertEquals("a", slip("s", "this", mapOf("s" to 8)))
     }
 
     @Test
@@ -66,7 +77,19 @@ class ShortSlipsTest {
 
     @Test
     fun lettersTheUserCommitsAreKept() {
-        assertNull(slip("ti", "going", mapOf("ti" to KineticaConstants.PERSONAL_MERGE_MIN_COUNT)))
+        assertNull(slip("ti", "going", mapOf("ti" to KineticaConstants.SLIP_KEEP_COUNT)))
+        // Below the bar: before the fix shipped, the slip itself was committed and counted.
+        assertEquals("to", slip("ti", "going", mapOf("ti" to KineticaConstants.SLIP_KEEP_COUNT - 1)))
+    }
+
+    @Test
+    fun strayLettersAreTheOnesNoLanguageWordOrChatUses() {
+        assertTrue(ShortSlips.isStrayLetter('s', english))
+        assertTrue(ShortSlips.isStrayLetter('q', english))
+        assertFalse(ShortSlips.isStrayLetter('a', english))
+        assertFalse(ShortSlips.isStrayLetter('i', english))
+        assertFalse(ShortSlips.isStrayLetter('u', english))
+        assertFalse(ShortSlips.isStrayLetter('k', english))
     }
 
     @Test

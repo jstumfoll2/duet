@@ -639,7 +639,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 // Learned words merge into the trie at load, gated and scaled by
                 // PERSONAL_MERGE_MIN_COUNT and USER_FREQ_SCALE (rationale in KineticaConstants).
                 val userRows = try {
-                    KineticaDb.get(this).userWords().topN(lang, USER_DICT_LIMIT)
+                    withoutStrayLetters(KineticaDb.get(this).userWords().topN(lang, USER_DICT_LIMIT), lang)
                 } catch (e: RuntimeException) {
                     Log.w(TAG, "user dictionary unavailable", e)
                     emptyList()
@@ -676,7 +676,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 val alt = detectLang?.let { other ->
                     try {
                         altRows = try {
-                            KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT)
+                            withoutStrayLetters(KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT), other)
                         } catch (e: RuntimeException) {
                             Log.w(TAG, "user dictionary unavailable for $other", e)
                             emptyList()
@@ -709,7 +709,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 val extra = extraLang?.let { other ->
                     try {
                         extraRows = try {
-                            KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT)
+                            withoutStrayLetters(KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT), other)
                         } catch (e: RuntimeException) {
                             Log.w(TAG, "user dictionary unavailable for $other", e)
                             emptyList()
@@ -2158,18 +2158,31 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * reaches English `to`. Letters the user commits in any language are kept, and so are letters
      * another resident language pairs with the word before them.
      */
+    private fun standaloneLetters(lang: String): Set<Char> =
+        ('a'..'z').filterTo(HashSet()) { StandaloneLetters.isWord(it, lang) }
+
+    /**
+     * [rows] without lone letters that can only be slips in [lang] ([ShortSlips.isStrayLetter]):
+     * a count earned by uncorrected `s`-for-`a` slips must not rank `s` above `a` in the decode.
+     */
+    private fun withoutStrayLetters(rows: List<UserWord>, lang: String): List<UserWord> {
+        val standalone = standaloneLetters(lang)
+        return rows.filterNot { it.word.length == 1 && ShortSlips.isStrayLetter(it.word[0], standalone) }
+    }
+
     private fun shortSlip(literal: String): String? {
         val g = currentGeometry ?: return null
-        val prev = composer?.contextSnapshot()?.lastOrNull() ?: return null
+        val prev = composer?.contextSnapshot()?.lastOrNull()
         val w = literal.lowercase()
-        val floor = KineticaConstants.PERSONAL_MERGE_MIN_COUNT
-        if (listOf(personalCounts, secondaryCounts, extraCounts).any { (it[w] ?: 0) >= floor }) return null
+        // A lone letter's count is its own uncorrected slips (ShortSlips), so only longer
+        // letters are kept for being committed.
+        if (w.length > 1 &&
+            listOf(personalCounts, secondaryCounts, extraCounts).any { (it[w] ?: 0) >= KineticaConstants.SLIP_KEEP_COUNT }
+        ) return null
         val predictors = listOfNotNull(predictor, secondaryPredictor, extraPredictor)
         for (p in predictors) {
-            val lang = p.language.ifEmpty { config.language }
-            val standalone = ('a'..'z').filterTo(HashSet()) { StandaloneLetters.isWord(it, lang) }
-            val fix = ShortSlips.correction(p, g, literal, prev, standalone) ?: continue
-            if (predictors.any { it !== p && it.pairByte(prev, w) >= KineticaConstants.SLIP_MIN_PAIR_BYTE }) return null
+            val fix = ShortSlips.correction(p, g, literal, prev, standaloneLetters(p.language.ifEmpty { config.language })) ?: continue
+            if (prev != null && predictors.any { it !== p && it.pairByte(prev, w) >= KineticaConstants.SLIP_MIN_PAIR_BYTE }) return null
             return fix
         }
         return null
@@ -3997,6 +4010,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (editorState.teachesNothing) return
         val w = word.lowercase()
         if (w.length > KineticaConstants.MAX_WORD_LEN || !WORD_RE.matches(w)) return
+        // A lone `s` is a slip for `a` wherever it stands; counting it would rank it above `a`.
+        if (amount > 0 && w.length == 1 && ShortSlips.isStrayLetter(w[0], standaloneLetters(lang))) {
+            DecodeTrace.log { "  learn refused word=$w stray-letter" }
+            return
+        }
         // A blocked word is not learned back: its row would count up again behind the block.
         if (amount > 0 && w in blockedSpellings) {
             DecodeTrace.log { "  learn refused word=$w blocked" }

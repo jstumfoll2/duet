@@ -13,6 +13,12 @@ package com.kinetica.keyboard.engine
  * A short real word is a weak signal on its own (`ti` is a word), so the previous word decides:
  * the replacement must be a strong pair with it ([KineticaConstants.SLIP_MIN_PAIR_BYTE]) and a
  * clearly stronger pair than the letters as typed. With no previous word nothing is changed.
+ *
+ * A lone letter is different: one that is no word in the language ([correction]'s `standalone`)
+ * and no chat shorthand is wrong wherever it stands, so it needs no previous word, and its
+ * commit count says nothing. Jason's keyboard held `s` at 8 commits by 2026-10-07, every one an
+ * uncorrected slip for `a`, and that count is what kept the first version of this fix from
+ * firing on his phone.
  */
 object ShortSlips {
 
@@ -25,7 +31,9 @@ object ShortSlips {
      * for ok, `r` for are) is never a slip, so `u` beside `i` stays. Words
      * of two or more letters keep their letters when a spelling with an apostrophe exists
      * (`im` is `i'm`), when the letters are a common word themselves, or when the user has
-     * committed them often enough to mean them.
+     * committed them [KineticaConstants.SLIP_KEEP_COUNT] times: more than the merge floor, since
+     * before this fix existed every slip was committed and counted. A lone letter is kept only
+     * when the previous word pairs strongly with it as typed.
      */
     fun correction(
         p: WordPredictor,
@@ -36,15 +44,16 @@ object ShortSlips {
     ): String? {
         val typed = literal.lowercase()
         if (typed.isEmpty() || typed.length > KineticaConstants.SLIP_MAX_LEN) return null
-        val prev = prevWord?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
-        if (p.personalCount(typed) >= KineticaConstants.PERSONAL_MERGE_MIN_COUNT) return null
-        val typedPair = p.pairByte(prev, typed)
+        val before = prevWord?.lowercase()?.takeIf { it.isNotEmpty() }
         if (typed.length == 1) {
-            if (typed[0] in standalone || typed[0] in CHAT_LETTERS) return null
+            if (!isStrayLetter(typed[0], standalone)) return null
             val only = neighbours(g, typed[0]).filter { it in standalone }.singleOrNull() ?: return null
-            val word = only.toString()
-            return word.takeIf { strongPair(p.pairByte(prev, word), typedPair) }
+            if (before != null && p.pairByte(before, typed) >= KineticaConstants.SLIP_MIN_PAIR_BYTE) return null
+            return only.toString()
         }
+        val prev = before ?: return null
+        if (p.personalCount(typed) >= KineticaConstants.SLIP_KEEP_COUNT) return null
+        val typedPair = p.pairByte(prev, typed)
         if ((1 until typed.length).any { p.isWord(typed.substring(0, it) + "'" + typed.substring(it)) }) return null
         val typedByte = p.frequencyByte(typed)
         if (typedByte > KineticaConstants.SLIP_MAX_TYPED_BYTE) return null
@@ -107,6 +116,14 @@ object ShortSlips {
         }
         return if (pitch == Float.MAX_VALUE) 1f else pitch
     }
+
+    /**
+     * Whether [c] typed alone can only be a slip: a letter that is no word in the language
+     * ([standalone]) and no chat shorthand. Such a letter is also never learned, or its count
+     * would rank it above the word meant.
+     */
+    fun isStrayLetter(c: Char, standalone: Set<Char>): Boolean =
+        c.isLetter() && c.lowercaseChar() !in standalone && c.lowercaseChar() !in CHAT_LETTERS
 
     /** Letters written alone as chat shorthand: be, see, ok, and, oh, are, you, why. */
     private const val CHAT_LETTERS = "bcknoruy"
