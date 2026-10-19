@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
 import android.media.AudioManager
 import android.os.Build
@@ -90,6 +91,10 @@ import com.kinetica.keyboard.settings.SettingsActivity
 import com.kinetica.keyboard.settings.SettingsSynonyms
 import com.kinetica.keyboard.ui.EmojiPickerView
 import com.kinetica.keyboard.ui.EmojiRecents
+import com.kinetica.keyboard.ui.EmojiSuggest
+import com.kinetica.keyboard.ui.EmojiSuggestAsset
+import com.kinetica.keyboard.ui.FloatPlacement
+import com.kinetica.keyboard.ui.FloatingFrame
 import com.kinetica.keyboard.ui.BarAdjust
 import com.kinetica.keyboard.ui.InputContainerView
 import com.kinetica.keyboard.ui.Hsv
@@ -148,6 +153,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** Resident emoji pick counts, so the picker fills without touching Room. */
     private val emojiUses = ConcurrentHashMap<String, EmojiRecents.Use>()
+
+    /** The bar's emoji keywords, read off the main thread the first time the setting is on. */
+    @Volatile private var emojiIndex: EmojiSuggest.Index? = null
+    private var emojiIndexRequested = false
 
     private val ich = InputConnectionHelper { currentInputConnection }
     private val engine = GestureEngine(this)
@@ -264,6 +273,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private var keyboardView: KeyboardView? = null
     private var suggestionBar: SuggestionBarView? = null
     private var containerView: InputContainerView? = null
+
+    /** The input view's root, which floats [containerView] when the setting is on. */
+    private var floatFrame: FloatingFrame? = null
+    private val floatRect = Rect()
+    private val floatOrigin = IntArray(2)
     private var emojiPicker: EmojiPickerView? = null
     private var currentGeometry: KeyboardGeometry? = null
 
@@ -553,6 +567,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 editorState = fieldState.withIncognito(config.incognito)
                 DecodeTrace.suppressed = editorState.teachesNothing
             }
+            if (config.emojiSuggestions != previous.emojiSuggestions) refreshEmojiOffer()
             if (config.peckMode != previous.peckMode) {
                 // Entering or leaving literal mode mid-word would leave a
                 // half-tracked tentative; settle it as plain text first.
@@ -676,7 +691,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     assets.open("dictionaries/${lang}_trigrams.txt").bufferedReader().use {
                         DictionaryLoader.loadTrigrams(it, dict.trie)
                     }
-                } catch (e: java.io.IOException) {
+                } catch (e: IOException) {
                     com.kinetica.keyboard.engine.TrigramTable.EMPTY
                 }
                 // The other enabled language stays resident so swipe decodes consult both
@@ -845,7 +860,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             assets.open("dictionaries/en_gb_variants.txt").bufferedReader().use {
                 DictionaryLoader.loadSpellingSwaps(it)
             }
-        } catch (e: java.io.IOException) {
+        } catch (e: IOException) {
             Log.w(TAG, "British spelling variants asset unavailable", e)
             emptyMap()
         }
@@ -934,8 +949,61 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             bottomGapPx = dpToPx(config.bottomPadDp.toFloat()),
         )
         containerView = container
+        val frame = FloatingFrame(this, container)
+        floatFrame = frame
         applyViewConfig()
-        return container
+        return frame
+    }
+
+    /**
+     * Docks or floats the keyboard. Floating, the handle moves it instead of resizing it, and
+     * shows even when its height setting is zero, since it is the only way to move it.
+     */
+    private fun applyFloating() {
+        val frame = floatFrame ?: return
+        val container = containerView ?: return
+        val on = config.floating
+        frame.setFloating(
+            on,
+            FloatPlacement.widthFraction(config.floatWidthPct),
+            config.floatLeftPct / 100f,
+            dpToPx(config.floatLiftDp.toFloat()),
+        )
+        container.mover = if (on) floatMover else null
+        val handleDp = if (on) maxOf(config.dragHandleDp, FLOAT_HANDLE_DP) else config.dragHandleDp
+        container.setHandleHeight(dpToPx(handleDp.toFloat()))
+    }
+
+    private val floatMover = object : InputContainerView.Mover {
+        override fun onMove(dx: Float, dy: Float) {
+            floatFrame?.moveBy(dx, dy)
+        }
+
+        override fun onMoveEnded() {
+            val frame = floatFrame ?: return
+            PreferenceManager.getDefaultSharedPreferences(this@KineticaIME).edit()
+                .putInt(Prefs.FLOAT_LEFT_PCT, (frame.leftFraction() * 100f).roundToInt())
+                .putInt(Prefs.FLOAT_LIFT_DP, (frame.liftPx() / resources.displayMetrics.density).roundToInt())
+                .apply()
+        }
+    }
+
+    /**
+     * Floating, the app keeps the whole screen: it is not resized for the keyboard, and only
+     * the keyboard's own rectangle takes touches, so the empty frame around it passes them on.
+     */
+    override fun onComputeInsets(outInsets: Insets) {
+        super.onComputeInsets(outInsets)
+        val frame = floatFrame ?: return
+        if (!frame.floating || !isInputViewShown || frame.height <= 0) return
+        frame.getLocationInWindow(floatOrigin)
+        val bottom = floatOrigin[1] + frame.height
+        outInsets.contentTopInsets = bottom
+        outInsets.visibleTopInsets = bottom
+        frame.touchableRect(floatRect)
+        floatRect.offset(floatOrigin[0], floatOrigin[1])
+        outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
+        outInsets.touchableRegion.set(floatRect)
     }
 
     private fun openEmojiPicker() {
@@ -1078,7 +1146,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         containerView?.setBarHeight(dpToPx(barHeightDp()))
         containerView?.setHeightBounds(minKeyboardPx(), maxKeyboardPx())
         suggestionBar?.tallFactor = if (config.recentWords) KeyboardHeights.RECENT_BAR_TALL else 1f
-        containerView?.setHandleHeight(dpToPx(config.dragHandleDp.toFloat()))
+        applyFloating()
         val targetH = keyboardHeightPx()
         val lp = kv.layoutParams
         if (lp != null && lp.height != targetH) {
@@ -1312,6 +1380,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // into the sentence would capitalize the next letter.
         if (selectionLength() == 0) updateAutoShift()
         refreshPredictions()
+        refreshEmojiOffer()
     }
 
     /** Normalized selection; -1 from the editor means "unknown", i.e. none. */
@@ -1880,6 +1949,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             vibrateForKeyPress()
             this@KineticaIME.onRecentPicked(back, word)
         }
+
+        override fun onEmojiPicked(emoji: String) {
+            vibrateForKeyPress()
+            this@KineticaIME.onEmojiSuggestionPicked(emoji)
+        }
     }
 
     /**
@@ -1891,6 +1965,65 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         suggestionBar?.wordPending =
             tentativeLength > 0 || composer?.hasPendingWord == true
         refreshPredictions()
+        refreshEmojiOffer()
+    }
+
+    /**
+     * Offers emoji for the word right before the cursor, a word in progress or one just
+     * committed with its space, when the setting is on. Read from the editor, not from word
+     * state, so a cursor move or an emoji already added takes the offer down by itself.
+     */
+    private fun refreshEmojiOffer() {
+        val bar = suggestionBar ?: return
+        val index = emojiIndex
+        if (!config.emojiSuggestions || editorState.privateMode || index == null) {
+            if (config.emojiSuggestions && index == null) loadEmojiIndex()
+            bar.emoji = emptyList()
+            return
+        }
+        val before = ich.textBeforeCursor(EmojiSuggest.MAX_WORD + 2)
+        val word = before?.let { EmojiSuggest.wordBeforeCursor(it) }
+        bar.emoji = if (word == null) {
+            emptyList()
+        } else {
+            index.lookup(word, emojiUses.mapValues { it.value.count })
+        }
+    }
+
+    private fun loadEmojiIndex() {
+        if (emojiIndexRequested) return
+        emojiIndexRequested = true
+        dbExecutor.execute {
+            emojiIndex = try {
+                EmojiSuggestAsset.load(assets)
+            } catch (e: RuntimeException) {
+                Log.w(TAG, "emoji keywords unusable", e)
+                null
+            } catch (e: IOException) {
+                Log.w(TAG, "emoji keywords unreadable", e)
+                null
+            }
+            if (emojiIndex != null) mainHandler.post { refreshEmojiOffer() }
+        }
+    }
+
+    /**
+     * A bar emoji goes in after its word, which stays: a word in progress is finished as it
+     * stands, a space separates the two, and the emoji's own space is the keyboard's, so
+     * punctuation takes it back as it does an autospace.
+     */
+    private fun onEmojiSuggestionPicked(emoji: String) {
+        cancelAutospace()
+        finalizePendingWord()
+        val last = ich.textBeforeCursor(1)?.lastOrNull()
+        if (last != null && !last.isWhitespace()) commitTracked(" ")
+        recordEmojiUse(emoji)
+        commitTracked(emoji)
+        commitTracked(" ")
+        autospaceInserted = true
+        DecodeTrace.log { "  emoji pick" }
+        updateAutoShift()
+        updateBarWordPending()
     }
 
     /** What the idle bar is offering as next-word predictions; empty when it offers none. */
@@ -2398,6 +2531,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
             EditorAction.BACKSPACE, EditorAction.CTRL_NEXT, EditorAction.CLIPBOARD, EditorAction.VOICE,
             EditorAction.CASE_LOWER, EditorAction.CASE_TITLE, EditorAction.CASE_UPPER,
+            EditorAction.TOGGLE_FLOATING,
             -> null
         }
         if (menuId == null) {
@@ -2436,6 +2570,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.TOGGLE_TYPING_SPEED -> togglePref(Prefs.TYPING_SPEED, !config.typingSpeed)
             EditorAction.TOGGLE_PECK_MODE -> togglePeckMode()
             EditorAction.TOGGLE_INCOGNITO -> togglePref(Prefs.INCOGNITO, !config.incognito)
+            EditorAction.TOGGLE_FLOATING -> togglePref(Prefs.FLOATING, !config.floating)
             EditorAction.TAB, EditorAction.ESCAPE, EditorAction.FORWARD_DELETE, EditorAction.HOME,
             EditorAction.END, EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT,
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
@@ -2801,6 +2936,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             typingSpeed = config.typingSpeed,
             peckMode = config.peckMode,
             incognito = config.incognito,
+            floating = config.floating,
             ctrlPending = ctrlPending,
         )
     }
@@ -4797,6 +4933,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private companion object {
         const val TAG = "KineticaIME"
+
+        /** The floating keyboard's handle when the handle setting is smaller: a target to drag. */
+        const val FLOAT_HANDLE_DP = 18
 
         /** On the spacebar while incognito is on: the shortcut's own glyph. */
         val INCOGNITO_TAG = ActionRow.glyph(EditorAction.TOGGLE_INCOGNITO)
