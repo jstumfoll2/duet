@@ -97,6 +97,18 @@
             android:label="@string/contribute_title"
             android:exported="false" />
 
+        <!-- Copied images, handed to a field that takes them (ClipImages). Not exported: a
+             field reads one image only through the grant that comes with it. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.clipimages"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/clip_images" />
+        </provider>
+
         <activity
             android:name=".onboarding.MainActivity"
             android:exported="true">
