@@ -40,6 +40,19 @@ android {
         }
     }
 
+    // DEV builds sign with one fixed key kept in the repo, so each new DEV APK
+    // installs as an update over the last instead of needing an uninstall. It is
+    // a sideload-only key for the .dev app id, not a secret; release signing
+    // stays on keystore.properties below.
+    signingConfigs {
+        debug {
+            storeFile file('duet-dev.keystore')
+            storePassword 'duet-dev'
+            keyAlias 'duet-dev'
+            keyPassword 'duet-dev'
+        }
+    }
+
     if (keystorePropsFile.exists()) {
         signingConfigs {
             release {
@@ -92,6 +105,19 @@ android {
         unitTests {
             // Engine golden tests read the real dictionary and layout assets.
             includeAndroidResources = false
+        }
+    }
+}
+
+// Android only installs an update whose versionCode is not lower than the
+// installed one, and the DEV build changes far more often than the release
+// version does. CI passes the commit time in minutes as -PdevVersionCode, so
+// every newer DEV APK carries a higher code; local builds keep defaultConfig's.
+def devVersionCode = project.findProperty('devVersionCode')
+androidComponents {
+    onVariants(selector().withBuildType('debug')) { variant ->
+        if (devVersionCode != null) {
+            variant.outputs.each { it.versionCode.set(devVersionCode.toString().toInteger()) }
         }
     }
 }
