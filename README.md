@@ -69,6 +69,12 @@ F-Droid.
   than the raw touches on your own recent taps, so for a precise typist it stays off.
 - **Short slips.** A short tapped word with one letter hit beside the one meant is fixed when the
   previous word settles it (`going ti` becomes `going to`), and left alone when nothing does.
+- **A pecked word, then a swipe.** With automatic spaces on, tap `to` and swipe `help` straight
+  after with no space: Duet types "to help", not one word made of both (`PeckSplit`). It splits
+  only when the two words read clearly better than one, so `m`, `e` tapped and `rge` swiped still
+  makes "merge".
+- **Words started from the spacebar.** A thumb that lands on the spacebar and rises onto the
+  letters draws its word instead of typing a space and losing those letters.
 - **Apostrophes, Nintype style.** Swipe out to the apostrophe key and back mid-word
   (`w-e-'-r-e`) for "we're"; the trip is cut out of the path before it is decoded.
 

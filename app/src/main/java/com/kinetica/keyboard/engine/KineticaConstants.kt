@@ -158,6 +158,14 @@ object KineticaConstants {
     const val EDGE_TAP_GAP_KW = 0.3f
 
     /**
+     * A tapped word followed by a swipe ends at the swipe when the two words read this many
+     * times better than the one word (see PeckSplit). Ten batches, with the space after a
+     * tapped word left out of 495 pairs: 2 splits 371 of them right and costs 4 of 597 real
+     * tap-then-swipe words; 1.5 gains 10 and costs 6 more, 3 loses 23 to save 2.
+     */
+    const val PECK_SPLIT_RATIO = 2f
+
+    /**
      * Tap charge, in kw, for a skipped stray tap or an untapped letter. 0.5 fixes 1 035 of
      * 2 008 dropped taps and 1 764 of 2 008 stray ones and changes no captured commit or lead
      * but 19 empty decodes; 0.25 cost three autocorrections. Negative: off.

@@ -108,6 +108,12 @@ class KeyboardView @JvmOverloads constructor(
         /** A resting finger was dropped at its lift; the word may want its autospace now. */
         fun onRestingFingerDropped() = Unit
 
+        /**
+         * A spacebar touch rose onto the letters at a word's start and became a stroke: the word
+         * before it, if one is still in hand, ends as at a space tap.
+         */
+        fun onSpaceStartsWord() = Unit
+
         /** What [key] shows of its chord under [trigger] while the trigger is held, or null. */
         fun chordLabel(trigger: ChordTrigger, key: Char): String? = null
 
@@ -462,6 +468,9 @@ class KeyboardView @JvmOverloads constructor(
     private var pendingHoldPid = -1
     /** When a pointer that typed into the engine last lifted; see [letterHoldAllowed]. */
     private var lastEngineUpTime = Long.MIN_VALUE / 2
+
+    // When the spacebar last typed something: a space after the last letter ended its word.
+    private var lastSpaceTime = Long.MIN_VALUE / 2
     private var pendingHoldKeyIdx = -1
     private var popupWindow: PopupWindow? = null
     private var popupStrip: PopupStripView? = null
@@ -1164,6 +1173,7 @@ class KeyboardView @JvmOverloads constructor(
                 spaceSlideLocked = TouchRules.locksSpaceSlide(
                     otherSwiping = (0 until MAX_POINTERS).any { it != pid && routeByPointer[it] == ROUTE_ENGINE },
                     sinceLetterLiftMs = t - lastEngineUpTime,
+                    spacedSinceLetter = lastSpaceTime > lastEngineUpTime,
                 )
                 if (spaceSlideLocked) DecodeTrace.log { "  space slide locked mid-word since=${t - lastEngineUpTime}ms" }
                 val r = keyRects.getOrNull(keyIdx)
@@ -1246,27 +1256,46 @@ class KeyboardView @JvmOverloads constructor(
      */
     private fun maybeHandOverSpace(pid: Int, x: Float, y: Float, t: Long) {
         if (routeByPointer[pid] != ROUTE_SPACE || pid != spacePointer || !engineActive) return
-        if (spaceRolled || spaceChordFired) return
+        if (spaceChordFired) return
         val l = layout ?: return
         val idx = keyIndexAt(x, y)
         val onLetter = idx in l.keys.indices && l.keys[idx].isLetter
         val dx = x - downXByPointer[pid]
         val dy = y - downYByPointer[pid]
         val travel = kotlin.math.sqrt(dx * dx + dy * dy)
-        if (!TouchRules.spaceHandsOverToSwipe(spaceSlideLocked, travel, spaceController.driftLimitPx(), onLetter)) return
+        val rose = -dy > kotlin.math.abs(dx)
+        if (!TouchRules.spaceHandsOverToSwipe(
+                spaceSlideLocked, travel, spaceController.driftLimitPx(), onLetter, rose, spaceController.sliding,
+            )
+        ) {
+            return
+        }
+        // A roll already typed this touch's space, so it lifts as whatever the engine makes of it.
+        val rolled = spaceRolled
+        // At a word's start the touch still ends the word before it, as the space it began as.
+        if (!spaceSlideLocked && !rolled) {
+            lastSpaceTime = t
+            listener?.onSpaceStartsWord()
+        }
+        val spaced = !spaceSlideLocked || rolled
         if (engine?.onPointerDown(pid, x, y, t) != true) return
         spaceController.consume()
         spacePointer = -1
         spaceHoldMoved = false
         spaceSlideLocked = false
+        spaceRolled = false
         dropChordLabels(ChordTrigger.SPACE)
         pressedKeys.remove(downKeyByPointer[pid])
         pressedKeys.add(idx)
         invalidate()
-        DecodeTrace.log { "  touch handover from=space to=${l.keys[idx].output}" }
+        DecodeTrace.log {
+            "  touch handover from=space to=${l.keys[idx].output} rose=$rose rolled=$rolled " +
+                "dx=${(dx / density).toInt()}dp dy=${(dy / density).toInt()}dp"
+        }
         routeByPointer[pid] = ROUTE_ENGINE
-        // Lifted before it drew a swipe, it is the space it began as (see the lift).
-        handoverFrom[pid] = downKeyByPointer[pid]
+        // Lifted before it drew a swipe, it is the space it began as (see the lift), unless
+        // that space was typed already.
+        handoverFrom[pid] = if (spaced) -1 else downKeyByPointer[pid]
         downKeyByPointer[pid] = idx
         downXByPointer[pid] = x
         downYByPointer[pid] = y
@@ -1352,8 +1381,14 @@ class KeyboardView @JvmOverloads constructor(
         spaceController.onUp(t).let { lift ->
             when (lift) {
                 SpacebarCursorController.Lift.SPACE -> dispatchTap(sp, t)
-                SpacebarCursorController.Lift.SPACELESS -> listener?.onSpacelessSpace()
-                SpacebarCursorController.Lift.DOUBLE -> listener?.onDoubleSpace()
+                SpacebarCursorController.Lift.SPACELESS -> {
+                    lastSpaceTime = t
+                    listener?.onSpacelessSpace()
+                }
+                SpacebarCursorController.Lift.DOUBLE -> {
+                    lastSpaceTime = t
+                    listener?.onDoubleSpace()
+                }
                 SpacebarCursorController.Lift.SLIDE -> Unit
             }
         }
@@ -1796,8 +1831,14 @@ class KeyboardView @JvmOverloads constructor(
                     Unit
                 } else if (spaceChordFired) spaceController.consume() else when (spaceController.onUp(t)) {
                     SpacebarCursorController.Lift.SPACE -> dispatchTap(pid, t)
-                    SpacebarCursorController.Lift.SPACELESS -> listener?.onSpacelessSpace()
-                    SpacebarCursorController.Lift.DOUBLE -> listener?.onDoubleSpace()
+                    SpacebarCursorController.Lift.SPACELESS -> {
+                        lastSpaceTime = t
+                        listener?.onSpacelessSpace()
+                    }
+                    SpacebarCursorController.Lift.DOUBLE -> {
+                        lastSpaceTime = t
+                        listener?.onDoubleSpace()
+                    }
                     SpacebarCursorController.Lift.SLIDE -> Unit
                 }
                 spacePointer = -1
@@ -1940,10 +1981,11 @@ class KeyboardView @JvmOverloads constructor(
         return if (keyIdx in l.keys.indices) l.keys[keyIdx] else null
     }
 
-    private fun dispatchTap(pid: Int, @Suppress("UNUSED_PARAMETER") upTime: Long) {
+    private fun dispatchTap(pid: Int, upTime: Long) {
         // Long presses are consumed by the hold timer before the lift, so
         // everything arriving here is a plain tap.
         val key = keyAtDown(pid) ?: return
+        if (key.type == KeyType.SPACE) lastSpaceTime = upTime
         listener?.onKeyTap(key)
     }
 

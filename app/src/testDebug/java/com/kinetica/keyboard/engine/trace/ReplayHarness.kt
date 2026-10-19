@@ -68,6 +68,8 @@ class ReplayHarness(
     private val heldDoubleFree: Boolean = KineticaConstants.HELD_DOUBLE_FREE_TIME,
     /** The near-edge tap pass's gap; 0 is off. */
     private val edgeTapGap: Float = com.kinetica.keyboard.engine.KineticaConstants.EDGE_TAP_GAP_KW,
+    /** Whether a tapped word followed by a swipe may split, as with automatic spaces on. */
+    private val peckSplit: Boolean = true,
 ) {
     /**
      * The personal store one replay builds up: commit counts (merged into the trie at each
@@ -124,6 +126,10 @@ class ReplayHarness(
         }
         Dict(d, b, t)
     }
+
+    /** The shipping-depth predictor for [w]'s language and board, as replay builds it. */
+    fun predictorFor(w: SwipeTrace.Word): WordPredictor =
+        predictor(w.config.language, w.config.britishSpelling, w.geometry.build(), KineticaConstants.TOP_K)
 
     /** The bundled trie for [lang], as replay loads it. */
     fun trieFor(lang: String, british: Boolean): com.kinetica.keyboard.engine.Trie = dict(lang, british).d.trie
@@ -232,8 +238,16 @@ class ReplayHarness(
         c.alternatePredictor = alt
         for (w in context) c.commitWord(w)
         if (apostrophe) c.markApostrophe()
-        c.seed(tokens)
-        return out
+        if (!peckSplit || com.kinetica.keyboard.engine.PeckSplit.tapHead(tokens) == 0) {
+            c.seed(tokens)
+            return out
+        }
+        // A tapped word then a swipe: fed as touches, since a seeded buffer is a reloaded word
+        // and never splits. A split at the end loses this line's word.
+        c.oneLetterWord = { ch -> ch in ONE_LETTER_WORDS[active.language].orEmpty() }
+        c.peckSplit = true
+        for (t in tokens.sortedBy { it.tEnd }) c.onToken(t)
+        return if (c.split != null) emptyList() else out
     }
 
     /**
@@ -257,6 +271,9 @@ class ReplayHarness(
 
     companion object {
         const val DEFAULT_DEEP_K = 50
+
+        /** StandaloneLetters' sets for the traced languages; that object is outside the engine. */
+        val ONE_LETTER_WORDS = mapOf("en" to setOf('a', 'i'), "es" to setOf('a', 'e', 'o', 'y'))
 
         /** Labels of this length or less count as short words. */
         const val SHORT_MAX = 3
