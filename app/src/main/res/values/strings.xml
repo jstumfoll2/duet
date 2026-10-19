@@ -611,6 +611,7 @@
     <string name="pref_theme_mode_title">Keyboard theme</string>
     <string name="pref_theme_brightness_title">Light or dark</string>
     <string name="theme_preview_note_custom">Preview: drag the hue above to change it</string>
+    <string name="theme_preview_note_preset">Preview: presets keep their own colours, so the brightness and hue settings do not change them.</string>
     <string name="theme_preview_note_fixed">Preview: this palette ignores the hue. Choose Custom colour to use it.</string>
     <string name="pref_theme_hue_title">Accent hue</string>
     <string name="pref_theme_hue_summary">Position on the colour wheel, from 0 to 360, for the custom colour theme. Every surface follows it</string>

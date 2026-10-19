@@ -33,6 +33,13 @@
         <item>Duet scuro (predefinito)</item>
         <item>Material You (Android 12+)</item>
         <item>Colore a scelta</item>
+        <item>Nero puro (AMOLED)</item>
+        <item>Oceano</item>
+        <item>Foresta</item>
+        <item>Tramonto</item>
+        <item>Carta (chiaro)</item>
+        <item>Lavanda (chiaro)</item>
+        <item>Alto contrasto</item>
     </string-array>
     <string-array name="theme_color_entries">
         <item>Blu Duet</item>

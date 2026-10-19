@@ -5,4 +5,9 @@
     <declare-styleable name="SteppedSliderPreference">
         <attr name="sliderSteps" format="reference" />
     </declare-styleable>
+    <!-- Saturation the HueSliderPreference swatch is drawn at, to match the surface that
+         uses the hue (the trail draws brighter than the theme accent). -->
+    <declare-styleable name="HueSliderPreference">
+        <attr name="swatchSaturation" format="float" />
+    </declare-styleable>
 </resources>

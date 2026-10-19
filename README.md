@@ -100,6 +100,11 @@ F-Droid.
 - **Incognito** (off by default): learns nothing in any field, no new words, word pairs, recent
   emoji or clipboard history, while suggestions keep working. The spacebar shows 🕶 while it is on.
 - **Sound on key press** (off by default).
+- **Theme presets.** Pure black (AMOLED), Ocean, Forest, Sunset, Paper, Lavender and High
+  contrast, in Keyboard theme next to Duet dark, Material You and Custom colour. Duet dark stays
+  the default.
+- **Colour swatches.** The accent and trail hue sliders show the picked colour as a dot, a tinted
+  thumb and a rainbow track, and the trail colour row shows its colour too.
 
 ## For testers: the DEV build
 

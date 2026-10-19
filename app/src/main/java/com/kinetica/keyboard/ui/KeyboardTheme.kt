@@ -15,6 +15,7 @@ import kotlin.math.min
  *  - "dynamic": the Android 12+ Material You palette, read from android.R.color.system_*
  *    (no Material Components dependency: the keyboard is a Canvas surface, not themed views)
  *  - "custom": every role derived from one user-picked hue by fixed HSV transforms
+ *  - "preset_*": a named, fixed palette from [ThemePresets]; brightness and hue do not apply
  *
  * and, separately, light or dark (the BRIGHTNESS_* values). Crossing the two gives "Material
  * You but light" and "my own hue but light" without a named theme for every pair.
@@ -101,6 +102,7 @@ class KeyboardTheme(
             customPrimary: Int,
             brightness: String = BRIGHTNESS_DARK,
         ): KeyboardTheme {
+            ThemePresets.find(mode)?.let { return it }
             val light = isLight(context, brightness)
             return when {
                 mode == MODE_DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
