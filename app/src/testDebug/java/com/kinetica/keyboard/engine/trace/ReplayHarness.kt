@@ -78,6 +78,8 @@ class ReplayHarness(
         val reloadEvery: Int = 300,
         /** Words merged into the trie from the start, as an imported user dictionary would. */
         val seedWords: Map<String, List<String>> = emptyMap(),
+        /** Units a word learns when the decode didn't put it first: a pick from the bar, or a retype. */
+        val pickWeight: Int = com.kinetica.keyboard.engine.KineticaConstants.PICK_LEARN_UNITS,
     ) {
         val counts = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
         val pairs = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
@@ -86,9 +88,9 @@ class ReplayHarness(
         fun countsOf(lang: String) = counts.getOrPut(lang) { java.util.concurrent.ConcurrentHashMap() }
         fun pairsOf(lang: String) = pairs.getOrPut(lang) { java.util.concurrent.ConcurrentHashMap() }
 
-        fun learn(lang: String, context: List<String>, label: String) {
+        fun learn(lang: String, context: List<String>, label: String, units: Int = 1) {
             val w = label.lowercase()
-            countsOf(lang).merge(w, 1, Int::plus)
+            countsOf(lang).merge(w, units, Int::plus)
             if (phrases && context.isNotEmpty()) pairsOf(lang).merge(WordPredictor.pairKey(context.last(), w), 1, Int::plus)
         }
     }
@@ -189,7 +191,10 @@ class ReplayHarness(
 
         val label = w.label?.lowercase()
         if (learner != null && label != null) {
-            learner.learn(cfg.language, w.context, label)
+            // A pick from the bar: on the list, but not first. A typo committed as tapped isn't one.
+            val at = shipping.indexOfFirst { it.word.lowercase() == label }
+            val units = if (at >= 1) learner.pickWeight else 1
+            learner.learn(cfg.language, w.context, label, units)
             if (++learner.sinceReload >= learner.reloadEvery) {
                 learner.sinceReload = 0
                 dicts.clear()

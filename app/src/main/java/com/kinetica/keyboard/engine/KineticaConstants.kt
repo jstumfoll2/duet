@@ -648,6 +648,14 @@ object KineticaConstants {
     const val PERSONAL_BOOST = 0.15f
 
     /**
+     * Commits a word learns when the user picks it from the bar over the decode's first choice
+     * (best over beast). One unit, as any commit, barely moved the next contest. Replay of ten
+     * trace batches learning in order (`ranks --learn words --pickw N`): 3 units +17/-5 words,
+     * 6 units +31/-12, 10 units +33/-16; the losses are short pairs (be/he, it's/its).
+     */
+    const val PICK_LEARN_UNITS = 3
+
+    /**
      * Personal pair weighting: `1 + PERSONAL_BIGRAM_BOOST * ln(1 + pairCount)`, through the same
      * fade as every other boost. PERSONAL_BOOST's value, as the same shape over the same kind of
      * evidence; the two multiply on a word frequent for this user and after this predecessor.

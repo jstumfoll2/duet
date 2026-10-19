@@ -15,7 +15,7 @@ import java.io.File
  *       words (see [read]); --plain keeps the committed labels.
  *       With --ctc MODEL.kctc [--beta B] [--depth D] the shipping run adds the
  *       stage-A CTC rerank over a heap D deep (default 50).
- *   ranks [--learn words|phrases] [--seed FILE] [--hdfree] TRACE.jsonl...
+ *   ranks [--learn words|phrases] [--pickw N] [--seed FILE] [--hdfree] TRACE.jsonl...
  *       One tab-separated row per scored line. --learn replays the files in order and learns
  *       each label after decoding it, as the keyboard does; --seed merges lang<TAB>word rows
  *       from the start, as the phone's user dictionary and contact names do.
@@ -89,7 +89,7 @@ object ReplayCli {
                 val hdend = opt(a, "--hdend")?.toLong() ?: KineticaConstants.HELD_DOUBLE_END_MS
                 val hdmiss = opt(a, "--hdmiss")?.toFloat() ?: 1f
                 val touch = touchModel(opt(a, "--touch"))
-                val learner = learnerOf(opt(a, "--learn"), opt(a, "--seed"))
+                val learner = learnerOf(opt(a, "--learn"), opt(a, "--seed"), opt(a, "--pickw")?.toInt() ?: KineticaConstants.PICK_LEARN_UNITS)
                 val hdfree = a.remove("--hdfree") || KineticaConstants.HELD_DOUBLE_FREE_TIME
                 val edge = opt(a, "--edge")?.toFloat() ?: KineticaConstants.EDGE_TAP_GAP_KW
                 if (a.isEmpty()) usage()
@@ -436,7 +436,7 @@ object ReplayCli {
      * --learn words|phrases: learn in trace order (see [ReplayHarness.Learner]).
      * --seed FILE: lang<TAB>word lines merged from the start, as an imported user dictionary.
      */
-    private fun learnerOf(mode: String?, seed: String?): ReplayHarness.Learner? {
+    private fun learnerOf(mode: String?, seed: String?, pickWeight: Int): ReplayHarness.Learner? {
         if (mode == null && seed == null) return null
         val words = seed?.let { f ->
             File(f).readLines().mapNotNull { l -> l.split('\t').takeIf { it.size >= 2 } }
@@ -445,6 +445,7 @@ object ReplayCli {
         return ReplayHarness.Learner(
             phrases = mode == "phrases",
             seedWords = words,
+            pickWeight = pickWeight,
         )
     }
 
