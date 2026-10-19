@@ -71,9 +71,12 @@ jobs:
           PY
 
       - name: Count
+        # The input reaches the shell as a variable, never spliced into the script.
+        env:
+          SHARDS: ${{ github.event.inputs.shards || '6' }}
         run: |
           mkdir -p out
-          python tools/web_ngrams.py --vocab vocab.txt --shards "${{ github.event.inputs.shards || '6' }}" \
+          python tools/web_ngrams.py --vocab vocab.txt --shards "$SHARDS" \
             --workers 2 --out-dir out 2>&1 | tee out/count.log
           zcat out/trigrams.tsv.gz | head -40 | tee -a out/count.log
           ls -la out

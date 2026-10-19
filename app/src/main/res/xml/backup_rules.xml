@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 and older (android:fullBackupContent). Everything else backs up as before.
+  trace/ is the DEV build's decode trace and word log: typed text, kept on the phone and
+  exported by hand, never copied into a cloud backup.
+-->
+<full-backup-content>
+    <exclude domain="file" path="trace/" />
+</full-backup-content>

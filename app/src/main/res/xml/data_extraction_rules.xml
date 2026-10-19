@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 and newer (android:dataExtractionRules), the same rule as backup_rules.xml for
+  both routes: the cloud backup and a transfer to a new phone. trace/ is the DEV build's
+  decode trace and word log.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="trace/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="trace/" />
+    </device-transfer>
+</data-extraction-rules>

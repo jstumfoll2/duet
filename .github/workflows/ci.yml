@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Build and test only read the repository; the artifact upload uses its own runtime token.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,6 +24,9 @@ jobs:
       # 34.0.0 preinstalled; ANDROID_HOME is exported by the runner image.
 
       - uses: gradle/actions/setup-gradle@v3
+        with:
+          # A pull request that swaps gradle-wrapper.jar fails here instead of running it.
+          validate-wrappers: true
 
       # The project's exact green gate: build, JVM golden suite, lint.
       - run: ./gradlew assembleDebug test lint
