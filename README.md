@@ -43,7 +43,9 @@ adb install -r duet-dev-*.apk
 Or open the APK on the phone. Then open the Duet icon and follow the three steps to enable it.
 
 Every CI run, pull requests included, also uploads the DEV APK as the `duet-dev-apk` artifact
-(Actions > CI > the run > Artifacts), kept for 30 days.
+(Actions > CI > the run > Artifacts), kept for 30 days. It builds the release app too and uploads
+it as `duet-release-apk-unsigned`. That APK is unsigned, so it can't be installed until it's
+signed; it shows that the release build still compiles.
 
 Duet does not upgrade Kinetica or an older Kinetica DEV build: it is a different app, with its own
 data. Back up the old one first (Settings > Backup) and restore the file in Duet. Duet is not on

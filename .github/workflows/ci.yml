@@ -28,9 +28,9 @@ jobs:
           # A pull request that swaps gradle-wrapper.jar fails here instead of running it.
           validate-wrappers: true
 
-      # The project's exact green gate: build, JVM golden suite, lint. The DEV
-      # versionCode is the commit time in minutes, so newer builds always update.
-      - run: ./gradlew assembleDebug test lint -PdevVersionCode=$(( $(git log -1 --format=%ct) / 60 ))
+      # The project's exact green gate: build both apps, JVM golden suite, lint. The
+      # DEV versionCode is the commit time in minutes, so newer builds always update.
+      - run: ./gradlew assembleDebug assembleRelease test lint -PdevVersionCode=$(( $(git log -1 --format=%ct) / 60 ))
 
       # The fixed DEV key's certificate, so two runs can be compared at a glance.
       - name: Show the DEV APK's signer
@@ -45,6 +45,15 @@ jobs:
         with:
           name: duet-dev-apk
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      # The release build (io.github.jstumfoll2.duet: no trace screen, records nothing).
+      # CI holds no release key, so this APK is unsigned: it proves the release variant
+      # builds, and a published release signs it with the KEYSTORE_* key.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duet-release-apk-unsigned
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 30
 
   # The engine and trace-replay harness as a plain JVM build: no Android SDK,
