@@ -64,8 +64,9 @@ class PeckSplitTest {
     @Test
     fun aTappedAThenASwipedTailStaysOneWord() {
         // Batch 11: `a` tapped and `llow` swiped read as `a low` three times out of three. The
-        // tapped word's score is capped, so a frequent `a` no longer outweighs `allow`.
-        assertNull(split(TestData.tap('a', g, 0), TestData.swipe("llow", g, 300, 300)))
+        // tapped word's score is capped, so a frequent `a` no longer outweighs `allow`. Real
+        // words begun with `a` tapped run on into their swipe within about 100 ms.
+        assertNull(split(TestData.tap('a', g, 0), TestData.swipe("llow", g, 120, 300)))
     }
 
     @Test
@@ -114,5 +115,20 @@ class PeckSplitTest {
         c.onToken(TestData.tap('o', g, 150, StreamId.RIGHT))
         c.onToken(TestData.swipe("help", g, 450, 300))
         assertNull(c.splitHead())
+    }
+
+    @Test
+    fun aSwipeThatFollowsTheTapsAtOnceNeedsAClearerCase() {
+        assertEquals(KineticaConstants.PECK_SPLIT_QUICK_RATIO, PeckSplit.ratioFor(40))
+        assertEquals(KineticaConstants.PECK_SPLIT_RATIO, PeckSplit.ratioFor(KineticaConstants.PECK_SPLIT_QUICK_GAP_MS))
+    }
+
+    @Test
+    fun aReadingThatLostIsStillKeptForTheBackspace() {
+        val t = listOf(TestData.tap('a', g, 0), TestData.swipe("llow", g, 120, 300))
+        val r = PeckSplit.read(english, t, listOf("i", "want"), english.decode(t, listOf("i", "want")), oneLetter)
+        assertNotNull(r)
+        assertEquals(false, r!!.chosen)
+        assertEquals("a", r.tapWord)
     }
 }

@@ -159,11 +159,22 @@ object KineticaConstants {
 
     /**
      * A tapped word followed by a swipe ends at the swipe when the two words read this many
-     * times better than the one word (see PeckSplit). Ten batches, with the space after a
-     * tapped word left out of 495 pairs: 2 splits 371 of them right and costs 4 of 597 real
-     * tap-then-swipe words; 1.5 gains 10 and costs 6 more, 3 loses 23 to save 2.
+     * times better than the one word (see PeckSplit), unless the swipe followed the taps at
+     * once ([PECK_SPLIT_QUICK_GAP_MS]). Twelve batches (2026-10-20), with the space after a
+     * tapped word left out of 646 pairs and 881 real tap-then-swipe words: one ratio of 2
+     * split 466 pairs right and lost 21 real words; 1.25 here and 3 for a quick swipe split
+     * 495 and lose the same 21. Owner report: two words were still read as one too often.
      */
-    const val PECK_SPLIT_RATIO = 2f
+    const val PECK_SPLIT_RATIO = 1.25f
+
+    /**
+     * The ratio for a swipe that began less than [PECK_SPLIT_QUICK_GAP_MS] after the last tap
+     * lifted. Real tap-then-swipe words begin their swipe a median 51 ms after the last tap
+     * (three quarters within 117 ms); the pairs a space was left out of, at least 200 ms in
+     * nine out of ten.
+     */
+    const val PECK_SPLIT_QUICK_RATIO = 3f
+    const val PECK_SPLIT_QUICK_GAP_MS = 100L
 
     /**
      * The most a tapped word's score counts for in [PECK_SPLIT_RATIO]'s test. Eleven batches:

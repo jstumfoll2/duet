@@ -401,9 +401,30 @@ internal fun mergeNextWords(
 /**
  * A committed word that was two words read as one: [word], ending at offset [end], whose first
  * [head] letters were a word of their own before the join (`to` of `toddle`, from `to` tapped
- * and `feel` swiped).
+ * and `feel` swiped). [rest] is how the swipe after the tapped word read on its own (`feel`),
+ * null when it was not decoded that way.
  */
-internal class JoinedCommit(val word: String, val head: Int, val end: Int) {
+internal class JoinedCommit(val word: String, val head: Int, val end: Int, val rest: String? = null) {
+    /**
+     * What a backspace right after the word puts back, as (characters replaced, text): the two
+     * words, with the space after the word kept when one follows (`toddle ` becomes `to feel `).
+     * Null unless [rest] is known, the cursor sits right after the word or after it and one
+     * space, and the text there is still the word. A word with an apostrophe is never split:
+     * `it's` from a tapped `i` is one word.
+     */
+    fun splitBefore(before: CharSequence, anchor: Int): Pair<Int, String>? {
+        val r = rest?.takeIf { it.isNotEmpty() } ?: return null
+        if (head <= 0 || head >= word.length) return null
+        if (word.any { it == '\'' || it == '\u2019' }) return null
+        val second = if (word.length > 1 && word.none { it.isLowerCase() }) r.uppercase() else r
+        val two = word.substring(0, head) + " " + second
+        return when {
+            anchor == end && before.endsWith(word) -> word.length to two
+            anchor == end + 1 && before.endsWith("$word ") -> word.length + 1 to "$two "
+            else -> null
+        }
+    }
+
     /**
      * How many characters before [anchor] a backspace slide's first unit takes to stop at the
      * join, [before] being the text before [anchor]: the letters after it, and the space after

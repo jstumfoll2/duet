@@ -184,6 +184,13 @@ class WordComposer(
     var split: PeckSplit.Split? = null
         private set
 
+    /**
+     * The buffer in hand read as a tapped word and a swiped one even when one word won
+     * ([PeckSplit.read]), for a backspace that splits the commit afterwards. Main thread.
+     */
+    var twoWords: PeckSplit.Split? = null
+        private set
+
     // The tokens after a split's head, held while the head is committed.
     private var tail: List<InputToken> = emptyList()
 
@@ -274,6 +281,7 @@ class WordComposer(
         val sorted = tokens.sortedBy { it.tStart }
         if (s.head >= sorted.size || sorted.take(s.head).any { it !is TapToken }) return null
         split = null
+        twoWords = null
         tail = sorted.drop(s.head)
         tokens.clear()
         tokens.addAll(sorted.take(s.head))
@@ -313,6 +321,7 @@ class WordComposer(
         tokens.clear()
         seeded = 0
         split = null
+        twoWords = null
         generation.incrementAndGet()
     }
 
@@ -378,6 +387,14 @@ class WordComposer(
         context.addLast(p)
     }
 
+    /** A backspace split the last committed word back into the two words it was typed as. */
+    fun splitLastCommit(first: String, second: String) {
+        if (context.isNotEmpty()) context.removeLast()
+        context.addLast(first.lowercase())
+        context.addLast(second.lowercase())
+        while (context.size > 2) context.removeFirst()
+    }
+
     /** The correction strip swapped the last committed word. */
     fun replaceLastCommit(word: String) {
         if (context.isNotEmpty()) context.removeLast()
@@ -402,6 +419,7 @@ class WordComposer(
         tokens.clear()
         seeded = 0
         split = null
+        twoWords = null
         tail = emptyList()
         generation.incrementAndGet()
     }
@@ -428,6 +446,7 @@ class WordComposer(
 
     private fun requestDecode() {
         split = null
+        twoWords = null
         val snapshot = ArrayList(tokens)
         val request = DecodeRequest(
             tokens = snapshot,
@@ -496,7 +515,7 @@ class WordComposer(
             }
             val active = predictor.decodeFor(request)
             val split = if (request.peckSplit && request.literal.isEmpty()) {
-                PeckSplit.split(predictor, request.tokens, request.context, active, oneLetterWord)
+                PeckSplit.read(predictor, request.tokens, request.context, active, oneLetterWord)
             } else {
                 null
             }
@@ -554,7 +573,8 @@ class WordComposer(
     private fun deliver(request: DecodeRequest, merged: Merged, split: PeckSplit.Split? = null) {
         mainExecutor.execute {
             if (request.generation == generation.get()) {
-                this.split = split
+                this.split = split?.takeIf { it.chosen }
+                this.twoWords = split
                 if (observer != null) {
                     shown = merged.candidates
                     shownFor = request.tokens.size
