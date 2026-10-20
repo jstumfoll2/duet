@@ -8,7 +8,7 @@
     <string name="ime_name">Duet DEV Keyboard</string>
     <string name="app_pkg" translatable="false">io.github.jstumfoll2.duet.dev</string>
 
-    <string name="trace_title">Duet DEV trace</string>
+    <string name="trace_title">Traces and practice</string>
     <string name="trace_recording">Recording decode traces</string>
     <string name="trace_explain">Every gesture decoded by the DEV keyboard is written to a file on this device, including the words it produces. Nothing leaves the device and nothing is sent anywhere. This build exists to capture that file; the normal Duet build records nothing.</string>
     <string name="trace_export">Export</string>

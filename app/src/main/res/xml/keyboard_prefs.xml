@@ -846,6 +846,12 @@
                 android:targetPackage="@string/app_pkg"
                 android:targetClass="com.kinetica.keyboard.onboarding.TutorActivity" />
         </Preference>
+        <!-- DEV build only: KeyboardPrefsFragment removes it where TraceScreen finds no screen. -->
+        <Preference
+            android:key="pref_traces_screen"
+            android:title="@string/pref_traces_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_traces_summary" />
         <!-- Not settings: short tips, the basics first. A tip that names a setting
              opens it (LearnTips); the rest are not selectable. -->
         <PreferenceCategory android:title="@string/learn_group_start">

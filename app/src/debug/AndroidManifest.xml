@@ -3,18 +3,15 @@
 
     <!--
       Debug build only. Merged into the debug variant's manifest and into no other,
-      so the released app has no trace screen and no second launcher entry.
+      so the released app has no trace screen. The screen has no launcher entry of its
+      own: Settings and the start screen open it (TraceScreen), so the DEV build is one
+      icon, and it is not exported since only this app opens it.
     -->
     <application>
         <activity
             android:name=".ime.TraceActivity"
-            android:exported="true"
-            android:label="@string/trace_title">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="false"
+            android:label="@string/trace_title" />
         <activity
             android:name=".ime.PracticeActivity"
             android:exported="false"

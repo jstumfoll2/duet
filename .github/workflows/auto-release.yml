@@ -153,11 +153,9 @@ jobs:
         run: |
           set -euo pipefail
           dev_code=$(( $(git log -1 --format=%ct) / 60 ))
-          if [ "$SIGNED" = true ]; then
-            ./gradlew assembleDebug assembleRelease -PdevVersionCode="$dev_code"
-          else
-            ./gradlew assembleDebug -PdevVersionCode="$dev_code"
-          fi
+          # The release variant is built either way, so a merge that breaks it fails
+          # here; without a key it is unsigned and not attached.
+          ./gradlew assembleDebug assembleRelease -PdevVersionCode="$dev_code"
 
       - name: Remove the keystore from the workspace
         if: always()

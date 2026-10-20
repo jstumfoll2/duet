@@ -212,6 +212,9 @@
     <string name="pref_group_gestures_more_summary">Key swipes, backspace and spacebar slides</string>
     <string name="pref_group_learn_title">Learn Duet</string>
     <string name="pref_group_learn_summary">Practice for two thumbs, and short tips from the basics up</string>
+    <!-- DEV build only, so never shown in a release and not translated. -->
+    <string name="pref_traces_title" translatable="false">Traces and practice</string>
+    <string name="pref_traces_summary" translatable="false">Trace recording, practice mode, export and the neural rerank (DEV build)</string>
     <string name="contribute_title">Contribute</string>
     <string name="pref_contribute_summary">Support the keyboard</string>
     <string name="contribute_text">If this keyboard is useful to you, you can offer me a coffee on:</string>
