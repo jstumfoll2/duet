@@ -1,0 +1,1 @@
+Two-thumb swipe encoder fine-tuned by .github/workflows/train_split.yml from 0dec268ee82a814b4b1084f7df7ddfa5560891d5 on FUTO swipe-1 split at the midline (MIT dataset; no FUTO weights), starting from models/futo v1.
