@@ -45,6 +45,12 @@ all                   220   98.2%  100.0%   0.991   100.0%     99.1%
   a longer copy of the first: a bigger heap loosens early-abandon budgets and
   spends the fixed `MAX_EMIT_ATTEMPTS` budget sooner, so it can lose a word the
   shipping list has. The report counts those lines separately.
+- **Retyped words**: a free-typed commit the user undid (a backspace, or a buffer
+  abandoned after it) takes the next committed word as its label when the two are
+  close ("go" then "to", "gels" then "tells"); if the next word only extends it
+  ("ca" then "can") the commit was a stray mid-word space and goes unscored. Plain
+  labels count a deleted typo as right, so a fix for it read as a loss. `--plain`
+  keeps the committed labels. The scorecard shows these lines as `retyped`.
 - **Buckets**: input shape (exactly one of `single-swipe`, `multi-swipe`,
   `two-thumb-overlap`, `tap+swipe`, `taps`) plus two label attributes that
   overlap them, `double-letter` and `short` (3 letters or fewer).

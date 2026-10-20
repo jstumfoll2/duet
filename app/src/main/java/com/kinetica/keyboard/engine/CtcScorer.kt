@@ -1,6 +1,7 @@
 package com.kinetica.keyboard.engine
 
 import com.kinetica.keyboard.engine.models.InputToken
+import com.kinetica.keyboard.engine.models.SwipeToken
 import com.kinetica.keyboard.engine.models.WordCandidate
 import java.io.DataInputStream
 import java.io.InputStream
@@ -226,7 +227,7 @@ class CtcReranker(
 ) : CandidateReranker {
 
     override fun rerank(tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate> {
-        if (beta == 0f || candidates.isEmpty()) return candidates
+        if (beta == 0f || candidates.isEmpty() || overlapOnly) return candidates
         val g = geometry() ?: return candidates
         if (g !== cacheGeometry) {
             encoded.clear()
@@ -238,6 +239,47 @@ class CtcReranker(
             if (cost == null) c else c.copy(score = c.score * exp(-beta * cost))
         }
         return rescored.sortedByDescending { it.score }
+    }
+
+    /**
+     * Whether two thumbs drawing at once are reranked too ([rerankOverlapped]). Off on the
+     * phone until a two-thumb-trained encoder beats the plain order in replay.
+     */
+    @Volatile var overlap = false
+
+    /** With [overlap]: leave every other buffer in its plain order (the one-thumb rerank is flat). */
+    @Volatile var overlapOnly = false
+
+    /**
+     * [candidates] for two thumbs drawing at once: each candidate's letters are given to the
+     * strokes by its best interleaved reading ([Interleave.strokeLetters]) and each swipe is
+     * scored on its own letters, the mean per letter as in [cost]. A candidate with no such
+     * reading pays the worst cost in the list, so missing evidence never ranks a word up.
+     */
+    override fun rerankOverlapped(il: Interleave, tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate>? {
+        if (!overlap) return null
+        if (beta == 0f || candidates.isEmpty()) return candidates
+        val g = geometry() ?: return candidates
+        val strokes = tokens.sortedBy { it.tStart }
+        val costs = candidates.map { c -> interleavedCost(il, strokes, c.word, g) }
+        val worst = costs.filterNotNull().maxOrNull() ?: return candidates
+        return candidates.mapIndexed { i, c -> c.copy(score = c.score * exp(-beta * (costs[i] ?: worst))) }
+            .sortedByDescending { it.score }
+    }
+
+    private fun interleavedCost(il: Interleave, strokes: List<InputToken>, word: String, g: KeyboardGeometry): Float? {
+        val per = il.strokeLetters(AccentFolder.fold(word.lowercase())) ?: return null
+        var total = 0f
+        var letters = 0
+        for ((s, t) in strokes.withIndex()) {
+            if (t !is SwipeToken) continue
+            val labels = per[s].filter { it == Alphabet.APOSTROPHE || g.hasKey(it) }.map { CtcScorer.classOf(it) }.toIntArray()
+            if (labels.isEmpty()) continue
+            val nll = CtcScorer.nll(encode(t.resampled, g), KineticaConstants.RESAMPLE_N, labels)
+            total += if (nll.isInfinite()) MAX_LETTER_COST * labels.size else nll
+            letters += labels.size
+        }
+        return if (letters == 0) null else total / letters
     }
 
     /** Mean per-letter CTC cost over [c]'s swipe pieces, or null when it has none. */

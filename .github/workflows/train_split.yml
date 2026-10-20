@@ -1,0 +1,57 @@
+name: Train two-thumb swipe encoder
+
+# Fine-tunes our own FUTO-trained encoder (branch models/futo, made by train.yml) on
+# FUTO swipes split at the keyboard midline into the two strokes two thumbs would
+# draw (futo_train.py --split). Uses FUTO's MIT swipe DATASET only - never FUTO's
+# released model weights or their outputs. Real user traces never reach this job.
+#
+# The model and log go to the `models/futo-split` branch for the replay harness.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-g72rtp]
+    paths:
+      - .github/workflows/train_split.yml
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install numpy "huggingface_hub>=0.24"
+
+      - name: Fetch our v1 model
+        run: |
+          git fetch --depth 1 origin models/futo
+          mkdir -p out
+          git show FETCH_HEAD:model_futo_v1.kctc > out/init_v1.kctc
+
+      - name: Train
+        run: |
+          python tools/experiment/futo_train.py --out out/model_futo_split_v1.kctc --minutes 270 \
+            --split 0.5 --init out/init_v1.kctc --lr 1e-3 2>&1 | tee out/train_futo_split_v1.log
+
+      - name: Publish to the models/futo-split branch
+        run: |
+          rm out/init_v1.kctc
+          cp tools/experiment/futo_train.py out/
+          cd out
+          git init -q -b models/futo-split
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          printf 'Two-thumb swipe encoder fine-tuned by .github/workflows/train_split.yml from %s on FUTO swipe-1 split at the midline (MIT dataset; no FUTO weights), starting from models/futo v1.\n' "$GITHUB_SHA" > README.md
+          git add -A
+          git commit -qm "futo split v1 model from $GITHUB_SHA"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" models/futo-split

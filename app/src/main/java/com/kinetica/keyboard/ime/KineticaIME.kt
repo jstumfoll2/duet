@@ -4028,9 +4028,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         lastAutocorrect = null
         nextCommitDeliberate = true
+        // Picked over the decode's first choice: worth more than a commit (PICK_LEARN_UNITS).
+        val outranked = lastCandidates.size > 1 &&
+            !displayWord(lastCandidates[0].word).equals(word, ignoreCase = true) &&
+            lastCandidates.any { displayWord(it.word).equals(word, ignoreCase = true) }
         replaceTentative(word)
         TraceRecorder.label("picked")
         commitWordInternal(word)
+        if (outranked && lastCommitLearned == word.lowercase()) {
+            learnWord(word, KineticaConstants.PICK_LEARN_UNITS - 1, lastLearnedWordLang ?: languageOf(word))
+        }
         // Tidy spaces holds a pick's space as it holds the autospace: a word picked in front of
         // `!` gains no space before it.
         val after = if (config.tidySpaces) ich.textAfterCursor(2) else null

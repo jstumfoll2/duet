@@ -76,6 +76,36 @@ class InterleaveTest {
     }
 
     @Test
+    fun strokeLettersGiveEachThumbItsOwnLetters() {
+        val il = Interleave.of(discussion(), g)!!
+        val per = il.strokeLetters("discussion")!!
+        fun spell(codes: IntArray) = codes.joinToString("") { Alphabet.charOf(it).toString() }
+        // Left d..s..c..ss, right i..u..i-o-n; the doubled s stays on its thumb twice.
+        assertEquals(listOf("dscss", "iuion"), per.map { spell(it) })
+    }
+
+    @Test
+    fun aLateKeyNoThumbReachedCostsASkip() {
+        // The right thumb lifts on the o and never reaches the n.
+        val noN = listOf(
+            stroke(StreamId.LEFT, 'd' to 0L, 's' to 140L, 'c' to 210L, 's' to 350L),
+            stroke(StreamId.RIGHT, 'i' to 70L, 'u' to 280L, 'i' to 420L, 'o' to 490L),
+        )
+        val il = Interleave.of(noN, g)!!
+        val c = il.cost("discussion")
+        assertTrue("one skipped key should leave a reading, cost $c", c < 0.5f)
+        val was = Interleave.SKIP_KW
+        try {
+            Interleave.SKIP_KW = 0f
+            assertEquals(Interleave.INF, il.cost("discussion"))
+        } finally {
+            Interleave.SKIP_KW = was
+        }
+        // An early key can't be skipped: no thumb was near p.
+        assertEquals(Interleave.INF, Interleave.of(discussion(), g)!!.cost("dpiscussion"))
+    }
+
+    @Test
     fun strokeIdealSumsTheLettersEachThumbCarries() {
         val il = Interleave.of(discussion(), g)!!
         val ideal = il.strokeIdeal("discussion")!!

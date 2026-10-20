@@ -70,6 +70,10 @@ class ReplayHarness(
     private val edgeTapGap: Float = com.kinetica.keyboard.engine.KineticaConstants.EDGE_TAP_GAP_KW,
     /** Whether a tapped word followed by a swipe may split, as with automatic spaces on. */
     private val peckSplit: Boolean = true,
+    /** Rerank two thumbs drawing at once too, stroke by stroke ([CtcReranker.overlap]). */
+    private val rerankOverlap: Boolean = false,
+    /** ... and leave one-thumb buffers alone. */
+    private val rerankOverlapOnly: Boolean = false,
 ) {
     /**
      * The personal store one replay builds up: commit counts (merged into the trie at each
@@ -80,6 +84,8 @@ class ReplayHarness(
         val reloadEvery: Int = 300,
         /** Words merged into the trie from the start, as an imported user dictionary would. */
         val seedWords: Map<String, List<String>> = emptyMap(),
+        /** Units a word learns when the decode didn't put it first: a pick from the bar, or a retype. */
+        val pickWeight: Int = com.kinetica.keyboard.engine.KineticaConstants.PICK_LEARN_UNITS,
     ) {
         val counts = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
         val pairs = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
@@ -88,9 +94,9 @@ class ReplayHarness(
         fun countsOf(lang: String) = counts.getOrPut(lang) { java.util.concurrent.ConcurrentHashMap() }
         fun pairsOf(lang: String) = pairs.getOrPut(lang) { java.util.concurrent.ConcurrentHashMap() }
 
-        fun learn(lang: String, context: List<String>, label: String) {
+        fun learn(lang: String, context: List<String>, label: String, units: Int = 1) {
             val w = label.lowercase()
-            countsOf(lang).merge(w, 1, Int::plus)
+            countsOf(lang).merge(w, units, Int::plus)
             if (phrases && context.isNotEmpty()) pairsOf(lang).merge(WordPredictor.pairKey(context.last(), w), 1, Int::plus)
         }
     }
@@ -143,7 +149,7 @@ class ReplayHarness(
     ): WordPredictor {
         val d = dict(lang, british)
         // Beta 0 means today: no reranker at all, so the heap stays TOP_K deep too.
-        val r = if (rerank && ctc != null && beta != 0f) CtcReranker(ctc, { g }, beta) else null
+        val r = if (rerank && ctc != null && beta != 0f) CtcReranker(ctc, { g }, beta).also { it.overlap = rerankOverlap; it.overlapOnly = rerankOverlapOnly } else null
         return WordPredictor(
             d.d.trie, d.bigrams, g, d.d.forms, language = lang, topK = topK,
             reranker = r, rerankDepth = rerankDepth,
@@ -195,7 +201,10 @@ class ReplayHarness(
 
         val label = w.label?.lowercase()
         if (learner != null && label != null) {
-            learner.learn(cfg.language, w.context, label)
+            // A pick from the bar: on the list, but not first. A typo committed as tapped isn't one.
+            val at = shipping.indexOfFirst { it.word.lowercase() == label }
+            val units = if (at >= 1) learner.pickWeight else 1
+            learner.learn(cfg.language, w.context, label, units)
             if (++learner.sinceReload >= learner.reloadEvery) {
                 learner.sinceReload = 0
                 dicts.clear()

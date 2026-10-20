@@ -107,6 +107,13 @@ class WordPredictor(
      */
     private val langTag: String = if (language.isEmpty()) "" else "[$language]"
 
+    /**
+     * Set by the caller around a decode it may supersede: once it returns true the search stops
+     * where it stands, so a stale decode frees the thread for the newer one instead of running
+     * its whole budget. The result is then incomplete and the caller must drop it.
+     */
+    @Volatile var stale: (() -> Boolean)? = null
+
     /** Commit count for [word], 0 when never committed. */
     fun personalCount(word: String): Int = personalCounts[word.lowercase()] ?: 0
 
@@ -134,6 +141,9 @@ class WordPredictor(
          */
         fun pairKey(prev: String, next: String): String =
             AccentFolder.fold(prev.lowercase()) + "\u0000" + AccentFolder.fold(next.lowercase())
+
+        /** Budget checks between two looks at [stale]; a power of two. */
+        const val STALE_CHECK_EVERY = 64
     }
 
     /**
@@ -312,7 +322,7 @@ class WordPredictor(
      * `fw * geometric(cost) * bigram * personal`, one model for the whole list.
      */
     private fun interleaved(il: Interleave, prevWordId: Int): List<WordCandidate> {
-        val search = InterleavedSearch(trie, il)
+        val search = InterleavedSearch(trie, il, stop = stale)
         val hits = search.run(KineticaConstants.INTERLEAVE_KEEP)
         val out = ArrayList<WordCandidate>(hits.size)
         for (h in hits) {
@@ -356,12 +366,16 @@ class WordPredictor(
     // The encoder was trained on one-finger swipes and scores each thumb's piece alone, so on
     // two thumbs drawing at once it has no view of the letter order. On the developer's
     // 2026-10-08 device A/B, overlapped words at beta 0.3 went 79% plain -> 69% reranked
-    // (29 words; 0.05 was level). Those buffers keep the plain order.
+    // (29 words; 0.05 was level). Those buffers go to rerankOverlapped instead, which scores
+    // each stroke on the letters the interleaved reading gives it, or keep the plain order.
     private fun reranked(out: List<WordCandidate>, tokens: List<InputToken>): List<WordCandidate> =
         when {
             reranker == null -> out
             // The heap ran rerankDepth deep for the encoder; hand back the shipping top K.
-            Interleave.thumbsOverlap(tokens) -> out.take(topK)
+            Interleave.thumbsOverlap(tokens) -> {
+                val il = geometry?.let { Interleave.of(tokens, it) }
+                (il?.let { reranker.rerankOverlapped(it, tokens, out) } ?: out).take(topK)
+            }
             else -> reranker.rerank(tokens, out).take(topK)
         }
 
@@ -1235,12 +1249,25 @@ class WordPredictor(
 
         /** Branch budget: this subtree's candidate slice, or the global work ceiling. */
         private fun branchExhausted(): Boolean =
-            emitted >= emitCap || attempts >= KineticaConstants.MAX_EMIT_ATTEMPTS || stepsExhausted()
+            emitted >= emitCap || attempts >= KineticaConstants.MAX_EMIT_ATTEMPTS || stepsExhausted() || superseded()
 
         /** Whole-pass budget, for the sites that ignore the per-subtree slice. */
         private fun passExhausted(): Boolean =
             emitted >= KineticaConstants.MAX_CANDIDATES ||
-                attempts >= KineticaConstants.MAX_EMIT_ATTEMPTS || stepsExhausted()
+                attempts >= KineticaConstants.MAX_EMIT_ATTEMPTS || stepsExhausted() || superseded()
+
+        // [stale], asked every STALE_CHECK_EVERY budget checks and sticky once true.
+        private val staleCheck = stale
+        private var checks = 0
+        private var gaveUp = false
+
+        private fun superseded(): Boolean {
+            if (gaveUp) return true
+            val f = staleCheck ?: return false
+            if (++checks and (STALE_CHECK_EVERY - 1) != 0) return false
+            gaveUp = f()
+            return gaveUp
+        }
 
         // The stream pass's cost is trie walking, not DTW: the slow phone decodes ran hundreds
         // of thousands of gate checks for a handful of attempts, which the two budgets above

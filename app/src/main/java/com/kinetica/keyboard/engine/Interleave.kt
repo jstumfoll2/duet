@@ -87,7 +87,7 @@ class Interleave private constructor(
      * reading survives. [first] marks the word's first letter, which has no
      * moment to follow.
      */
-    fun step(prev: FloatArray, code: Int, first: Boolean, out: FloatArray, bound: Float = INF): Boolean {
+    fun step(prev: FloatArray, code: Int, first: Boolean, out: FloatArray, bound: Float = INF, skip: Boolean = false): Boolean {
         java.util.Arrays.fill(out, flags, rowSize, 0f)
         lastMin = INF
         if (!geometry.hasKey(code)) return false
@@ -152,6 +152,21 @@ class Interleave private constructor(
                 p *= 3
             }
         }
+        // A letter no thumb reached: the reading keeps its strokes and moment and pays SKIP_KW.
+        // Long words typed fast drop a key now and then, and without this one miss kills the word.
+        if (skip && !first && SKIP_KW > 0f) {
+            for (m in 0 until masks) {
+                if (prev[flags + m] == 0f) continue
+                val base = m * grid
+                for (i in 0 until grid) {
+                    val v = prev[base + i] + SKIP_KW
+                    if (v >= INF || v > bound) continue
+                    val o = open(out, m) + i
+                    if (v < out[o]) out[o] = v
+                    if (v < best) best = v
+                }
+            }
+        }
         lastMin = best
         return best < INF
     }
@@ -191,7 +206,7 @@ class Interleave private constructor(
             val code = Alphabet.codeOf(ch)
             if (code < 0) return INF
             if (code == prevCode || code == Alphabet.APOSTROPHE) continue
-            if (!step(row, code, visits == 0, next)) return INF
+            if (!step(row, code, visits == 0, next, skip = visits >= SKIP_FROM)) return INF
             val t = row; row = next; next = t
             visits++
             prevCode = code
@@ -209,6 +224,45 @@ class Interleave private constructor(
      * float tie picks one of the equal readings rather than failing.
      */
     fun strokeIdeal(word: String): FloatArray? {
+        val (codes, strokeOf) = reading(word) ?: return null
+        val ideal = FloatArray(strokes)
+        val lastOn = IntArray(strokes) { -1 }
+        for ((k, code) in codes.withIndex()) {
+            val st = strokeOf[k]
+            val pc = lastOn[st]
+            if (pc >= 0) {
+                val dx = geometry.centerX(code) - geometry.centerX(pc)
+                val dy = geometry.centerY(code) - geometry.centerY(pc)
+                ideal[st] += sqrt(dx * dx + dy * dy)
+            }
+            lastOn[st] = code
+        }
+        return ideal
+    }
+
+    /**
+     * The letter codes the best reading of [word] puts on each stroke, in stroke order, a
+     * doubled letter twice (what a thumb's stroke spells, for the CTC encoder). Null when
+     * [word] has no reading, or only one that skips a key.
+     */
+    fun strokeLetters(word: String): List<IntArray>? {
+        val (_, strokeOf) = reading(word) ?: return null
+        val out = List(strokes) { ArrayList<Int>() }
+        var visit = -1
+        var prevCode = -1
+        for (ch in word) {
+            val code = Alphabet.codeOf(ch)
+            if (code < 0) return null
+            if (code == Alphabet.APOSTROPHE) continue
+            if (code != prevCode) visit++
+            prevCode = code
+            out[strokeOf[visit]].add(code)
+        }
+        return out.map { it.toIntArray() }
+    }
+
+    /** The best reading of [word] walked back: its key visits and the stroke of each. */
+    private fun reading(word: String): Pair<IntArray, IntArray>? {
         val codes = ArrayList<Int>(word.length)
         var prevCode = -1
         for (ch in word) {
@@ -287,19 +341,7 @@ class Interleave private constructor(
             i = bj
             v = prev[base + bj]
         }
-        val ideal = FloatArray(strokes)
-        val lastOn = IntArray(strokes) { -1 }
-        for ((k, code) in codes.withIndex()) {
-            val st = strokeOf[k]
-            val pc = lastOn[st]
-            if (pc >= 0) {
-                val dx = geometry.centerX(code) - geometry.centerX(pc)
-                val dy = geometry.centerY(code) - geometry.centerY(pc)
-                ideal[st] += sqrt(dx * dx + dy * dy)
-            }
-            lastOn[st] = code
-        }
-        return ideal
+        return codes.toIntArray() to strokeOf
     }
 
     private fun fillDist(code: Int, off: Int) {
@@ -371,6 +413,19 @@ class Interleave private constructor(
 
         /** A key further than this from the thumb at its moment was not visited. */
         const val MAX_LETTER_KW = 1.6f
+
+        /**
+         * Cost, kw, of reading a letter that no thumb visited (0 = not allowed): the
+         * [MAX_LETTER_KW] a visit may cost at most. Before it, 59 of the 77 overlapped 7+ letter
+         * words missing from the list (ten trace batches) had no reading at all, one key short.
+         * 1.6 from the 7th visit: 10+ letters 64.9 -> 66.5% top-1, recall@50 75.2 -> 77.1%,
+         * nothing shorter changed; JVM p99 47 -> 53 ms. From the 5th: the same top-1, p99 70 ms.
+         * Vars so replay can sweep them (--skip, --skipfrom).
+         */
+        @JvmField var SKIP_KW = 1.6f
+
+        /** Key visits a reading needs before it may skip one: early skips multiply the search. */
+        @JvmField var SKIP_FROM = 6
 
         /**
          * The interleaved reading of [tokens], or null when the input is not
