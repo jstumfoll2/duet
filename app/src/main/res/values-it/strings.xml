@@ -452,6 +452,8 @@
     <string name="pref_backspace_step_title">Distanza di trascinamento del tasto cancella</string>
     <string name="pref_backspace_step_summary">Quanto trascinare a sinistra dal tasto cancella per segnare una parola in più (una lettera circa la metà). Più alto è più calmo</string>
     <string name="pref_backspace_char_slide_summary">Trascinando a sinistra da cancella si seleziona una lettera alla volta invece di una parola. Niente viene cancellato finché non sollevi il dito; tornando indietro si annulla</string>
+    <string name="pref_bar_menu_button_title">Pulsante Menu sulla barra dei suggerimenti</string>
+    <string name="pref_bar_menu_button_summary">Un pulsante \u2630 all\'estremità sinistra della barra. Un tocco mostra la riga delle scorciatoie (incolla, annulla e le altre) a metà frase; la parola successiva riporta i suggerimenti</string>
     <string name="pref_retype_button_title">Pulsante Riscrivi sulla barra dei suggerimenti</string>
     <string name="pref_retype_button_summary">Un pulsante ↻ all\'estremità destra della barra. Un tocco toglie la parola che stai scrivendo, o quella appena finita, per rifarla con uno swipe</string>
     <string name="pref_spacebar_word_slide_title">La barra spaziatrice sposta di una parola</string>

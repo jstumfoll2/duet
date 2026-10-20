@@ -307,6 +307,12 @@
                 app:min="24"
                 app:showSeekBarValue="true"
                 android:dependency="pref_retype_button" />
+            <SwitchPreferenceCompat
+                android:key="pref_bar_menu_button"
+                android:title="@string/pref_bar_menu_button_title"
+                app:singleLineTitle="false"
+                android:summary="@string/pref_bar_menu_button_summary"
+                android:defaultValue="true" />
             <Preference
                 android:key="pref_bar_actions"
                 android:title="@string/pref_bar_actions_title"

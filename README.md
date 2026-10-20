@@ -101,6 +101,10 @@ F-Droid.
   that takes one (chat apps, email), through Android's rich content API (`commitContent`). Fields
   that take only text are not offered it. The image is copied into the keyboard's private cache and
   deleted when it leaves the history; no new permission.
+- **Menu button on the bar** (on by default). A ☰ at the bar's left end brings up the shortcut
+  row (paste, undo, clipboard and the rest) in the middle of a sentence, over the last word's
+  alternatives. A shortcut, a second tap or the next word puts the suggestions back. Turn it off in
+  Settings under the suggestion bar.
 - **Voice typing key.** An action that hands the field to the phone's voice input; bind it to a
   chord, an edge swipe or a bar shortcut.
 - **Autofill chips.** On Android 11 and later, the password manager's saved logins, addresses and

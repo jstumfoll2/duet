@@ -141,6 +141,7 @@ object SettingsSynonyms {
         Prefs.CONTACT_NAMES to listOf("contacts", "names", "people", "address book", "vocabulary"),
         Prefs.RETYPE_AVOIDS_REJECTED to listOf("retype", "again", "reject"),
         Prefs.RETYPE_BUTTON to listOf("redo", "again", "undo", "try again"),
+        Prefs.BAR_MENU_BUTTON to listOf("menu", "paste", "shortcuts", "toolbar", "actions"),
         Prefs.RETYPE_BUTTON_DP to listOf("redo", "again", "size", "width"),
         Prefs.PECK_MODE to listOf("literal", "no prediction", "raw", "typing"),
         Prefs.INCOGNITO to listOf("private", "privacy", "learning", "forget", "history"),
