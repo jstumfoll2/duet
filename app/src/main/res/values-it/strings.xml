@@ -573,6 +573,9 @@
     <string name="action_clipboard">Cronologia appunti</string>
     <string name="action_voice">Dettatura vocale</string>
     <string name="clipboard_empty">Niente copiato nell\'ultima ora</string>
+    <string name="clip_image">Immagine</string>
+    <string name="clipboard_images_refused">Questo campo non accetta immagini</string>
+    <string name="clipboard_image_failed">L\'app non ha accettato l\'immagine</string>
     <string name="clipboard_locked">La cronologia appunti è nascosta mentre il telefono è bloccato</string>
     <string name="voice_none">Nessuna tastiera di dettatura è attiva. Attivane una qui, poi premi di nuovo il tasto</string>
     <string name="pref_sms_codes_title">Codici dagli SMS</string>

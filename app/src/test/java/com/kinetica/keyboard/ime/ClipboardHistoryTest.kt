@@ -53,4 +53,31 @@ class ClipboardHistoryTest {
         assertEquals(ClipboardHistory.PREVIEW_CHARS, long.length)
         assertTrue(long.endsWith("…"))
     }
+
+    @Test
+    fun anImageIsKeptBesideTextAndARepeatMovesToTheFront() {
+        val h = ClipboardHistory()
+        val pic = ClipboardHistory.Image("ab12.png", "image/png")
+        h.addImage(pic, 0)
+        h.add("caption", 10)
+        h.addImage(pic, 20)
+        assertEquals(listOf(pic, null), h.recent(30).map { it.image })
+        assertEquals(setOf("ab12.png"), h.imageNames(30))
+        assertEquals(pic, h.fresh(30)?.image)
+    }
+
+    @Test
+    fun anEmptyTextClipDoesNotDropAnImage() {
+        val h = ClipboardHistory()
+        h.addImage(ClipboardHistory.Image("a.png", "image/png"), 0)
+        h.add("x", 5)
+        assertEquals(2, h.recent(10).size)
+    }
+
+    @Test
+    fun anExpiredImageLeavesTheNamesToKeep() {
+        val h = ClipboardHistory(keepMs = 1000)
+        h.addImage(ClipboardHistory.Image("old.png", "image/png"), 0)
+        assertTrue(h.imageNames(5000).isEmpty())
+    }
 }

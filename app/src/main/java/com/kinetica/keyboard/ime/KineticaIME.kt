@@ -2,6 +2,7 @@ package com.kinetica.keyboard.ime
 
 import android.app.KeyguardManager
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.SharedPreferences
@@ -23,6 +24,8 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsRequest
 import android.view.inputmethod.InlineSuggestionsResponse
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputContentInfo
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
 import android.widget.Toast
@@ -236,7 +239,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * Clips or one-time codes on the bar, until one is picked or the bar moves on. [texts] is
      * what a pick writes, [shown] the labels, one per text.
      */
-    private class BarOffer(val kind: Kind, val texts: List<String>, val shown: List<String>) {
+    /** [images] runs beside [texts]: an entry is the image a pick commits instead of its text. */
+    private class BarOffer(
+        val kind: Kind,
+        val texts: List<String>,
+        val shown: List<String>,
+        val images: List<ClipboardHistory.Image?> = emptyList(),
+    ) {
         enum class Kind { CLIPS, FRESH_CLIP, CODES }
     }
 
@@ -245,6 +254,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     /** The clips this process saw copied, in memory only ([ClipboardHistory]). */
     private val clipboardHistory = ClipboardHistory()
     private var clipListener: ClipboardManager.OnPrimaryClipChangedListener? = null
+    private val clipImages by lazy { ClipImages(this) }
     private val smsCodes by lazy { SmsCodes(this, mainHandler) }
 
     /** Bumped per field, so a code read for one field is not offered in the next. */
@@ -614,6 +624,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             cm.addPrimaryClipChangedListener(l)
             clipListener = l
         }
+        // The history is in memory, so images a previous process copied are no one's now.
+        dbExecutor.execute { clipImages.sweep(emptySet()) }
     }
 
     override fun onDestroy() {
@@ -818,6 +830,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         TraceRecorder.attachComposer(it)
                         it.extraPredictor = extraPredictor
                         it.languageWeights = equalWeights()
+                        it.oneLetterWord = { c -> StandaloneLetters.isWord(c, config.language) }
                     }
                     Log.i(
                         TAG,
@@ -1431,6 +1444,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     return
                 }
                 seededWithoutTokens = false
+                comp.peckSplit = comp.hasPendingWord && peckSplitAllowed()
                 comp.onToken(token)
                 if (shift.state == ShiftState.State.SHIFT) {
                     shift.onLetterCommitted()
@@ -1470,6 +1484,51 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             tentative
         }
         onCandidatesRanked(ranked, lead, literal)
+    }
+
+    // True while finalizeSplitHead commits the tapped head, which goes through
+    // finalizePendingWord itself.
+    private var splitting = false
+
+    /**
+     * Ends the tapped word at the head of the buffer in hand as a word of its own, then a space,
+     * and leaves the swipe after it as the word in hand ([com.kinetica.keyboard.engine.PeckSplit]):
+     * `to` pecked and `help` swiped with no space between, which decoded as `othello`. The head
+     * is committed as a delimiter would commit those taps alone, autocorrect included; the
+     * caller then finishes the swipe's word as usual.
+     */
+    private fun finalizeSplitHead(comp: WordComposer) {
+        val s = comp.splitHead() ?: return
+        splitting = true
+        try {
+            val literal = comp.literal()
+            DecodeTrace.log { "  peck split commit head=$literal shown=$tentativeWord" }
+            // What the editor would hold had the swipe not come: the letters as tapped, with
+            // the taps' own decode behind them for autocorrect.
+            replaceTentative(displayWord(literal))
+            lastCandidates = s.tap
+            lastTentative = s.tap.firstOrNull()
+            lastLiteral = literal
+            candidateLanguages = provenanceOf(s.tap)
+            finalizePendingWord()
+            commitTracked(" ")
+            if (wordShift == ShiftState.State.SHIFT) wordShift = ShiftState.State.NONE
+            comp.rejoinTail(s)
+        } finally {
+            splitting = false
+        }
+    }
+
+    /**
+     * Whether a swipe may end the tapped word in hand ([com.kinetica.keyboard.engine.PeckSplit]):
+     * only where a swiped word earns an automatic space, and only for a word of its own, not
+     * the tail of `don't` or a word reopened from the editor.
+     */
+    private fun peckSplitAllowed(): Boolean {
+        if (!config.autospace || config.wordEndsOnSpace || editorState.privateMode) return false
+        if (editorState.addressField || reloadedWord != null) return false
+        val joiner = ich.textBeforeCursor(tentativeLength + 1)?.dropLast(tentativeLength) ?: ""
+        return !joinsPrecedingToken(joiner)
     }
 
     private fun onCandidatesRanked(
@@ -1634,6 +1693,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * default to 300 ms, since the middles barely differ; the sliders let a thumb find the rest.
      */
     private fun scheduleAutospace() {
+        // The word whose candidates arrived is being committed right now.
+        if (splitting) return
         if (!config.autospace || editorState.privateMode || config.wordEndsOnSpace) {
             // Traced so a capture can say why no space came.
             DecodeTrace.log {
@@ -1821,6 +1882,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
 
         override fun onMenuAction(index: Int) = this@KineticaIME.performMenuAction(index)
+
+        override fun onSpaceStartsWord() {
+            if (composer?.hasPendingWord != true) return
+            TraceRecorder.key("space", android.os.SystemClock.uptimeMillis())
+            onSpace()
+        }
 
         override fun onRestingFingerDropped() {
             if (!engine.hasActivePointers()) composer?.redecode()
@@ -2619,10 +2686,52 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (clip.itemCount == 0) return
         // ClipDescription.EXTRA_IS_SENSITIVE (Android 13), by value so older phones read it too.
         val sensitive = clip.description?.extras?.getBoolean(EXTRA_IS_SENSITIVE) == true
-        clipboardHistory.add(clip.getItemAt(0).coerceToText(this), System.currentTimeMillis(), sensitive)
+        val now = System.currentTimeMillis()
+        // An image's text form is its content URI: kept as the image, never as that text.
+        if (keepImage(clip, now, sensitive, fresh = true)) return
+        clipboardHistory.add(clip.getItemAt(0).coerceToText(this), now, sensitive)
         DecodeTrace.log { "  clip copied sensitive=$sensitive" }
         if (!sensitive && isInputViewShown) refreshPredictions()
     }
+
+    /**
+     * When [clip] is an image, copies it into the cache off the main thread and adds it to the
+     * history, then runs [then]; true when it is an image, kept or not (a sensitive one never is).
+     */
+    private fun keepImage(clip: ClipData, now: Long, sensitive: Boolean, fresh: Boolean, then: () -> Unit = {}): Boolean {
+        val desc = clip.description ?: return false
+        val mime = RichContent.imageMime((0 until desc.mimeTypeCount).map { desc.getMimeType(it) }) ?: return false
+        val uri = clip.getItemAt(0).uri ?: return false
+        if (sensitive) return true
+        dbExecutor.execute {
+            val image = clipImages.copy(uri, mime)
+            mainHandler.post {
+                DecodeTrace.log { "  clip image copied kept=${image != null}" }
+                if (image != null && !config.incognito) {
+                    clipboardHistory.addImage(image, now)
+                    if (!fresh) clipboardHistory.markFreshUsed()
+                    sweepImages()
+                    if (fresh && isInputViewShown) refreshPredictions()
+                }
+                then()
+            }
+        }
+        return true
+    }
+
+    /** Deletes the image files the history no longer holds. */
+    private fun sweepImages() {
+        val keep = clipboardHistory.imageNames(System.currentTimeMillis())
+        dbExecutor.execute { clipImages.sweep(keep) }
+    }
+
+    /** True when the open field takes an image of type [mime] (EditorInfo.contentMimeTypes). */
+    private fun fieldTakes(mime: String): Boolean =
+        RichContent.accepts(currentInputEditorInfo?.contentMimeTypes, mime)
+
+    /** The images the open field cannot take stay off the bar. */
+    private fun offerable(clip: ClipboardHistory.Clip): Boolean =
+        clip.image == null || fieldTakes(clip.image.mime)
 
     /**
      * True while the lock screen shows. The keyboard there serves whoever holds the phone, so
@@ -2632,7 +2741,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
 
     /** The clipboard action: the recent clips on the bar, newest first, a tap pastes one. */
-    private fun offerClipboard() {
+    private fun offerClipboard(seed: Boolean = true) {
         cancelAutospace()
         finalizePendingWord()
         if (clipsHidden()) {
@@ -2645,42 +2754,51 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             // What was copied before the keyboard started; not offered as fresh.
             getSystemService(ClipboardManager::class.java)?.let { cm ->
                 val clip = try { cm.primaryClip } catch (e: SecurityException) { null }
-                if (clip != null && clip.itemCount > 0 &&
+                if (seed && clip != null && clip.itemCount > 0 &&
                     clip.description?.extras?.getBoolean(EXTRA_IS_SENSITIVE) != true
                 ) {
+                    // An image is copied first; the offer opens once it is in (seed = false: once).
+                    if (keepImage(clip, now, sensitive = false, fresh = false) { offerClipboard(seed = false) }) return
                     clipboardHistory.add(clip.getItemAt(0).coerceToText(this), now)
                     clipboardHistory.markFreshUsed()
                 }
             }
         }
-        val clips = clipboardHistory.recent(now)
-        DecodeTrace.log { "  clipboard offer n=${clips.size}" }
+        val kept = clipboardHistory.recent(now)
+        if (kept.any { it.image != null }) sweepImages()
+        val clips = kept.filter(::offerable)
+        DecodeTrace.log { "  clipboard offer n=${clips.size} images_refused=${kept.size - clips.size}" }
         if (clips.isEmpty()) {
-            Toast.makeText(this, R.string.clipboard_empty, Toast.LENGTH_SHORT).show()
+            val msg = if (kept.isEmpty()) R.string.clipboard_empty else R.string.clipboard_images_refused
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             return
         }
-        showBarOffer(BarOffer.Kind.CLIPS, clips.map { it.text })
+        showBarOffer(BarOffer.Kind.CLIPS, clips.map { it.text }, clips.map { it.image })
     }
 
     /** The clip copied a moment ago, alone on the idle bar; true when it is shown. */
     private fun offerFreshClip(): Boolean {
         if (clipsHidden()) return false
         val clip = clipboardHistory.fresh(System.currentTimeMillis()) ?: return false
-        showBarOffer(BarOffer.Kind.FRESH_CLIP, listOf(clip.text))
+        // Left unused, not spent: a field that takes images, opened next, still gets it.
+        if (!offerable(clip)) return false
+        showBarOffer(BarOffer.Kind.FRESH_CLIP, listOf(clip.text), listOf(clip.image))
         return true
     }
 
-    private fun showBarOffer(kind: BarOffer.Kind, texts: List<String>) {
+    private fun showBarOffer(kind: BarOffer.Kind, texts: List<String>, images: List<ClipboardHistory.Image?> = emptyList()) {
         val bar = suggestionBar ?: return
-        val labels = texts.map {
+        val imageLabel = "🖼 " + getString(R.string.clip_image)
+        val labels = texts.mapIndexed { i, t ->
+            val preview = if (images.getOrNull(i) != null) imageLabel else ClipboardHistory.preview(t)
             when (kind) {
-                BarOffer.Kind.CLIPS -> ClipboardHistory.preview(it)
-                BarOffer.Kind.FRESH_CLIP -> "📋 " + ClipboardHistory.preview(it)
-                BarOffer.Kind.CODES -> it
+                BarOffer.Kind.CLIPS -> preview
+                BarOffer.Kind.FRESH_CLIP -> "📋 " + preview
+                BarOffer.Kind.CODES -> t
             }
         }
         val shown = ExpansionRows.distinctLabels(labels)
-        barOffer = BarOffer(kind, texts, shown)
+        barOffer = BarOffer(kind, texts, shown, images)
         barPredictions = emptyList()
         containerView?.hideInlineStrip()
         bar.setSuggestions(shown.map { SuggestionBarView.Suggestion(it, 0) })
@@ -2699,8 +2817,34 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         DecodeTrace.log { "  bar offer pick kind=${offer.kind} len=${text.length}" }
         // Written as is, never learned: a clip or a code is not something the user typed.
         abandonWord()
+        val image = offer.images.getOrNull(index)
+        if (image != null) {
+            commitImage(image)
+            return
+        }
         commitTracked(text)
         updateAutoShift()
+    }
+
+    /**
+     * Hands [image] to the field as rich content (InputConnection.commitContent), with a read
+     * grant for that one URI; the app decides what a pasted image becomes (an attachment, inline).
+     */
+    private fun commitImage(image: ClipboardHistory.Image) {
+        val ic = currentInputConnection ?: return
+        val file = clipImages.file(image)
+        val ok = file != null && try {
+            val info = InputContentInfo(
+                clipImages.uri(file),
+                ClipDescription(getString(R.string.clip_image), arrayOf(image.mime)),
+            )
+            ic.commitContent(info, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null)
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "image paste failed", e)
+            false
+        }
+        DecodeTrace.log { "  clip image paste ok=$ok" }
+        if (!ok) Toast.makeText(this, R.string.clipboard_image_failed, Toast.LENGTH_SHORT).show()
     }
 
     /**
@@ -3989,6 +4133,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             if (keptBar != null) abandonWord()
             return false
         }
+
+        if (!splitting && comp.split != null && peckSplitAllowed()) finalizeSplitHead(comp)
 
         var finalWord = tentativeWord
         var how = if (comp.hasSwipeToken()) "tentative" else "typed"

@@ -4,18 +4,23 @@ package com.kinetica.keyboard.ime
  * The recent clips the keyboard offers back on the bar, newest first.
  *
  * Android keeps one clip; this keeps the last [capacity] the keyboard saw, so an address copied
- * before a phone number is still a tap away. In memory only: nothing is written to disk, and the
- * list goes with the keyboard process. A clip the copying app marks sensitive (a password, a
- * one-time code: ClipDescription.EXTRA_IS_SENSITIVE) is never kept, and a clip older than
- * [keepMs] is dropped when the list is read.
+ * before a phone number is still a tap away. The list is in memory only and goes with the
+ * keyboard process; a copied image is the one thing on disk, as a file in the keyboard's cache
+ * that [ClipImages] removes once its clip leaves this list. A clip the copying app marks
+ * sensitive (a password, a one-time code: ClipDescription.EXTRA_IS_SENSITIVE) is never kept,
+ * and a clip older than [keepMs] is dropped when the list is read.
  *
- * Pure: the clipboard listener feeds it text and times.
+ * Pure: the clipboard listener feeds it text, images and times.
  */
 class ClipboardHistory(
     private val capacity: Int = CAPACITY,
     private val keepMs: Long = KEEP_MS,
 ) {
-    data class Clip(val text: String, val atMs: Long)
+    /** A text clip, or an [image] with an empty [text]. */
+    data class Clip(val text: String, val atMs: Long, val image: Image? = null)
+
+    /** A copied image: [name] is its file in the keyboard's cache, [mime] its type (image/png). */
+    data class Image(val name: String, val mime: String)
 
     private val clips = ArrayList<Clip>()
 
@@ -28,11 +33,25 @@ class ClipboardHistory(
         val t = text.toString()
         if (t.isBlank()) return
         val kept = if (t.length > MAX_CHARS) t.substring(0, MAX_CHARS) else t
-        clips.removeAll { it.text == kept }
-        clips.add(0, Clip(kept, nowMs))
+        clips.removeAll { it.image == null && it.text == kept }
+        push(Clip(kept, nowMs))
+    }
+
+    /** Records [image] copied at [nowMs]. The same picture copied again (same name) moves to the front. */
+    fun addImage(image: Image, nowMs: Long) {
+        clips.removeAll { it.image?.name == image.name }
+        push(Clip("", nowMs, image))
+    }
+
+    private fun push(clip: Clip) {
+        clips.add(0, clip)
         while (clips.size > capacity) clips.removeAt(clips.size - 1)
         freshUsed = false
     }
+
+    /** The image files the list still holds at [nowMs]; any other file in the folder can go. */
+    fun imageNames(nowMs: Long): Set<String> =
+        recent(nowMs).mapNotNullTo(HashSet()) { it.image?.name }
 
     /** The clips still kept at [nowMs], newest first. */
     fun recent(nowMs: Long): List<Clip> {

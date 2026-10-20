@@ -623,6 +623,9 @@
     <string name="action_clipboard">Clipboard history</string>
     <string name="action_voice">Voice typing</string>
     <string name="clipboard_empty">Nothing copied in the last hour</string>
+    <string name="clip_image">Image</string>
+    <string name="clipboard_images_refused">This field doesn\'t take images</string>
+    <string name="clipboard_image_failed">The app didn\'t take the image</string>
     <string name="clipboard_locked">Clipboard history is hidden while the phone is locked</string>
     <string name="voice_none">No voice typing keyboard is turned on. Turn one on here, then press the key again</string>
     <string name="pref_sms_codes_title">Codes from text messages</string>

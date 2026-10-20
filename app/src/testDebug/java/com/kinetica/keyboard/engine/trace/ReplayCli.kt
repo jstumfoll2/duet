@@ -28,6 +28,11 @@ import java.io.File
  *       For each two-thumb overlapped line: the label's interleaved cost (Infinity when no
  *       reading exists), whether the interleaved search found it, and its best hit.
  *       --skip KW and --skipfrom N (any command) set Interleave.SKIP_KW / SKIP_FROM.
+ *   splitdata TRACE.jsonl...
+ *       One row per buffer of taps then a swipe: real ones (join), and ones built from a tapped
+ *       word and the swiped word after it with the space left out (split), with the joined,
+ *       tapped and swiped readings and whether PeckSplit splits it. Reads committed labels
+ *       (no retype relabelling): it pairs each commit with the next word's context.
  *   synth [--assets DIR] [--words N] [--alt LANG] [--noise X] [--seed S] OUT.jsonl
  *       Records a synthetic English session to OUT (default 300 words).
  */
@@ -55,6 +60,8 @@ object ReplayCli {
                 val touch = touchModel(opt(a, "--touch"))
                 // --edge G: the near-edge tap pass's gap in kw (0 = off).
                 val edge = opt(a, "--edge")?.toFloat() ?: KineticaConstants.EDGE_TAP_GAP_KW
+                // --nosplit: a tapped word followed by a swipe always stays one word.
+                val split = !a.remove("--nosplit")
                 if (a.isEmpty()) usage()
                 val harness = ReplayHarness(
                     assets, k, ctc, beta, depth,
@@ -63,6 +70,7 @@ object ReplayCli {
                     touch = touch,
                     trigramBoost = tri,
                     edgeTapGap = edge,
+                    peckSplit = split,
                 )
                 val report = run(harness, a.map { File(it) })
                 println(report.format())
@@ -92,9 +100,11 @@ object ReplayCli {
                 val learner = learnerOf(opt(a, "--learn"), opt(a, "--seed"), opt(a, "--pickw")?.toInt() ?: KineticaConstants.PICK_LEARN_UNITS)
                 val hdfree = a.remove("--hdfree") || KineticaConstants.HELD_DOUBLE_FREE_TIME
                 val edge = opt(a, "--edge")?.toFloat() ?: KineticaConstants.EDGE_TAP_GAP_KW
+                val split = !a.remove("--nosplit")
                 if (a.isEmpty()) usage()
                 val h = ReplayHarness(
                     assets,
+                    peckSplit = split,
                     interleave = ilw?.let { it > 0f } ?: KineticaConstants.INTERLEAVE_ENABLED,
                     interleaveWeight = ilw ?: KineticaConstants.INTERLEAVE_WEIGHT,
                     heldDoubleBoost = hdb, heldDoubleMs = hdms, heldDoubleEndMs = hdend,
@@ -163,6 +173,33 @@ object ReplayCli {
                     val hits = com.kinetica.keyboard.engine.InterleavedSearch(trie, il).run(400)
                     val best = hits.minByOrNull { it.cost }
                     println("${f.name}\t$n\t$label\t${il.cost(label)}\t${hits.any { it.word == label }}\t${best?.word}\t${best?.cost}\t${label.length}")
+                }
+            }
+            "splitdata" -> {
+                // splitdata FILE...: one tab-separated row per tapped-word-then-swipe buffer, real
+                // (kind join: the swipe continued the tapped letters) or built from a tapped word
+                // and the swiped word after it with the space left out (kind split).
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                for (f in a.map { File(it) }) {
+                    val words = read(f, sink)
+                    for ((i, pair) in words.withIndex()) {
+                        val (n, w) = pair
+                        val label = w.label?.lowercase() ?: continue
+                        val tokens = try { SwipeTrace.replayTokens(w) } catch (e: RuntimeException) { continue }
+                        if (com.kinetica.keyboard.engine.PeckSplit.tapHead(tokens) > 0) {
+                            println(splitRow(h, f.name, n, "join", w, tokens, w.context, label, ""))
+                        }
+                        val next = words.getOrNull(i + 1)?.second ?: continue
+                        val nextLabel = next.label?.lowercase() ?: continue
+                        if (tokens.isEmpty() || tokens.any { it !is com.kinetica.keyboard.engine.models.TapToken }) continue
+                        if (next.context.lastOrNull()?.lowercase() != w.committed?.lowercase()) continue
+                        val nextTokens = try { SwipeTrace.replayTokens(next) } catch (e: RuntimeException) { continue }
+                        if (nextTokens.minByOrNull { it.tStart } !is com.kinetica.keyboard.engine.models.SwipeToken) continue
+                        println(splitRow(h, f.name, n, "split", w, tokens + nextTokens, w.context, label, nextLabel))
+                    }
                 }
             }
             "interleave" -> {
@@ -390,6 +427,40 @@ object ReplayCli {
         for ((i, sc) in scales.withIndex()) sb.appendLine("  scale $sc: top1=${pct(top1[i], n)} top3=${pct(top3[i], n)}")
         if (times.isNotEmpty()) sb.appendLine("search ms on this JVM: p50 ${times[times.size / 2]} p95 ${times[(times.size * 95) / 100]} max $maxMs")
         return sb.toString()
+    }
+
+    private fun splitRow(
+        h: ReplayHarness,
+        file: String,
+        n: Int,
+        kind: String,
+        w: SwipeTrace.Word,
+        tokens: List<com.kinetica.keyboard.engine.models.InputToken>,
+        context: List<String>,
+        label: String,
+        label2: String,
+    ): String {
+        val p = h.predictorFor(w)
+        val sorted = tokens.sortedBy { it.tStart }
+        val head = com.kinetica.keyboard.engine.PeckSplit.tapHead(sorted)
+        val taps = sorted.take(head)
+        val rest = sorted.drop(head)
+        val literal = taps.joinToString("") { p.alphabet.charOf((it as com.kinetica.keyboard.engine.models.TapToken).code).toString() }
+        val joined = p.decode(sorted, context)
+        val tapList = p.decode(taps, context)
+        val tap = tapList.firstOrNull { it.source != com.kinetica.keyboard.engine.models.WordCandidate.Source.COMPLETION }
+        val tapWord = tap?.word ?: literal
+        val restList = p.decode(rest, (context.takeLast(1) + tapWord))
+        val gap = rest.first().tStart - taps.maxOf { it.tEnd }
+        fun c(x: com.kinetica.keyboard.engine.models.WordCandidate?) = if (x == null) "-\t0\t-" else "${x.word}\t${x.score}\t${x.source.name}"
+        return listOf(
+            file, n, kind, label, label2, literal, p.isWord(literal), gap, rest.count { it !is com.kinetica.keyboard.engine.models.TapToken },
+            c(joined.firstOrNull()), ReplayHarness.rankOf(label, joined), c(tap),
+            tapList.firstOrNull { it.word == literal }?.score ?: 0f,
+            c(restList.firstOrNull()), ReplayHarness.rankOf(label2.ifEmpty { "-" }, restList),
+            restList.firstOrNull { it.word == label }?.score ?: 0f,
+            com.kinetica.keyboard.engine.PeckSplit.split(p, sorted, context, joined, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }) != null,
+        ).joinToString("\t")
     }
 
     private fun pct(a: Int, n: Int) = String.format(java.util.Locale.ROOT, "%.1f%%", 100.0 * a / maxOf(n, 1))

@@ -4,6 +4,10 @@ Replays recorded swipe traces through today's decoder and reports how often the
 committed word comes out on top. Plain JVM: it needs a JDK, not the Android SDK.
 
 ```bash
+# Tapped-word-then-swipe buffers, real ones (join) and ones built by leaving out the space
+# between a tapped word and the swiped word after it (split), one TSV row each
+./gradlew -p tools/replay replay --args="splitdata TRACE.jsonl..."
+
 # Record a synthetic session (useful for trying the tools; not an accuracy figure)
 ./gradlew -p tools/replay replay --args="synth --words 300 /tmp/synth.jsonl"
 
@@ -15,7 +19,8 @@ committed word comes out on top. Plain JVM: it needs a JDK, not the Android SDK.
 ```
 
 Options: `--k N` sets the deep list for recall (default 50); `--edge G` sets the
-near-edge tap gap in kw (0 turns that pass off); `--assets DIR`
+near-edge tap gap in kw (0 turns that pass off); `--nosplit` keeps a tapped word followed by a
+swipe one word, as with automatic spaces off (a split loses the line's word); `--assets DIR`
 points at `app/src/main/assets` when run from elsewhere. `replay` exits 1 if any
 comparable line fails to reproduce.
 
