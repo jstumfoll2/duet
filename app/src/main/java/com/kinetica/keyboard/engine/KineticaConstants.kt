@@ -222,6 +222,10 @@ object KineticaConstants {
     // Dual-stream merge ambiguity generators.
     const val ORDER_AMBIG_MS = 120L
     const val SPLIT_MARGIN_MS = 80L
+    /** A swipe still within this of its first sample is parked on its first key. */
+    const val PARK_RADIUS_KW = 0.35f
+    /** How long a thumb must rest on its first key for a tap during the rest to cut the swipe. */
+    const val PARK_MIN_MS = 150L
     const val MIN_SPLIT_HALF_ARC_KW = 0.5f
     // Head trim for the second half of a split swipe, two roles:
     //   1. Fallback trim when the resume is one straight leg to the end: the half starts this far
