@@ -130,7 +130,7 @@ F-Droid.
 ## For testers: the DEV build
 
 The DEV build has everything above, plus a **Traces and practice** screen. It is one app with one
-launcher icon: open the screen from *Settings > Traces and practice* or from the button on Duet DEV's
+launcher icon: open the screen from *Settings > Learn Duet > Traces and practice* or from the button on Duet DEV's
 start screen. (Builds before this change had a second *Duet DEV trace* icon; updating removes it,
 and recorded traces and settings carry over because the app id is unchanged.)
 

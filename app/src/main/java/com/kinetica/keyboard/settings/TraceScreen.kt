@@ -9,7 +9,7 @@ import android.content.Intent
  * The screen lives in the debug source set and its manifest, so a release build has no such
  * activity and every way in is hidden there. Looked up by name rather than referenced, because
  * main code cannot see debug classes. It used to be a second launcher icon; one app with the
- * screen in Settings and on the start screen is the same thing without the second icon.
+ * screen under Settings > Learn and on the start screen is the same thing without the second icon.
  */
 object TraceScreen {
 

@@ -33,7 +33,7 @@ class TraceScreenTest {
         assertTrue(TraceScreen.CLASS_NAME.removePrefix("com.kinetica.keyboard") + "\"" in debug)
         val xml = PrefsXml.read()
         assertEquals(1, Regex("""android:key="${TraceScreen.PREF_KEY}"""").findAll(xml).count())
-        // A top-level row, where the fragment that removes it in a release build looks for it.
-        assertEquals(null, PrefsXml.walk(xml).first[TraceScreen.PREF_KEY])
+        // Under Learn, beside practising two thumbs; the top level has no room for a DEV row.
+        assertEquals("pref_group_learn", PrefsXml.walk(xml).first[TraceScreen.PREF_KEY])
     }
 }
