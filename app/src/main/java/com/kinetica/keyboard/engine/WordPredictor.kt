@@ -366,12 +366,16 @@ class WordPredictor(
     // The encoder was trained on one-finger swipes and scores each thumb's piece alone, so on
     // two thumbs drawing at once it has no view of the letter order. On the developer's
     // 2026-10-08 device A/B, overlapped words at beta 0.3 went 79% plain -> 69% reranked
-    // (29 words; 0.05 was level). Those buffers keep the plain order.
+    // (29 words; 0.05 was level). Those buffers go to rerankOverlapped instead, which scores
+    // each stroke on the letters the interleaved reading gives it, or keep the plain order.
     private fun reranked(out: List<WordCandidate>, tokens: List<InputToken>): List<WordCandidate> =
         when {
             reranker == null -> out
             // The heap ran rerankDepth deep for the encoder; hand back the shipping top K.
-            Interleave.thumbsOverlap(tokens) -> out.take(topK)
+            Interleave.thumbsOverlap(tokens) -> {
+                val il = geometry?.let { Interleave.of(tokens, it) }
+                (il?.let { reranker.rerankOverlapped(it, tokens, out) } ?: out).take(topK)
+            }
             else -> reranker.rerank(tokens, out).take(topK)
         }
 

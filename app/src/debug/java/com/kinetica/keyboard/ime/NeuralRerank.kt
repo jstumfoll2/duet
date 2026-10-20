@@ -33,8 +33,11 @@ object NeuralRerank {
     const val MODEL_ASSET = "ctc/futo_v1.kctc"
     const val MODEL_NAME = "futo_v1"
 
-    /** Picked on Jason's first practice traces (tune_real.txt): 0.05 was best held-out. */
-    const val DEFAULT_BETA = 0.05f
+    /**
+     * Two-thumb rerank, ten trace batches split in halves: 0.1 was best on one half and
+     * second-best on the other (0.2 best there); 0.05 to 0.2 all gained on both.
+     */
+    const val DEFAULT_BETA = 0.1f
     val BETAS = floatArrayOf(0.02f, 0.05f, 0.1f, 0.2f, 0.3f)
 
     /** Heap depth the rerank reorders, as in the replay harness. */
@@ -75,6 +78,14 @@ object NeuralRerank {
     @Volatile
     var liveBeta: Float = 0f
         private set
+
+    /**
+     * The rerank as replay supports it: two thumbs drawing at once, each stroke scored on the
+     * letters the interleaved reading gives it; one-thumb buffers keep the plain order, where
+     * the rerank was flat (ten batches, futo_v1, beta 0.05-0.2: overlapped words +1 to +3 pts
+     * on either half of the batches, every other bucket level).
+     */
+    private fun twoThumb(r: CtcReranker): CtcReranker = r.also { it.overlap = true; it.overlapOnly = true }
 
     /** Main thread only, like the IME. [onChange] rebuilds the keyboard's predictors. */
     fun install(context: Context, onChange: (() -> Unit)?) {
@@ -138,7 +149,7 @@ object NeuralRerank {
         } else {
             liveBeta = b
             var built: WordPredictor? = null
-            make(Timed(CtcReranker(s, { built?.geometry }, b)), DEPTH).also { built = it }
+            make(Timed(twoThumb(CtcReranker(s, { built?.geometry }, b))), DEPTH).also { built = it }
         }
         live = p
         return p
@@ -182,6 +193,17 @@ object NeuralRerank {
             recordRerank((SystemClock.elapsedRealtimeNanos() - t0) / 1e6f)
             return out
         }
+
+        override fun rerankOverlapped(
+            il: com.kinetica.keyboard.engine.Interleave,
+            tokens: List<InputToken>,
+            candidates: List<WordCandidate>,
+        ): List<WordCandidate>? {
+            val t0 = SystemClock.elapsedRealtimeNanos()
+            val out = inner.rerankOverlapped(il, tokens, candidates)
+            recordRerank((SystemClock.elapsedRealtimeNanos() - t0) / 1e6f)
+            return out
+        }
     }
 
     // ---------------------------------------------------------- A/B
@@ -206,7 +228,7 @@ object NeuralRerank {
         val neural = neuralShadow ?: run {
             val s = scorer() ?: return null
             var built: WordPredictor? = null
-            make(CtcReranker(s, { built?.geometry }, b), DEPTH).also { built = it; neuralShadow = it }
+            make(twoThumb(CtcReranker(s, { built?.geometry }, b)), DEPTH).also { built = it; neuralShadow = it }
         }
         plain.geometry = g
         neural.geometry = g

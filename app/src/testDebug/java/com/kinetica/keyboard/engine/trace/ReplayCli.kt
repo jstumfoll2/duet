@@ -62,6 +62,10 @@ object ReplayCli {
                 val edge = opt(a, "--edge")?.toFloat() ?: KineticaConstants.EDGE_TAP_GAP_KW
                 // --nosplit: a tapped word followed by a swipe always stays one word.
                 val split = !a.remove("--nosplit")
+                // --ctcil: rerank two thumbs drawing at once too, each stroke on its own letters.
+                // --ctcilonly: that, and no rerank of one-thumb buffers.
+                val ctcilOnly = a.remove("--ctcilonly")
+                val ctcil = a.remove("--ctcil") || ctcilOnly
                 if (a.isEmpty()) usage()
                 val harness = ReplayHarness(
                     assets, k, ctc, beta, depth,
@@ -71,6 +75,8 @@ object ReplayCli {
                     trigramBoost = tri,
                     edgeTapGap = edge,
                     peckSplit = split,
+                    rerankOverlap = ctcil,
+                    rerankOverlapOnly = ctcilOnly,
                 )
                 val report = run(harness, a.map { File(it) })
                 println(report.format())

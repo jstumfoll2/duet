@@ -224,6 +224,45 @@ class Interleave private constructor(
      * float tie picks one of the equal readings rather than failing.
      */
     fun strokeIdeal(word: String): FloatArray? {
+        val (codes, strokeOf) = reading(word) ?: return null
+        val ideal = FloatArray(strokes)
+        val lastOn = IntArray(strokes) { -1 }
+        for ((k, code) in codes.withIndex()) {
+            val st = strokeOf[k]
+            val pc = lastOn[st]
+            if (pc >= 0) {
+                val dx = geometry.centerX(code) - geometry.centerX(pc)
+                val dy = geometry.centerY(code) - geometry.centerY(pc)
+                ideal[st] += sqrt(dx * dx + dy * dy)
+            }
+            lastOn[st] = code
+        }
+        return ideal
+    }
+
+    /**
+     * The letter codes the best reading of [word] puts on each stroke, in stroke order, a
+     * doubled letter twice (what a thumb's stroke spells, for the CTC encoder). Null when
+     * [word] has no reading, or only one that skips a key.
+     */
+    fun strokeLetters(word: String): List<IntArray>? {
+        val (_, strokeOf) = reading(word) ?: return null
+        val out = List(strokes) { ArrayList<Int>() }
+        var visit = -1
+        var prevCode = -1
+        for (ch in word) {
+            val code = Alphabet.codeOf(ch)
+            if (code < 0) return null
+            if (code == Alphabet.APOSTROPHE) continue
+            if (code != prevCode) visit++
+            prevCode = code
+            out[strokeOf[visit]].add(code)
+        }
+        return out.map { it.toIntArray() }
+    }
+
+    /** The best reading of [word] walked back: its key visits and the stroke of each. */
+    private fun reading(word: String): Pair<IntArray, IntArray>? {
         val codes = ArrayList<Int>(word.length)
         var prevCode = -1
         for (ch in word) {
@@ -302,19 +341,7 @@ class Interleave private constructor(
             i = bj
             v = prev[base + bj]
         }
-        val ideal = FloatArray(strokes)
-        val lastOn = IntArray(strokes) { -1 }
-        for ((k, code) in codes.withIndex()) {
-            val st = strokeOf[k]
-            val pc = lastOn[st]
-            if (pc >= 0) {
-                val dx = geometry.centerX(code) - geometry.centerX(pc)
-                val dy = geometry.centerY(code) - geometry.centerY(pc)
-                ideal[st] += sqrt(dx * dx + dy * dy)
-            }
-            lastOn[st] = code
-        }
-        return ideal
+        return codes.toIntArray() to strokeOf
     }
 
     private fun fillDist(code: Int, off: Int) {

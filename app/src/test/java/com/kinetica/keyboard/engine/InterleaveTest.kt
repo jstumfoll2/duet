@@ -76,6 +76,15 @@ class InterleaveTest {
     }
 
     @Test
+    fun strokeLettersGiveEachThumbItsOwnLetters() {
+        val il = Interleave.of(discussion(), g)!!
+        val per = il.strokeLetters("discussion")!!
+        fun spell(codes: IntArray) = codes.joinToString("") { Alphabet.charOf(it).toString() }
+        // Left d..s..c..ss, right i..u..i-o-n; the doubled s stays on its thumb twice.
+        assertEquals(listOf("dscss", "iuion"), per.map { spell(it) })
+    }
+
+    @Test
     fun aLateKeyNoThumbReachedCostsASkip() {
         // The right thumb lifts on the o and never reaches the n.
         val noN = listOf(

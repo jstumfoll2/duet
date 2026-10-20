@@ -70,6 +70,10 @@ class ReplayHarness(
     private val edgeTapGap: Float = com.kinetica.keyboard.engine.KineticaConstants.EDGE_TAP_GAP_KW,
     /** Whether a tapped word followed by a swipe may split, as with automatic spaces on. */
     private val peckSplit: Boolean = true,
+    /** Rerank two thumbs drawing at once too, stroke by stroke ([CtcReranker.overlap]). */
+    private val rerankOverlap: Boolean = false,
+    /** ... and leave one-thumb buffers alone. */
+    private val rerankOverlapOnly: Boolean = false,
 ) {
     /**
      * The personal store one replay builds up: commit counts (merged into the trie at each
@@ -145,7 +149,7 @@ class ReplayHarness(
     ): WordPredictor {
         val d = dict(lang, british)
         // Beta 0 means today: no reranker at all, so the heap stays TOP_K deep too.
-        val r = if (rerank && ctc != null && beta != 0f) CtcReranker(ctc, { g }, beta) else null
+        val r = if (rerank && ctc != null && beta != 0f) CtcReranker(ctc, { g }, beta).also { it.overlap = rerankOverlap; it.overlapOnly = rerankOverlapOnly } else null
         return WordPredictor(
             d.d.trie, d.bigrams, g, d.d.forms, language = lang, topK = topK,
             reranker = r, rerankDepth = rerankDepth,

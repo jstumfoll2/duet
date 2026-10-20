@@ -63,4 +63,10 @@ class DtwSegmentScorer : SegmentScorer {
  */
 fun interface CandidateReranker {
     fun rerank(tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate>
+
+    /**
+     * [candidates] for two thumbs drawing at once, read as one timeline by [il]; null keeps
+     * the plain order (the default: a one-stroke encoder has no view of the letter order).
+     */
+    fun rerankOverlapped(il: Interleave, tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate>? = null
 }
