@@ -2471,14 +2471,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         applyWordPenalties()
     }
 
-    /** The predictor that decodes [lang], when one is resident. */
-    private fun predictorFor(lang: String): WordPredictor? = when (lang) {
-        config.language -> predictor
-        secondaryLanguage -> secondaryPredictor
-        extraLanguage -> extraPredictor
-        else -> null
-    }
-
     /**
      * One cell of the bar's hold menu. Never is the slide's block; less and more step the
      * downrank first and the personal count second, so "more" undoes a "less" before it
