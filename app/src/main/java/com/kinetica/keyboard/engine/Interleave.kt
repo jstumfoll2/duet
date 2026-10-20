@@ -82,6 +82,25 @@ class Interleave private constructor(
     private val nearSpan = IntArray(Alphabet.LETTERS * strokes * 2)
     private val nearStates = IntArray(Alphabet.LETTERS)
 
+    // [workRows]' rows, made on first use.
+    private var work: Array<FloatArray>? = null
+
+    // [reading]'s rows, kept between words: row k holds the first k letters of readCodes, valid
+    // up to readValid. A decode walks back up to INTERLEAVE_KEEP hits and reranks as many, which
+    // share their starts often enough ("keyboard", "keyboards"); a row is 5k floats, and a fresh
+    // one per letter made megabytes of garbage per two-thumb decode.
+    private var readRows: Array<FloatArray>? = null
+    private val readCodes = IntArray(KineticaConstants.MAX_WORD_LEN)
+    private var readValid = 0
+
+    // The ways [reading] weighs at one letter: previous mask and the cost the letter added.
+    private val wayMask = IntArray(2)
+    private val wayAdd = FloatArray(2)
+
+    // The moments [reachable] found the letter may land at, for [reachOf].
+    private var needLo = 0
+    private var needHi = -1
+
     /** The lowest cost [step] wrote into its last row (INF when it returned false). */
     var lastMin: Float = INF
         private set
@@ -118,7 +137,6 @@ class Interleave private constructor(
         }
         var best = INF
         for (m in 0 until masks) {
-            val base = m * grid
             // reach[i]: best previous reading that letter at moment i may follow.
             val reach = scratchA
             if (first) {
@@ -374,8 +392,6 @@ class Interleave private constructor(
         return codes to strokeOf
     }
 
-    private var work: Array<FloatArray>? = null
-
     /**
      * One row per letter of a word as long as [KineticaConstants.MAX_WORD_LEN], for a walk
      * that steps one letter per row: [InterleavedSearch], then [reading]. Shared, so each
@@ -386,18 +402,6 @@ class Interleave private constructor(
         readValid = 0
         return work ?: Array(KineticaConstants.MAX_WORD_LEN + 1) { FloatArray(rowSize) }.also { work = it }
     }
-
-    // [reading]'s rows, kept between words: row k holds the first k letters of readCodes, valid
-    // up to readValid. A decode walks back up to INTERLEAVE_KEEP hits and reranks as many, which
-    // share their starts often enough ("keyboard", "keyboards"); a row is 5k floats, and a fresh
-    // one per letter made megabytes of garbage per two-thumb decode.
-    private var readRows: Array<FloatArray>? = null
-    private val readCodes = IntArray(KineticaConstants.MAX_WORD_LEN)
-    private var readValid = 0
-
-    // The ways [reading] weighs at one letter: previous mask and the cost the letter added.
-    private val wayMask = IntArray(2)
-    private val wayAdd = FloatArray(2)
 
     /** The rows of [codes]' readings, row k after its first k letters; null when one dies. */
     private fun readingRows(codes: IntArray): Array<FloatArray>? {
@@ -483,10 +487,6 @@ class Interleave private constructor(
         needHi = hi
         return hi >= 0
     }
-
-    // The moments [reachable] found the letter may land at, for [reachOf].
-    private var needLo = 0
-    private var needHi = -1
 
     /**
      * reach[i] for the moments [from]..[to]: the best reading in mask [m]'s block of [prev] that

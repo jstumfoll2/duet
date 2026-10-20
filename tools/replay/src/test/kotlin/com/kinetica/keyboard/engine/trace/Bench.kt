@@ -112,13 +112,12 @@ object Bench {
     /** Bytes each line's replay allocates (both decodes), after a warm-up pass: GC load on a phone. */
     private fun allocation(h: ReplayHarness, words: List<SwipeTrace.Word>) {
         val mx = ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean
-        val tid = Thread.currentThread().id
         for (w in words) try { h.replay(w) } catch (e: RuntimeException) { continue }
         val per = java.util.TreeMap<String, ArrayList<Long>>()
         for (w in words) {
-            val b0 = mx.getThreadAllocatedBytes(tid)
+            val b0 = mx.currentThreadAllocatedBytes
             val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
-            val b = mx.getThreadAllocatedBytes(tid) - b0
+            val b = mx.currentThreadAllocatedBytes - b0
             per.getOrPut("all") { ArrayList() }.add(b)
             per.getOrPut(shape(r)) { ArrayList() }.add(b)
         }
