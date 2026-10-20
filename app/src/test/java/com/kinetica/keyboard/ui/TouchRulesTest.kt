@@ -1,6 +1,7 @@
 package com.kinetica.keyboard.ui
 
 import com.kinetica.keyboard.engine.KineticaConstants
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -91,5 +92,32 @@ class TouchRulesTest {
             "a drift",
             TouchRules.spaceHandsOverToSwipe(locked = false, travelPx = 20f, driftLimitPx = 28f, onLetter = true, rose = true),
         )
+    }
+
+    // A home row 'a'..'l' at x 50..950 in 100 px keys, rows 0..100, beside shift at x 0..150 on
+    // the row below (100..200). The margin 0..50 left of 'a' is no key's.
+    private val l = floatArrayOf(50f, 150f, 0f)
+    private val t = floatArrayOf(0f, 0f, 100f)
+    private val r = floatArrayOf(150f, 250f, 150f)
+    private val b = floatArrayOf(100f, 100f, 200f)
+
+    private fun nearest(x: Float, y: Float, max: Float = 100f) =
+        TouchRules.nearestInRow(3, { l[it] }, { t[it] }, { r[it] }, { b[it] }, x, y, max)
+
+    @Test
+    fun aTouchInTheMarginStartsOnTheLetterBesideIt() {
+        assertEquals(0, nearest(10f, 50f))
+    }
+
+    @Test
+    fun theMarginBelongsOnlyToItsOwnRow() {
+        // Below the home row the nearest key is shift, which the view does not start a word on.
+        assertEquals(2, nearest(10f, 150f))
+    }
+
+    @Test
+    fun aTouchTooFarFromAnyKeyIsNoKey() {
+        assertEquals(-1, nearest(10f, 50f, max = 20f))
+        assertEquals(-1, nearest(500f, 250f))
     }
 }

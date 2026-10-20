@@ -648,4 +648,14 @@
     <string name="pref_sms_codes_not_now">Not now</string>
     <string name="pref_sms_codes_denied_title">Text messages are blocked</string>
     <string name="pref_sms_codes_denied_restricted">Android blocked Duet from reading text messages, so codes stay off. To allow it: open app settings, tap the ⋮ menu at the top right, choose Allow restricted settings and confirm, then go to Permissions, then SMS, and choose Allow. Come back here and the switch turns on.</string>
+    <!-- The suggestion bar's hold menu: a word held still about a second. -->
+    <string name="bar_menu_never">Never</string>
+    <string name="bar_menu_less">Less</string>
+    <string name="bar_menu_more">More</string>
+    <string name="bar_menu_forget">Forget</string>
+    <string name="bar_menu_why">Why?</string>
+    <string name="bar_why_dictionary">%1$s dictionary, frequency %2$d of 255</string>
+    <string name="bar_why_unknown">not in the %1$s dictionary</string>
+    <string name="bar_why_picked">you picked it %1$d times</string>
+    <string name="bar_why_less">suggested less (%1$d steps)</string>
 </resources>

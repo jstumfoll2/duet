@@ -52,6 +52,7 @@ import com.kinetica.keyboard.engine.SharedWordFiling
 import com.kinetica.keyboard.engine.ShortSlips
 import com.kinetica.keyboard.engine.SpellLexicon
 import com.kinetica.keyboard.engine.WordComposer
+import com.kinetica.keyboard.engine.WordPenalties
 import com.kinetica.keyboard.engine.WordPredictor
 import com.kinetica.keyboard.engine.models.InputToken
 import com.kinetica.keyboard.engine.models.StreamId
@@ -836,6 +837,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     extraPredictor = extra?.let { (d, b) ->
                         WordPredictor(d.trie, b, currentGeometry, d.forms, xCounts, xPairs, language = extraLang ?: "")
                     }
+                    applyWordPenalties()
                     composer = WordComposer(
                         p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
                     ).also {
@@ -1273,6 +1275,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         super.onStartInputView(editorInfo, restarting)
         suggestionBar?.clearSuggestions()
         suggestionBar?.closeMenu()
+        suggestionBar?.closeWordMenu()
         updateBarWordPending()
         keyboardView?.setShiftUppercase(shift.isShifted)
         closeEmojiPicker()
@@ -2004,6 +2007,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
 
         override fun onMenuToggled(open: Boolean) = vibrateForKeyPress()
+
+        override fun onWordMenu(word: String, action: BarAdjust.WordMenuAction, source: BarAdjust.BlockSource) {
+            vibrateForKeyPress()
+            this@KineticaIME.onWordMenu(word, action, source)
+        }
     }
 
     /**
@@ -2436,6 +2444,92 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * - Gated on [EditorState.teachesNothing] like every learning path: a word written to the
      *   database from a password field is a disclosure.
      */
+    /**
+     * The words the user asked to see less of. Read from the preference on every load, so a
+     * restored backup or a second keyboard instance agrees with what is stored.
+     */
+    private var wordPenalties = WordPenalties.EMPTY
+
+    /** Hands each resident predictor its language's downranks. */
+    private fun applyWordPenalties() {
+        wordPenalties = WordPenalties.parse(
+            PreferenceManager.getDefaultSharedPreferences(this).getString(Prefs.WORD_PENALTIES, null),
+        )
+        predictor?.penalties = wordPenalties.forLanguage(config.language)
+        secondaryLanguage?.let { secondaryPredictor?.penalties = wordPenalties.forLanguage(it) }
+        extraLanguage?.let { extraPredictor?.penalties = wordPenalties.forLanguage(it) }
+    }
+
+    private fun setWordPenalty(word: String, lang: String, steps: Int) {
+        if (!WordPenalties.storable(word)) return
+        val next = WordPenalties.parse(
+            PreferenceManager.getDefaultSharedPreferences(this).getString(Prefs.WORD_PENALTIES, null),
+        ).with(word, lang, steps)
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+            .putString(Prefs.WORD_PENALTIES, next.serialize()).apply()
+        DecodeTrace.log { "  downrank word=${word.lowercase()} lang=$lang steps=${next.steps(word, lang)}" }
+        applyWordPenalties()
+    }
+
+    /** The predictor that decodes [lang], when one is resident. */
+    private fun predictorFor(lang: String): WordPredictor? = when (lang) {
+        config.language -> predictor
+        secondaryLanguage -> secondaryPredictor
+        extraLanguage -> extraPredictor
+        else -> null
+    }
+
+    /**
+     * One cell of the bar's hold menu. Never is the slide's block; less and more step the
+     * downrank first and the personal count second, so "more" undoes a "less" before it
+     * boosts; forget clears both; why answers on the bar.
+     */
+    private fun onWordMenu(word: String, action: BarAdjust.WordMenuAction, source: BarAdjust.BlockSource) {
+        val lang = recentWords.languageOf(word) ?: languageOf(word)
+        if (action == BarAdjust.WordMenuAction.WHY) {
+            suggestionBar?.showWordNote(explainWord(word, lang))
+            return
+        }
+        if (editorState.teachesNothing) {
+            DecodeTrace.log { "  word menu refused word=$word action=$action src=teaches-nothing" }
+            return
+        }
+        val lower = word.lowercase()
+        val steps = wordPenalties.steps(word, lang)
+        val count = countsFor(lang)[lower] ?: 0
+        when (action) {
+            BarAdjust.WordMenuAction.NEVER -> onSuggestionBlocked(word, source)
+            BarAdjust.WordMenuAction.LESS -> setWordPenalty(word, lang, steps + 1)
+            BarAdjust.WordMenuAction.MORE -> if (steps > 0) {
+                setWordPenalty(word, lang, steps - 1)
+            } else {
+                onSuggestionReinforced(word, BarAdjust.delta(count, 1, config.reinforceIncrement))
+            }
+            BarAdjust.WordMenuAction.FORGET -> {
+                if (steps > 0) setWordPenalty(word, lang, 0)
+                if (count > 0) learnWord(word, -count, lang)
+            }
+            BarAdjust.WordMenuAction.WHY -> Unit
+        }
+        pushSuggestions()
+        pushRecent()
+    }
+
+    /** Where [word]'s place on the bar comes from, in a line short enough for it. */
+    private fun explainWord(word: String, lang: String): String {
+        val parts = ArrayList<String>(4)
+        val name = java.util.Locale(lang).getDisplayLanguage(java.util.Locale.getDefault()).ifEmpty { lang }
+        val freq = predictorFor(lang)?.frequencyByte(word) ?: -1
+        parts.add(
+            if (freq >= 0) getString(R.string.bar_why_dictionary, name, freq) else getString(R.string.bar_why_unknown, name),
+        )
+        val count = countsFor(lang)[word.lowercase()] ?: 0
+        if (count > 0) parts.add(getString(R.string.bar_why_picked, count))
+        val steps = wordPenalties.steps(word, lang)
+        if (steps > 0) parts.add(getString(R.string.bar_why_less, steps))
+        return "$word: " + parts.joinToString(" · ")
+    }
+
     private fun onSuggestionBlocked(word: String, source: BarAdjust.BlockSource) {
         if (editorState.teachesNothing || word.isEmpty()) return
         if (expansionsOnBar()) {

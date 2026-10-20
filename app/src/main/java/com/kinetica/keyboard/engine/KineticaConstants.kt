@@ -226,6 +226,11 @@ object KineticaConstants {
     const val PARK_RADIUS_KW = 0.35f
     /** How long a thumb must rest on its first key for a tap during the rest to cut the swipe. */
     const val PARK_MIN_MS = 150L
+
+    // "Suggest less" on the bar's word menu: each step multiplies the word's score by this, so
+    // two steps quarter it. Capped so a word can always be brought back with a few "more"s.
+    const val DOWNRANK_FACTOR = 0.5f
+    const val DOWNRANK_MAX_STEPS = 6
     const val MIN_SPLIT_HALF_ARC_KW = 0.5f
     // Head trim for the second half of a split swipe, two roles:
     //   1. Fallback trim when the resume is one straight leg to the end: the half starts this far
@@ -428,6 +433,11 @@ object KineticaConstants {
     // Key-contact extraction hysteresis: the current key keeps ownership until
     // the pointer leaves its bounds inflated by this much (kills border jitter).
     const val STICKY_INFLATE_KW = 0.2f
+
+    // A touch that misses every key but lands in a letter row's margin (left of `a`, right of
+    // `l`) or spacing gap starts on the nearest key in that row when it is a letter within this
+    // many kw. Covers the full-mode home-row margin (0.5 kw) with room for a side inset.
+    const val START_EDGE_ZONE_MAX_KW = 1.0f
 
     // Intra-stream dwell detection (GestureStream.addPoint): a run of samples within
     // DWELL_RADIUS_KW of its first sample for at least DWELL_MIN_MS is a pause, and the thumb has

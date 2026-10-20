@@ -114,6 +114,35 @@ class WordPredictor(
      */
     @Volatile var stale: (() -> Boolean)? = null
 
+    /**
+     * Downrank steps per lowercase word ([WordPenalties]), applied to the finished list and the
+     * next-word list. Set by the service whenever the user changes one; read once per decode.
+     */
+    @Volatile var penalties: Map<String, Int> = emptyMap()
+
+    /**
+     * [list] with each penalised word's score cut by [WordPenalties.factor], re-sorted. Applied
+     * after the search, not inside it: a penalty only lowers a score, so the words it lets
+     * through were already in the list, and the abandon bounds stay as they are.
+     */
+    private fun withPenalties(list: List<WordCandidate>): List<WordCandidate> {
+        val p = penalties
+        if (p.isEmpty() || list.isEmpty()) return list
+        var changed = false
+        val out = list.map { c ->
+            val steps = p[c.word.lowercase()] ?: 0
+            if (steps <= 0) {
+                c
+            } else {
+                changed = true
+                c.copy(score = c.score * WordPenalties.factor(steps))
+            }
+        }
+        if (!changed) return list
+        DecodeTrace.log { "downrank$langTag: " + out.filter { (p[it.word.lowercase()] ?: 0) > 0 }.joinToString(" ") { "${it.word}x${p[it.word.lowercase()]}" } }
+        return out.sortedByDescending { it.score }
+    }
+
     /** Commit count for [word], 0 when never committed. */
     fun personalCount(word: String): Int = personalCounts[word.lowercase()] ?: 0
 
@@ -192,6 +221,13 @@ class WordPredictor(
                 if (node < 0) continue
                 score[node] = (score[node] ?: 1f) *
                     (1f + KineticaConstants.PERSONAL_BIGRAM_BOOST * kotlin.math.ln(1f + count))
+            }
+        }
+        val p = penalties
+        if (p.isNotEmpty()) {
+            for (e in score.entries) {
+                val steps = p[displayOf(e.key).lowercase()] ?: continue
+                e.setValue(e.value * WordPenalties.factor(steps))
             }
         }
         return score.entries
@@ -392,7 +428,7 @@ class WordPredictor(
     ): List<WordCandidate> {
         val prevWord = context.lastOrNull()?.let { AccentFolder.fold(it.lowercase()) }
         val prevWordId = prevWord?.let { trie.nodeFor(it) } ?: -1
-        val letters = withTrigrams(decodeLetters(input, context, beam), context, prevWordId)
+        val letters = withPenalties(withTrigrams(decodeLetters(input, context, beam), context, prevWordId))
         val held = if (heldDoubleBoost == 1f) IntArray(0) else HeldDoubles.heldKeys(input, heldDoubleMs, heldDoubleEndMs, heldDoubleFreeTime)
         val missCharged = heldDoubleMissKeep != 1f && input.any { it is SwipeToken }
         val ranked = if (held.isEmpty() && !missCharged) letters else preferHeldDoubles(letters, held, prevWordId).also { out ->

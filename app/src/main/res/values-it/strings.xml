@@ -583,4 +583,14 @@
     <string name="pref_sms_codes_title">Codici dagli SMS</string>
     <string name="pref_sms_codes_summary">In un campo che chiede un codice, propone il codice di un SMS ricevuto negli ultimi dieci minuti. Richiede il permesso di leggere gli SMS. Duet li legge solo su questo telefono e non ha accesso a internet</string>
     <string name="pref_sms_codes_denied">Duet non ha il permesso di leggere gli SMS, quindi i codici restano disattivati</string>
+    <!-- Il menu della barra dei suggerimenti: una parola tenuta ferma circa un secondo. -->
+    <string name="bar_menu_never">Mai</string>
+    <string name="bar_menu_less">Meno</string>
+    <string name="bar_menu_more">Più</string>
+    <string name="bar_menu_forget">Dimentica</string>
+    <string name="bar_menu_why">Perché?</string>
+    <string name="bar_why_dictionary">dizionario %1$s, frequenza %2$d su 255</string>
+    <string name="bar_why_unknown">non nel dizionario %1$s</string>
+    <string name="bar_why_picked">scelta %1$d volte</string>
+    <string name="bar_why_less">suggerita meno (%1$d passi)</string>
 </resources>

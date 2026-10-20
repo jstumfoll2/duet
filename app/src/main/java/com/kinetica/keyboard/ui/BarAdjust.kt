@@ -140,4 +140,11 @@ object BarAdjust {
         wordPending -> BlockSource.LIVE
         else -> BlockSource.OTHER
     }
+
+    /** The hold menu's cells after the word itself, in drawing order. */
+    enum class WordMenuAction { NEVER, LESS, MORE, FORGET, WHY }
+
+    /** Whether travel of [dx], [dy] from the arm point makes a held word a slide, not a menu wait. */
+    fun menuHoldBroken(dx: Float, dy: Float, slopPx: Float): Boolean =
+        kotlin.math.abs(dx) > slopPx || kotlin.math.abs(dy) > slopPx
 }

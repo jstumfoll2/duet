@@ -73,4 +73,37 @@ object TouchRules {
 
     /** No long-press menu opens while another thumb is on the letters: two thumbs down is typing. */
     fun holdOpensMenu(otherOnLetters: Boolean): Boolean = !otherOnLetters
+
+    /**
+     * The key nearest [x] among the keys whose rows hold [y], when its edge is within [maxGapPx]
+     * of [x]; -1 otherwise. For a touch that missed every key: the nearest key of its row is the
+     * one beside it, so a margin next to shift stays shift's and only a letter's own margin
+     * starts a letter.
+     */
+    fun nearestInRow(
+        count: Int,
+        left: (Int) -> Float,
+        top: (Int) -> Float,
+        right: (Int) -> Float,
+        bottom: (Int) -> Float,
+        x: Float,
+        y: Float,
+        maxGapPx: Float,
+    ): Int {
+        var best = -1
+        var bestGap = maxGapPx
+        for (i in 0 until count) {
+            if (y < top(i) || y >= bottom(i)) continue
+            val gap = when {
+                x < left(i) -> left(i) - x
+                x >= right(i) -> x - right(i)
+                else -> 0f
+            }
+            if (gap <= bestGap) {
+                bestGap = gap
+                best = i
+            }
+        }
+        return best
+    }
 }

@@ -171,4 +171,20 @@ class BarAdjustTest {
         // An idle bar holds predictions: nothing of them is in the text.
         assertEquals(BarAdjust.BlockSource.OTHER, src(2, pending = false))
     }
+
+    @Test
+    fun aHeldWordWaitsForItsMenuOnlyWhileStill() {
+        assertFalse(BarAdjust.menuHoldBroken(3f, -4f, 10f))
+        assertTrue(BarAdjust.menuHoldBroken(0f, 12f, 10f))
+        assertTrue(BarAdjust.menuHoldBroken(-11f, 0f, 10f))
+    }
+
+    @Test
+    fun theMenuCellsKeepTheirOrder() {
+        // SuggestionBarView maps cell i to entries[i - 1]: reordering the enum moves the labels.
+        assertEquals(
+            listOf("NEVER", "LESS", "MORE", "FORGET", "WHY"),
+            BarAdjust.WordMenuAction.entries.map { it.name },
+        )
+    }
 }
