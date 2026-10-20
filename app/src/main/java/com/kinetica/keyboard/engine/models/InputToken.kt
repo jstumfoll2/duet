@@ -50,6 +50,12 @@ data class TapToken(
     val longPress: Boolean,
     override val tStart: Long,
     override val tEnd: Long,
+    /**
+     * A stroke that went from this letter straight to the main-page apostrophe key and lifted
+     * there (`I've` as i, then '): the letter as a tap, and the word wants its apostrophe
+     * spelling, as [SwipeToken.apostrophe] says for a swipe (see ApostropheExcursion).
+     */
+    val apostrophe: Boolean = false,
 ) : InputToken()
 
 /**

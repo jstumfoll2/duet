@@ -398,7 +398,7 @@ class WordPredictor(
         val ranked = if (held.isEmpty() && !missCharged) letters else preferHeldDoubles(letters, held, prevWordId).also { out ->
             DecodeTrace.log { "held$langTag: ${held.joinToString("") { alphabet.charOf(it).toString() }} " + out.take(5).joinToString(" ") { it.word } }
         }
-        if (!apostrophe && input.none { it is SwipeToken && it.apostrophe }) return ranked
+        if (!apostrophe && input.none { (it is SwipeToken && it.apostrophe) || (it is TapToken && it.apostrophe) }) return ranked
         val out = preferApostrophe(ranked, prevWordId)
         DecodeTrace.log { "apostrophe$langTag: " + out.take(5).joinToString(" ") { it.word } }
         return out
@@ -932,6 +932,36 @@ class WordPredictor(
         if (targetByte - typedByte < KineticaConstants.REAL_WORD_MIN_FREQ_GAP) return null
         val confidence = 1f / (1f + lead.dtwDistance)
         return if (confidence > confidenceThreshold) lead else null
+    }
+
+    /**
+     * Tapped letters that are no word but two words with the space between them left out:
+     * `tofeel` for `to feel`, the head and the tail of [literal] in its own case. Null for a
+     * word, or when no cut gives two words of at least two letters each that the bundled pairs
+     * hold as following one another at least [KineticaConstants.SPACE_SPLIT_MIN_PAIR_BYTE]
+     * (`to feel` 142, `how to` 255, `read me` 130: a `readme` stays). A pair the bundled list
+     * lacks is never split, so `pasteor` stays too. Letters the user has committed as often as
+     * [KineticaConstants.PERSONAL_MERGE_MIN_COUNT] asks of a word are theirs. [at] limits the
+     * cut to one place, the end of a reopened word the letters were typed onto.
+     */
+    fun spaceSplit(literal: String, at: Int = -1): Pair<String, String>? {
+        val w = literal.lowercase()
+        if (w.length < 4 || isWordIgnoringCase(w) || !w.all { it.isLetter() }) return null
+        if (personalCount(w) >= KineticaConstants.PERSONAL_MERGE_MIN_COUNT) return null
+        var best: Pair<String, String>? = null
+        var bestByte = KineticaConstants.SPACE_SPLIT_MIN_PAIR_BYTE - 1
+        for (i in 2..w.length - 2) {
+            if (at >= 0 && i != at) continue
+            val head = w.substring(0, i)
+            val tail = w.substring(i)
+            if (!isWordIgnoringCase(head) || !isWordIgnoringCase(tail)) continue
+            val byte = pairByte(head, tail)
+            if (byte > bestByte) {
+                bestByte = byte
+                best = literal.substring(0, i) to literal.substring(i)
+            }
+        }
+        return best
     }
 
     private fun oneLetterApart(a: String, b: String): Boolean {

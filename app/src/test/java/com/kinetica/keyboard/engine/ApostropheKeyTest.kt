@@ -1,8 +1,10 @@
 package com.kinetica.keyboard.engine
 
 import com.kinetica.keyboard.engine.models.InputToken
+import com.kinetica.keyboard.engine.models.PathPoint
 import com.kinetica.keyboard.engine.models.StreamId
 import com.kinetica.keyboard.engine.models.SwipeToken
+import com.kinetica.keyboard.engine.models.TapToken
 import java.nio.file.Files
 import java.nio.file.Paths
 import org.junit.Assert.assertEquals
@@ -105,6 +107,61 @@ class ApostropheKeyTest {
     }
 
     @Test
+    fun aStrokeStraightFromItsFirstLetterIsThatLetterTappedAndMarked() {
+        // The right thumb's half of "I've" (batch 11): i, then straight to the key, lift.
+        val tok = draw(withKey, at('i'), apos)
+        assertTrue("not a tap: $tok", tok is TapToken)
+        tok as TapToken
+        assertTrue(tok.apostrophe)
+        assertEquals('i' - 'a', tok.code)
+    }
+
+    // The phone's own rects (batch 11 geometry): the key sits right of L with a gap between.
+    private val keyRect = floatArrayOf(9.48f, 2.8f, 10.23f, 4.2f)
+    private val lRect = floatArrayOf(8.33f, 2.8f, 9.33f, 4.2f)
+
+    private fun path(vararg stops: FloatArray): List<PathPoint> {
+        val out = ArrayList<PathPoint>()
+        var t = 0L
+        out.add(PathPoint(stops[0][0], stops[0][1], t))
+        for (i in 1 until stops.size) {
+            val a = stops[i - 1]
+            val b = stops[i]
+            for (k in 1..12) {
+                val f = k / 12f
+                t += 8
+                out.add(PathPoint(a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), t))
+            }
+        }
+        return out
+    }
+
+    @Test
+    fun aTurnInHeadingTheDistanceMissedIsTheEndingsStart() {
+        // The right thumb's half of "who's": h, up to o, down to the key. The distance to the key
+        // shrinks the whole way, so only the heading shows the turn at o.
+        val pts = path(floatArrayOf(5.9f, 3.4f), floatArrayOf(8.8f, 1.9f), floatArrayOf(9.8f, 3.4f))
+        val cut = ApostropheExcursion.find(pts, keyRect, lRect)
+        assertEquals(13 until pts.size, cut)
+    }
+
+    @Test
+    fun aHeadingTurnWhoseLegCrossesLIsNotTaken() {
+        // A run through L that lifts just past it (the end of "festival"): L is a letter of the word.
+        val pts = path(floatArrayOf(8.6f, 1.4f), floatArrayOf(7.9f, 2.7f), floatArrayOf(8.8f, 3.4f), floatArrayOf(9.7f, 3.5f))
+        assertEquals(null, ApostropheExcursion.find(pts, keyRect, lRect))
+    }
+
+    @Test
+    fun aStraightStrokeFromFarAwayIsNotTaken() {
+        // From t on past L (the end of "actually"): too far to be one letter and the key.
+        val pts = path(floatArrayOf(4.7f, 2.0f), floatArrayOf(9.7f, 3.6f))
+        assertEquals(null, ApostropheExcursion.find(pts, keyRect, lRect))
+        val near = path(floatArrayOf(7.8f, 2.1f), floatArrayOf(9.9f, 3.8f))
+        assertEquals(1 until near.size, ApostropheExcursion.find(near, keyRect, lRect))
+    }
+
+    @Test
     fun clippingTheKeyOnTheWayDownIsNotATrip() {
         // p down to l, bulging through the key's corner: no turn back in x.
         val tok = draw(withKey, at('p'), floatArrayOf(9.7f, 1.9f), at('l')) as SwipeToken
@@ -143,6 +200,14 @@ class ApostropheKeyTest {
         val on = draw(withKey, at('o'), at('n'), apos, t0 = 100L)
         val t = TestData.tap('t', withKey, 600, StreamId.LEFT)
         assertEquals("don't", top(listOf(d, on, t)))
+    }
+
+    @Test
+    fun aMarkedTapThenASwipeReadsAsTheContraction() {
+        // "I've": i struck to the key by the right thumb, v-e swiped by the left.
+        val i = draw(withKey, at('i'), apos)
+        val ve = TestData.swipe("ve", withKey, 400, 200, StreamId.LEFT)
+        assertEquals("i've", top(listOf(i, ve)))
     }
 
     @Test

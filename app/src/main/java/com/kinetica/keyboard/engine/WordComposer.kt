@@ -256,6 +256,16 @@ class WordComposer(
     fun literal(): String = buildLiteral(tokens)
 
     /**
+     * The letters of the taps that lead the word in hand when a swipe followed them
+     * ([PeckSplit.tapHead]): `to` of `to` pecked and `feel` swiped. Empty for any other buffer.
+     */
+    fun tapHeadLiteral(): String {
+        val sorted = tokens.sortedBy { it.tStart }
+        val head = PeckSplit.tapHead(sorted)
+        return if (head == 0) "" else buildLiteral(sorted.subList(0, head))
+    }
+
+    /**
      * Applies [split]: keeps only its tapped head in the buffer, so the caller can commit it as
      * a word, and holds the rest for [rejoinTail]. Null, changing nothing, without a split.
      */
@@ -297,7 +307,8 @@ class WordComposer(
         teachTouch(word)
         endBuffer(word)
         previousBuffer = if (tokens.isEmpty()) previousBuffer else ArrayList(tokens)
-        context.addLast(word)
+        // Two words when autocorrect put back a left-out space (`to feel`).
+        for (w in word.split(' ')) if (w.isNotEmpty()) context.addLast(w)
         while (context.size > 2) context.removeFirst()
         tokens.clear()
         seeded = 0

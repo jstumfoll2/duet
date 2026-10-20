@@ -166,6 +166,22 @@ object KineticaConstants {
     const val PECK_SPLIT_RATIO = 2f
 
     /**
+     * The most a tapped word's score counts for in [PECK_SPLIT_RATIO]'s test. Eleven batches:
+     * the cap keeps `a` plus `low` as `allow` (all 3 cases from Jason's phone, where `a`
+     * scored 1.5 to 4.0), splits 451 of the 595 left-out spaces against 466 without it, and
+     * loses 20 of 809 real tap-then-swipe words against 22.
+     */
+    const val PECK_SPLIT_TAP_CAP = 1f
+
+    /**
+     * How strongly the bundled pairs must hold two words as following one another for tapped
+     * letters with no space to be split into them (WordPredictor.spaceSplit). Eleven batches
+     * hold five such commits that split at all: `howto` 255, `aslong` 199, `tofeel` 142 (three
+     * times), `readme` 130 and `couldthat` 126. Between `tofeel` and `readme`, which was meant.
+     */
+    const val SPACE_SPLIT_MIN_PAIR_BYTE = 136
+
+    /**
      * Tap charge, in kw, for a skipped stray tap or an untapped letter. 0.5 fixes 1 035 of
      * 2 008 dropped taps and 1 764 of 2 008 stray ones and changes no captured commit or lead
      * but 19 empty decodes; 0.25 cost three autocorrections. Negative: off.

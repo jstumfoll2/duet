@@ -72,11 +72,16 @@ F-Droid.
 - **A pecked word, then a swipe.** With automatic spaces on, tap `to` and swipe `help` straight
   after with no space: Duet types "to help", not one word made of both (`PeckSplit`). It splits
   only when the two words read clearly better than one, so `m`, `e` tapped and `rge` swiped still
-  makes "merge".
+  makes "merge", and `a` tapped with `llow` swiped makes "allow". When the two do end up as one
+  word, a backspace slide stops at the join first and leaves "to " for the second word again.
+- **A left-out space.** Tapped letters that are no word but a common pair with the space left out
+  (`tofeel`) become the two words; backspace right after puts back what you typed.
 - **Words started from the spacebar.** A thumb that lands on the spacebar and rises onto the
   letters draws its word instead of typing a space and losing those letters.
 - **Apostrophes, Nintype style.** Swipe out to the apostrophe key and back mid-word
-  (`w-e-'-r-e`) for "we're"; the trip is cut out of the path before it is decoded.
+  (`w-e-'-r-e`) for "we're"; the trip is cut out of the path before it is decoded. A stroke can
+  also end on the key: `h-o` then down to `'` for "who's", or `i` straight to `'` (with `v-e` on
+  the other thumb) for "I've".
 
 ### English
 

@@ -227,4 +227,15 @@ class DeleteSpanTest {
         for (n in forward) assertTrue("$n ends a word", n == t.length || t[n].isWhitespace())
         for (n in back) assertTrue("$n starts a word", n == 0 || !t[n].isWhitespace())
     }
+
+    @Test
+    fun aJoinedWordGivesUpItsTailFirst() {
+        // `to` tapped and `feel` swiped, read as `toddle`, autospace after it.
+        val text = "it came to toddle "
+        assertEquals("ddle ", tailOf(text, DeleteSpan.wordsFromJoin(text, 1, 5)))
+        assertEquals("toddle ", tailOf(text, DeleteSpan.wordsFromJoin(text, 2, 5)))
+        assertEquals("came toddle ", tailOf(text, DeleteSpan.wordsFromJoin(text, 3, 5)))
+        assertEquals(0, DeleteSpan.wordsFromJoin(text, 0, 5))
+        assertEquals("no cut is the plain walk", DeleteSpan.words(text, 2), DeleteSpan.wordsFromJoin(text, 2, 0))
+    }
 }
