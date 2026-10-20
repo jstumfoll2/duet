@@ -501,6 +501,29 @@ object LayoutMutations {
     const val MAX_NUMBER_ROW_GAP = 0.5f
 
     /**
+     * A gap between the bottom letter row and the row under it (space, comma, enter): the
+     * top [gap] of each key under the letters is taken off, so a thumb aiming low for `b` no
+     * longer lands on space. The view gives a touch in the gap to the letter above
+     * (`KeyboardView.letterUnderGap`); the letter keys and the decoder's geometry do not move.
+     */
+    fun withSpaceRowGap(layout: KeyboardLayout, gap: Float): KeyboardLayout {
+        val g = gap.coerceIn(0f, MAX_SPACE_ROW_GAP)
+        if (g <= 0f) return layout
+        val lettersBottom = layout.keys.filter { it.isLetter }.maxOfOrNull { it.y + it.h } ?: return layout
+        var changed = false
+        val keys = layout.keys.map { k ->
+            if (k.isLetter || k.y < lettersBottom - 0.01f) return@map k
+            changed = true
+            val cut = k.h * g
+            k.copy(y = k.y + cut, h = k.h - cut)
+        }
+        return if (changed) layout.copy(keys = keys) else layout
+    }
+
+    /** The most of the bottom row's height [withSpaceRowGap] may take. */
+    const val MAX_SPACE_ROW_GAP = 0.5f
+
+    /**
      * Each numbers-row digit and the letter under its middle in the top letter row: `9` over
      * `o` on QWERTY, over `i` on AZERTY's shifted rows if they ever differ. Empty without the
      * row. For reading a digit typed inside a word as the letter meant ([com.kinetica.keyboard

@@ -433,6 +433,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private var autospaceFromTaps = false
     private var autospaceAt = 0L
 
+    /**
+     * Where a held autospace is owed, or -1. Mid-paragraph the editor often already has what
+     * follows the word (`cats|.`, `word| next`), so [autospaceRunnable] writes no space there;
+     * the space goes in front of the next word that starts at this offset instead. Without it
+     * every inserted word after the first glued on (`triedto`): 59 of 132 autospaces in one
+     * capture were held and none paid.
+     */
+    private var spaceOwedAt = -1
+    private var spaceOwedFromTaps = false
+
     // True while the composer holds a word reloaded from the editor that has received no
     // token since. A reload is not a finished word: the user parked the cursor in it or a
     // delete laid it bare. WordComposer.seed decodes, and without this flag that decode
@@ -479,7 +489,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             if (!autospaceWanted(config.tidySpaces, after, config.noSpaceBefore)) {
                 // The word still ends; the editor already has what should follow it.
                 if (finalizePendingWord()) {
-                    DecodeTrace.log { "  autospace held before=${after?.firstOrNull()?.code}" }
+                    spaceOwedAt = cursorExpected()
+                    spaceOwedFromTaps = taps
+                    autospaceAt = SystemClock.uptimeMillis()
+                    DecodeTrace.log {
+                        "  autospace held before=${after?.firstOrNull()?.code} owed=$spaceOwedAt"
+                    }
                     updateAutoShift()
                     refreshPredictions()
                 }
@@ -598,6 +613,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 config.apostropheKey != previous.apostropheKey ||
                 config.apostropheWidthPct != previous.apostropheWidthPct ||
                 config.numberRowGapPct != previous.numberRowGapPct ||
+                config.spaceRowGapPct != previous.spaceRowGapPct ||
                 config.letterAlternates != previous.letterAlternates ||
                 config.emojiKey != previous.emojiKey ||
                 config.numberPriority != previous.numberPriority ||
@@ -1064,6 +1080,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         kv.spaceChordArmMs = config.spaceChordArmMs
         kv.layoutMode = config.layoutMode
         kv.landscapeSplitGapPct = config.landscapeSplitGapPct
+        kv.keyGapPct = config.keyGapPct
         val arranged = LandscapeArrangement.appliesTo(
             isLandscape(), resources.configuration.screenWidthDp, config.wideArrangement,
         )
@@ -1189,6 +1206,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // The DEV build's trace names what is typed; a private field leaves no line in it.
         DecodeTrace.suppressed = editorState.teachesNothing
         backspaceTarget = null
+        spaceOwedAt = -1
         abandonWord()
         composer?.reset()
         recentWords.clear()
@@ -1403,6 +1421,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 // Long presses never reach here: the view's hold timer cancels the engine
                 // pointer and opens the alternates popup.
                 //
+                // A space held after the last word is written first, so the state below is the
+                // one a fired autospace leaves, retraction included.
+                if (tentativeLength == 0 && comp?.hasPendingWord != true) payOwedSpace()
                 // Before anything is committed, because commitTracked clears the flag this
                 // reads: a letter straight after a tapped word's autospace says the word was
                 // not over, so the space goes and the word comes back. An early space costs
@@ -1443,7 +1464,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 // Only for the word's first token. A two-thumb word whose first stroke lifted
                 // while the other thumb was still down shows nothing yet, and that first
                 // stroke has already spent the auto-shift: `trying` after `example. `.
-                if (tentativeLength == 0 && comp?.hasPendingWord != true) wordShift = shift.state
+                if (tentativeLength == 0 && comp?.hasPendingWord != true) {
+                    payOwedSpace()
+                    wordShift = shift.state
+                }
                 if (comp == null) {
                     Log.w(TAG, "swipe before dictionary ready, dropped")
                     return
@@ -3313,6 +3337,22 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         autospaceFromTaps = false
     }
 
+    /**
+     * Writes the space [autospaceRunnable] held mid-paragraph, now that a new word starts where
+     * it was owed. Flagged like a fired autospace, so punctuation eats it and a letter that
+     * continues a tapped word retracts it.
+     */
+    private fun payOwedSpace() {
+        val at = spaceOwedAt
+        if (at < 0) return
+        spaceOwedAt = -1
+        if (!paysOwedSpace(at, cursorExpected(), ich.textBeforeCursor(1))) return
+        commitTracked(" ")
+        autospaceInserted = true
+        autospaceFromTaps = spaceOwedFromTaps
+        DecodeTrace.log { "  autospace paid at=$at" }
+    }
+
     private fun finalizeThenCommitText(text: String) {
         eatAutospaceBefore(text)
         finalizePendingWord()
@@ -4935,6 +4975,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun commitTracked(text: String) {
         ich.commitText(text)
         expectAfter(0, text.length)
+        // Anything written after a held space settles it: punctuation needs none, a typed
+        // space is the space.
+        spaceOwedAt = -1
         // Cleared here so the flags only describe the space written last. The callers that
         // write an automatic space set them again right after.
         autospaceInserted = false

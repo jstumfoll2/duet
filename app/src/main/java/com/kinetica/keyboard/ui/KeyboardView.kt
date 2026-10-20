@@ -250,6 +250,18 @@ class KeyboardView @JvmOverloads constructor(
      */
     var popupColumns: Int = 0
 
+    /**
+     * Drawn spacing between keys, percent of the stock [KEY_GAP_DP]; set by the service. Only
+     * the drawing: hit areas and the decoder's geometry keep the full key rects.
+     */
+    var keyGapPct: Int = 100
+        set(value) {
+            if (field == value) return
+            field = value
+            keyGapPx = KEY_GAP_DP * density * value / 100f
+            if (width > 0 && height > 0) rebuild()
+        }
+
     /** Landscape split gap, percent of the view width between the halves; set by the service. */
     var landscapeSplitGapPct: Int = 0
         set(value) {
@@ -336,13 +348,17 @@ class KeyboardView @JvmOverloads constructor(
     private var numberGapTop = 0f
     private var numberGapBottom = 0f
 
+    // The strip between the bottom letter row and the space row, likewise. See [letterUnderGap].
+    private var spaceGapTop = 0f
+    private var spaceGapBottom = 0f
+
     private val keyInsets = ArrayList<RectF>()
     private var uppercase = false
     private var staticLayer: Bitmap? = null
     private var engineActive = false
 
     private val density = resources.displayMetrics.density
-    private val keyGapPx = 2.5f * density
+    private var keyGapPx = KEY_GAP_DP * density
     private val cornerPx = 7f * density
 
     private val trailRenderer = TrailRenderer(density)
@@ -752,6 +768,7 @@ class KeyboardView @JvmOverloads constructor(
             keyInsets.add(insetRect(rect))
         }
         measureNumberRowGap(l)
+        measureSpaceRowGap(l)
         buildGeometry(l)
         renderStaticLayer()
         invalidate()
@@ -771,13 +788,34 @@ class KeyboardView @JvmOverloads constructor(
         numberGapBottom = if (digitsBottom >= 0f && lettersTop != Float.MAX_VALUE) lettersTop else digitsBottom
     }
 
+    private fun measureSpaceRowGap(l: KeyboardLayout) {
+        var lettersBottom = -1f
+        for (i in l.keys.indices) {
+            if (l.keys[i].isLetter) lettersBottom = maxOf(lettersBottom, keyRects[i].bottom)
+        }
+        var rowTop = Float.MAX_VALUE
+        if (lettersBottom >= 0f) {
+            for (i in l.keys.indices) {
+                val r = keyRects[i]
+                if (!l.keys[i].isLetter && r.top >= lettersBottom - 0.5f) rowTop = minOf(rowTop, r.top)
+            }
+        }
+        spaceGapTop = lettersBottom
+        spaceGapBottom = if (rowTop != Float.MAX_VALUE) rowTop else lettersBottom
+    }
+
     /**
-     * [y], or the top of the letter rows when [y] lands in the gap under the numbers row
-     * ([LayoutMutations.withNumberRow]): the gap is the top letters' margin, so a thumb reaching
-     * high for `o` types `o`, and neither the letter keys nor the decoder's geometry move.
+     * [y], or the nearest letter row when [y] lands in a gap: under the numbers row
+     * ([LayoutMutations.withNumberRow]) it is the top letters' margin, so a thumb reaching high
+     * for `o` types `o`; over the space row ([LayoutMutations.withSpaceRowGap]) it is the bottom
+     * letters' margin, so a thumb aiming low for `b` types `b`, not a space. Neither the letter
+     * keys nor the decoder's geometry move.
      */
-    private fun letterUnderGap(y: Float): Float =
-        if (y >= numberGapTop && y < numberGapBottom) numberGapBottom else y
+    private fun letterUnderGap(y: Float): Float = when {
+        y >= numberGapTop && y < numberGapBottom -> numberGapBottom
+        y >= spaceGapTop && y < spaceGapBottom -> spaceGapTop - 0.5f
+        else -> y
+    }
 
     private fun buildGeometry(l: KeyboardLayout) {
         val rects = ArrayList<FloatArray>()
@@ -2027,6 +2065,8 @@ class KeyboardView @JvmOverloads constructor(
     private companion object {
         /** The strip's width in cells; it wraps into a second row past this (#8). */
         const val STRIP_MAX_CELLS = 9
+        /** The stock spacing drawn on each side of a key, in dp; [keyGapPct] scales it. */
+        const val KEY_GAP_DP = 2.5f
         const val MAX_POINTERS = 64
         const val ROUTE_NONE = 0
         const val ROUTE_ENGINE = 1

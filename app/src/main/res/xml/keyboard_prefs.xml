@@ -564,6 +564,26 @@
             app:min="0"
             app:showSeekBarValue="true" />
         <SeekBarPreference
+            android:key="pref_space_row_gap"
+            android:title="@string/pref_space_row_gap_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_space_row_gap_summary"
+            android:defaultValue="25"
+            android:max="50"
+            app:min="0"
+            app:seekBarIncrement="5"
+            app:showSeekBarValue="true" />
+        <SeekBarPreference
+            android:key="pref_key_gap"
+            android:title="@string/pref_key_gap_title"
+            app:singleLineTitle="false"
+            android:summary="@string/pref_key_gap_summary"
+            android:defaultValue="100"
+            android:max="300"
+            app:min="0"
+            app:seekBarIncrement="25"
+            app:showSeekBarValue="true" />
+        <SeekBarPreference
             android:key="pref_bottom_pad_dp"
             android:title="@string/pref_bottom_pad_title"
             app:singleLineTitle="false"

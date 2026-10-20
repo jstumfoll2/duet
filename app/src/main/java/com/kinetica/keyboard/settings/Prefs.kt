@@ -78,6 +78,15 @@ object Prefs {
     const val NUMBER_ROW_GAP_PCT = "pref_number_row_gap"
 
     /**
+     * How much of the bottom row's height (space, comma, enter), in percent, is a gap that
+     * types the letter above instead (LayoutMutations.withSpaceRowGap). Up to 50.
+     */
+    const val SPACE_ROW_GAP_PCT = "pref_space_row_gap"
+
+    /** The drawn spacing between keys, in percent of the stock spacing; touch targets keep their size. */
+    const val KEY_GAP_PCT = "pref_key_gap"
+
+    /**
      * The same, for the ?123 hold menu. A set of its own, so taking the gear off the bar does not
      * also take the hold menu's route to settings.
      */
@@ -672,6 +681,9 @@ object Prefs {
     const val DEFAULT_NUMBER_ROW = true
     // A quarter of the digits' row: a modest margin for a thumb reaching high for the top letters.
     const val DEFAULT_NUMBER_ROW_GAP_PCT = 25
+    // A quarter of the space row: a thumb aiming low for the bottom letters kept typing a space.
+    const val DEFAULT_SPACE_ROW_GAP_PCT = 25
+    const val DEFAULT_KEY_GAP_PCT = 100
     // Three quarters of a letter key, up from half; the home row moves left 0.25 key to make room.
     const val DEFAULT_APOSTROPHE_WIDTH_PCT = 75
     const val DEFAULT_SLIP_CORRECTION = true
