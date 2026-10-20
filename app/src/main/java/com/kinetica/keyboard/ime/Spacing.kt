@@ -339,3 +339,15 @@ private const val WORD_OPENERS = "([{\"\u00ab\u201c\u2018"
 // appears mid-token in something a keyboard has to type without spacing it:
 // snake_case, e-mail, don't, example.com, a/b, user@host, a\\b, C:name.
 private const val WORD_JOINERS = "_-'\u2019./\\@:"
+
+/**
+ * Whether a space held at offset [owedAt] is written as a new word starts at [cursor].
+ *
+ * [before] is the text before the cursor. Only at the offset the space was owed, and only
+ * after a non-blank character: a cursor that moved, or a space already there, settles it.
+ */
+internal fun paysOwedSpace(owedAt: Int, cursor: Int, before: CharSequence?): Boolean {
+    if (owedAt < 0 || owedAt != cursor) return false
+    if (before.isNullOrEmpty()) return false
+    return !before[before.length - 1].isWhitespace()
+}

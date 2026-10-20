@@ -118,7 +118,7 @@ class PreferenceTreeTest {
         for (k in listOf(
             "pref_keyboard_height_pct", "pref_keyboard_height_pct_landscape", "pref_suggestion_bar_dp",
             "pref_side_pad_dp", "pref_bottom_pad_dp", "pref_drag_handle_dp", "pref_landscape_split_gap_pct",
-            "pref_home_row_spread",
+            "pref_home_row_spread", "pref_space_row_gap", "pref_key_gap",
         )) {
             assertTrue("$k is on ${where[k]}, which has no size preview", where.containsKey(k) && where[k] in previews)
         }

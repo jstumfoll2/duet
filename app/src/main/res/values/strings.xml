@@ -394,6 +394,10 @@
     <string name="pref_number_row_summary">Digits in their own row above the letters, tap only. The keyboard grows a row so the letters keep their size</string>
     <string name="pref_number_row_gap_title">Gap under the numbers row (%)</string>
     <string name="pref_number_row_gap_summary">How much of each digit key, from the bottom, types the letter below instead. More keeps a thumb reaching for the top letters from typing t9 for to. The letter keys do not move</string>
+    <string name="pref_space_row_gap_title">Gap above the space bar (%)</string>
+    <string name="pref_space_row_gap_summary">How much of the space bar row, from the top, types the letter above instead. More keeps a thumb aiming low for b or n from typing a space. The letter keys do not move</string>
+    <string name="pref_key_gap_title">Spacing between keys (%)</string>
+    <string name="pref_key_gap_summary">How far apart the keys are drawn; 100 is the stock look. Only the drawing changes: every key still answers touches up to its neighbour, and swipes decode the same</string>
     <string name="pref_recent_words_summary">The last two words stay on the left of the bar, each with the two words it beat above and below it. Tap one to swap it in. The bar grows to fit</string>
     <string name="pref_emoji_suggestions_title">Emoji suggestions</string>
     <string name="pref_emoji_suggestions_summary">The bar offers emoji for the word just typed (pizza offers 🍕) at its right end. A tap adds the emoji after the word</string>

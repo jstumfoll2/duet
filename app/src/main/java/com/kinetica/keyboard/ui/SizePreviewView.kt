@@ -37,6 +37,8 @@ class SizePreviewView @JvmOverloads constructor(
         /** The landscape arrangement, for the landscape picture; null draws the board as in portrait. */
         val landscapeArrangement: LandscapeArrangement? = null,
         val splitGapPct: Int = 50,
+        /** The keys' drawn spacing, percent of the stock spacing, as the keyboard draws it. */
+        val keyGapPct: Int = 100,
     )
 
     var spec: Spec? = null
@@ -89,7 +91,8 @@ class SizePreviewView @JvmOverloads constructor(
         rect.set(0f, barTop, w, handleTop)
         canvas.drawRect(rect, fill)
 
-        val inset = 0.8f * density
+        // The stock spacing reads as 0.8 dp at preview scale; the setting scales it as on the board.
+        val inset = 0.8f * density * s.keyGapPct / 100f
         // The branch KeyboardView.rebuild takes: an arrangement only on the full board.
         val letter = s.keys.firstOrNull { it.isLetter }
         val arrangement = s.landscapeArrangement

@@ -181,6 +181,10 @@ data class KeyboardConfig(
     val numberRow: Boolean,
     /** Percent of the digits' row given to the letters below, 0 to 50. */
     val numberRowGapPct: Int = Prefs.DEFAULT_NUMBER_ROW_GAP_PCT,
+    /** Percent of the bottom row given to the letters above, 0 to 50. */
+    val spaceRowGapPct: Int = Prefs.DEFAULT_SPACE_ROW_GAP_PCT,
+    /** Drawn spacing between keys, percent of the stock spacing, 0 to 300. */
+    val keyGapPct: Int = Prefs.DEFAULT_KEY_GAP_PCT,
     /** Enabled languages in canonical cycle order; always contains [language]. */
     val enabledLanguages: List<String>,
     /** "Mix enabled languages": swiped and tapped words also decode against a second one. */
@@ -424,6 +428,9 @@ data class KeyboardConfig(
             numberRow = prefs.getBoolean(Prefs.NUMBER_ROW, Prefs.DEFAULT_NUMBER_ROW),
             numberRowGapPct = prefs.getInt(Prefs.NUMBER_ROW_GAP_PCT, Prefs.DEFAULT_NUMBER_ROW_GAP_PCT)
                 .coerceIn(0, 50),
+            spaceRowGapPct = prefs.getInt(Prefs.SPACE_ROW_GAP_PCT, Prefs.DEFAULT_SPACE_ROW_GAP_PCT)
+                .coerceIn(0, 50),
+            keyGapPct = prefs.getInt(Prefs.KEY_GAP_PCT, Prefs.DEFAULT_KEY_GAP_PCT).coerceIn(0, 300),
             slipCorrection = prefs.getBoolean(Prefs.SLIP_CORRECTION, Prefs.DEFAULT_SLIP_CORRECTION),
             enabledLanguages = enabledLanguages(prefs),
             britishSpelling = prefs.getBoolean(
