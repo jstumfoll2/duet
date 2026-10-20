@@ -76,6 +76,9 @@ class SuggestionBarView @JvmOverloads constructor(
 
         /** An emoji offered for the word before the cursor (see [emoji]) was tapped. */
         fun onEmojiPicked(emoji: String) {}
+
+        /** The menu button opened ([open]) or closed the shortcut row (haptic hook). */
+        fun onMenuToggled(open: Boolean) {}
     }
 
     /**
@@ -132,6 +135,33 @@ class SuggestionBarView @JvmOverloads constructor(
             field = value
             invalidate()
         }
+
+    /**
+     * Reserve the bar's left edge for a menu button that brings the shortcut row up on demand,
+     * over the words. The row otherwise shows only on an empty bar, and mid-sentence the bar is
+     * never empty: the last word's alternatives sit there until the next one starts.
+     */
+    var menuButton = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!value) menuOpen = false
+            invalidate()
+        }
+
+    /**
+     * The shortcut row was opened with the menu button and stays up until a tap on it, a
+     * shortcut, or the next word closes it.
+     */
+    var menuOpen = false
+        private set
+
+    /** Close the row the menu button opened; the IME calls this on a new field. */
+    fun closeMenu() {
+        if (!menuOpen) return
+        menuOpen = false
+        invalidate()
+    }
 
     /**
      * Configured width of that button in dp. Adjustable because the default is hard to hit with
@@ -244,6 +274,8 @@ class SuggestionBarView @JvmOverloads constructor(
         set(value) {
             if (field != value) {
                 field = value
+                // A word starting is the thumb going back to typing: the opened row gives way.
+                if (value) closeMenu()
                 if (words.isEmpty() && actions.isNotEmpty()) invalidate()
             }
         }
@@ -376,6 +408,7 @@ class SuggestionBarView @JvmOverloads constructor(
 
     /** Composition mode: ranked candidates for the word in progress. */
     fun setSuggestions(candidates: List<Suggestion>) {
+        if (candidates.isNotEmpty()) menuOpen = false
         words = candidates
         correctionMode = false
         selectedIndex = -1
@@ -400,6 +433,8 @@ class SuggestionBarView @JvmOverloads constructor(
      * equally tappable zones. Pages like composition mode, through the same zone code.
      */
     fun showCorrection(candidates: List<Suggestion>, selected: Int) {
+        // A commit is a new word, so the row opened before it gives way to its alternatives.
+        menuOpen = false
         words = candidates
         correctionMode = true
         selectedIndex = selected.coerceIn(0, (words.size - 1).coerceAtLeast(0))
@@ -422,10 +457,10 @@ class SuggestionBarView @JvmOverloads constructor(
      * changes, so neither onDraw nor onTouchEvent measures text on every frame or move event.
      */
     private fun pageSizes(): List<Int> {
-        // Everything that changes wordsWidth is in the key, the retype button included, or
+        // Everything that changes wordsWidth is in the key, the side buttons included, or
         // the partition would stay sized for the old width.
         val key = words.hashCode() * 31 * 31 + width * 31 + height +
-            (if (retypeButton) 7919 else 0) + retypeButtonDp + recent.size * 131 + (tallFactor * 100).toInt() +
+            (if (retypeButton) 7919 else 0) + (if (menuShown()) 3571 else 0) + retypeButtonDp + recent.size * 131 + (tallFactor * 100).toInt() +
             emoji.size * 7177 +
             (textScale * 1000).toInt() * 17 + (if (compactWords) 104729 else 0)
         if (key != zoneKey) {
@@ -473,7 +508,7 @@ class SuggestionBarView @JvmOverloads constructor(
      * live offer and the row must not cover it.
      */
     private fun actionsVisible(): Boolean =
-        actions.isNotEmpty() && words.isEmpty() && !correctionMode && !wordPending
+        actions.isNotEmpty() && (menuOpen || words.isEmpty() && !correctionMode && !wordPending)
 
     /** Cells drawn: as many as a thumb-sized cell leaves room for. */
     private fun visibleActions(): List<String> {
@@ -488,6 +523,8 @@ class SuggestionBarView @JvmOverloads constructor(
 
     /** The page's slice of [words]; zone indices are relative to this. */
     private fun visible(): List<Suggestion> {
+        // The opened row covers the words, so none of them takes a touch.
+        if (menuOpen && actionsVisible()) return emptyList()
         val sizes = pageSizes()
         if (sizes.isEmpty()) return emptyList()
         val p = page.coerceIn(0, sizes.size - 1)
@@ -512,7 +549,10 @@ class SuggestionBarView @JvmOverloads constructor(
                 timerDuration = 0L
             }
         }
+        canvas.save()
+        canvas.translate(menuWidth(), 0f)
         drawRecent(canvas, h)
+        canvas.restore()
         val vis = visible()
         // Ornaments scale with the bar so a thinned bar shrinks them instead of overlapping the
         // word; 1.0 at BarMetrics.REFERENCE_DP, the default 44dp look.
@@ -521,6 +561,17 @@ class SuggestionBarView @JvmOverloads constructor(
         textPaint.textSize = BarMetrics.textSize(rh, textScale)
         primaryPaint.textSize = BarMetrics.textSize(rh, textScale)
         val baseY = h / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
+        if (menuShown()) {
+            val mw = menuWidth()
+            if (menuOpen) {
+                val pad = 4f * density * orn
+                zoneRect.set(pad, pad, mw - pad, h - pad)
+                val corner = 6f * density * orn
+                canvas.drawRoundRect(zoneRect, corner, corner, chipPaint)
+            }
+            canvas.drawText(MENU_GLYPH, mw / 2f, baseY, textPaint)
+            canvas.drawRect(mw - 1f, h * 0.2f, mw + 1f, h * 0.8f, dividerPaint)
+        }
         // Drawn before the early return: an empty bar is when a botched word most needs
         // restarting.
         if (retypeButton) {
@@ -738,7 +789,8 @@ class SuggestionBarView @JvmOverloads constructor(
                 resetAdjust()
                 // Anywhere on the words, in either direction, once there is a page to go to.
                 // Not from the retype button or a recent column, which are not word zones.
-                pageSwipeCandidate = pageCount() > 1 && downZone != ZONE_RETYPE && downZone != ZONE_RECENT &&
+                pageSwipeCandidate = !menuOpen && pageCount() > 1 && downZone != ZONE_RETYPE && downZone != ZONE_RECENT &&
+                    downZone != ZONE_MENU &&
                     downZone > ZONE_EMOJI_BASE
                 pageSwipeConsumed = false
                 recentDownCell = if (downZone == ZONE_RECENT) recentCellAt(ev.x, ev.y) else -1
@@ -750,7 +802,7 @@ class SuggestionBarView @JvmOverloads constructor(
                 if (downZone >= 0 || recentHold) {
                     longPressHandler.postDelayed(reinforceRunnable, REINFORCE_HOLD_MS)
                 }
-                if (flickEnabled && !correctionMode && downZone != ZONE_RETYPE) {
+                if (flickEnabled && !correctionMode && downZone != ZONE_RETYPE && downZone != ZONE_MENU) {
                     velocityTracker?.recycle()
                     velocityTracker = VelocityTracker.obtain().also { it.addMovement(ev) }
                 }
@@ -875,6 +927,16 @@ class SuggestionBarView @JvmOverloads constructor(
                     recycleTracker()
                     return true
                 }
+                if (zone == ZONE_MENU && downZone == ZONE_MENU) {
+                    menuOpen = !menuOpen
+                    page = 0
+                    invalidate()
+                    listener?.onMenuToggled(menuOpen)
+                    performClick()
+                    downZone = -1
+                    recycleTracker()
+                    return true
+                }
                 if (zone == ZONE_RETYPE && downZone == ZONE_RETYPE) {
                     listener?.onRetype()
                     performClick()
@@ -890,6 +952,8 @@ class SuggestionBarView @JvmOverloads constructor(
                     return true
                 }
                 if (zone <= ZONE_ACTION_BASE && zone == downZone) {
+                    // One shortcut per opening: the words come back for whatever follows it.
+                    closeMenu()
                     listener?.onBarAction(ZONE_ACTION_BASE - zone)
                     performClick()
                     downZone = -1
@@ -962,6 +1026,13 @@ class SuggestionBarView @JvmOverloads constructor(
     /** Width the emoji cells take left of the retype button, or 0 with none offered. */
     private fun emojiWidth(): Float = if (emoji.isEmpty()) 0f else emojiCellWidth() * emoji.size
 
+    /** Whether the menu button is drawn: on, and with a shortcut row for it to open. */
+    private fun menuShown(): Boolean = menuButton && actions.isNotEmpty()
+
+    /** Width the menu button takes off the left edge: the retype button's smallest target. */
+    private fun menuWidth(): Float =
+        if (menuShown()) (BarMetrics.RETYPE_MIN_DP * density).coerceAtLeast(rowHeight()).coerceAtMost(width / 8f) else 0f
+
     /** Width the word zones divide between them. */
     private fun wordsWidth(): Float = width - retypeWidth() - emojiWidth() - wordsLeft()
 
@@ -970,12 +1041,12 @@ class SuggestionBarView @JvmOverloads constructor(
 
     private fun recentColumnWidth(): Float = width * RECENT_COLUMN_FRACTION
 
-    /** Where the live words start: right of the recent-word columns. */
-    private fun wordsLeft(): Float = recent.size * recentColumnWidth()
+    /** Where the live words start: right of the menu button and the recent-word columns. */
+    private fun wordsLeft(): Float = menuWidth() + recent.size * recentColumnWidth()
 
     /** Column times [RECENT_ROWS] plus row, for a touch inside the recent-word columns. */
     private fun recentCellAt(x: Float, y: Float): Int {
-        val col = (x / recentColumnWidth()).toInt().coerceIn(0, (recent.size - 1).coerceAtLeast(0))
+        val col = ((x - menuWidth()) / recentColumnWidth()).toInt().coerceIn(0, (recent.size - 1).coerceAtLeast(0))
         val row = (y / (height.toFloat() / RECENT_ROWS)).toInt().coerceIn(0, RECENT_ROWS - 1)
         return col * RECENT_ROWS + row
     }
@@ -986,6 +1057,7 @@ class SuggestionBarView @JvmOverloads constructor(
         // The button is not a word zone: it is outside the paging arithmetic, so MAX_ZONES,
         // visible and pageCount ignore it.
         if (retypeButton && xRaw >= width - retypeWidth()) return ZONE_RETYPE
+        if (menuShown() && xRaw < menuWidth()) return ZONE_MENU
         if (emoji.isNotEmpty() && xRaw >= width - retypeWidth() - emojiWidth()) {
             val i = ((width - retypeWidth() - xRaw) / emojiCellWidth()).toInt().coerceIn(0, emoji.size - 1)
             return ZONE_EMOJI_BASE - i
@@ -1036,6 +1108,9 @@ class SuggestionBarView @JvmOverloads constructor(
         // The recent-word columns: negative too, so no word gesture starts there.
         const val ZONE_RECENT = -3
 
+        // The menu button: not a word zone either.
+        const val ZONE_MENU = -4
+
         /** Rows in a recent-word column: the candidate above, the word, the next below. */
         const val RECENT_ROWS = 3
 
@@ -1060,5 +1135,8 @@ class SuggestionBarView @JvmOverloads constructor(
         // U+21BB. A symbol, not an icon: it themes with the text, scales with the bar and needs
         // no drawable.
         const val RETYPE_GLYPH = "\u21bb"
+
+        // U+2630, for the same reasons.
+        const val MENU_GLYPH = "\u2630"
     }
 }

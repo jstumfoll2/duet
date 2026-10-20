@@ -515,6 +515,8 @@
     <string name="pref_backspace_step_title">Backspace slide distance</string>
     <string name="pref_backspace_step_summary">How far you slide left from backspace to mark one more word (a letter takes about half). Higher is calmer</string>
     <string name="pref_backspace_char_slide_summary">Sliding left from backspace marks one letter at a time instead of a word. Nothing is deleted until you lift; sliding back undoes it</string>
+    <string name="pref_bar_menu_button_title">Menu button on the suggestion bar</string>
+    <string name="pref_bar_menu_button_summary">A \u2630 button at the left end of the bar. One tap brings up the shortcut row (paste, undo and the rest) in the middle of a sentence; the next word puts the suggestions back</string>
     <string name="pref_retype_button_title">Retype button on the suggestion bar</string>
     <string name="pref_retype_button_summary">A \u21bb button at the right end of the bar. One tap removes the word you are writing, or the one just finished, so you can swipe it again</string>
     <string name="pref_spacebar_word_slide_title">Spacebar slide moves by word</string>

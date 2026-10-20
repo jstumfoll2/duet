@@ -299,6 +299,12 @@ object Prefs {
     const val RETYPE_BUTTON = "pref_retype_button"
 
     /**
+     * Reserve the suggestion bar's left edge for a menu button that opens the shortcut row over
+     * the words, so paste and the rest are reachable mid-sentence, not only on an empty bar.
+     */
+    const val BAR_MENU_BUTTON = "pref_bar_menu_button"
+
+    /**
      * Travel, in dp, that moves the spacebar's cursor slide by one step. Lower is faster.
      *
      * Floored at the 8dp that arms cursor mode, since a shorter step would fire on the sample that
@@ -600,6 +606,7 @@ object Prefs {
     /** Must match DeleteSpan.DEFAULT_WORD_STEP_DP and keyboard_prefs.xml. */
     const val DEFAULT_BACKSPACE_STEP_DP = 56
     const val DEFAULT_RETYPE_BUTTON = false
+    const val DEFAULT_BAR_MENU_BUTTON = true
     const val DEFAULT_SPACEBAR_STEP_DP = 20
     const val DEFAULT_REINFORCE_STEP_DP = 24
     // A cleaner bar: the rank shows only on the word being slid.

@@ -1096,6 +1096,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         suggestionBar?.recentSwipeReversed = config.recentSwipeReversed
         suggestionBar?.retypeButton = config.retypeButton
         suggestionBar?.retypeButtonDp = config.retypeButtonDp
+        suggestionBar?.menuButton = config.barMenuButton
         // Resolved here, not in the views, so the language cell drops out below two enabled
         // languages on both surfaces alike.
         barActions = ActionRow.resolve(
@@ -1253,6 +1254,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     override fun onStartInputView(editorInfo: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(editorInfo, restarting)
         suggestionBar?.clearSuggestions()
+        suggestionBar?.closeMenu()
         updateBarWordPending()
         keyboardView?.setShiftUppercase(shift.isShifted)
         closeEmojiPicker()
@@ -1973,6 +1975,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             vibrateForKeyPress()
             this@KineticaIME.onEmojiSuggestionPicked(emoji)
         }
+
+        override fun onMenuToggled(open: Boolean) = vibrateForKeyPress()
     }
 
     /**

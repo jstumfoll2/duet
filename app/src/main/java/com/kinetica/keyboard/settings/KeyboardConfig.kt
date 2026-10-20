@@ -78,6 +78,8 @@ data class KeyboardConfig(
     val retypeButton: Boolean,
     /** Width of that button in dp, clamped to BarMetrics' settable range. */
     val retypeButtonDp: Int,
+    /** Suggestion bar reserves its left edge for a button that opens the shortcut row. */
+    val barMenuButton: Boolean = Prefs.DEFAULT_BAR_MENU_BUTTON,
     /** Side inset around the key block, per side, in dp. */
     val sidePadDp: Int,
     /** How far the middle letter row spreads toward the edges, 0 to 100%. */
@@ -324,6 +326,7 @@ data class KeyboardConfig(
                 DeleteSpan.MAX_WORD_STEP_DP.toInt(),
             ).toFloat(),
             retypeButton = prefs.getBoolean(Prefs.RETYPE_BUTTON, Prefs.DEFAULT_RETYPE_BUTTON),
+            barMenuButton = prefs.getBoolean(Prefs.BAR_MENU_BUTTON, Prefs.DEFAULT_BAR_MENU_BUTTON),
             sidePadDp = prefs.getInt(Prefs.SIDE_PAD_DP, Prefs.DEFAULT_SIDE_PAD_DP)
                 .coerceIn(0, LayoutTransforms.MAX_SIDE_PAD_DP),
             homeRowSpreadPct = prefs.getInt(Prefs.HOME_ROW_SPREAD_PCT, Prefs.DEFAULT_HOME_ROW_SPREAD_PCT)
