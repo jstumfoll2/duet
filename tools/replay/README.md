@@ -18,6 +18,22 @@ committed word comes out on top. Plain JVM: it needs a JDK, not the Android SDK.
 ./gradlew -p tools/replay test
 ```
 
+## Decode latency
+
+```bash
+# Per input shape: mean, p50 to p99 and max of each line's fastest of three warm runs
+./gradlew -p tools/replay bench --args="TRACE.jsonl..."
+# The same with the phone's NN switch on (two-thumb rerank at beta 0.1)
+./gradlew -p tools/replay bench --args="--ctc app/src/debug/assets/ctc/futo_v1.kctc --beta 0.1 TRACE.jsonl..."
+# Add --stages for where the time goes (il, passes, stream, fuzzy, rescue, beam, rerank),
+# --alloc for bytes allocated per line instead, or --interleave for the two-thumb search
+# alone with a hash of its hits (a speed-up that changes nothing keeps the hash)
+```
+
+To compare two builds, run both on the same files back to back; JVM times are relative, not
+phone timings. A DEV build's decode log has the phone's own: each `decode time` line gives the
+total, then the stages that took 0.01 ms or more.
+
 Options: `--k N` sets the deep list for recall (default 50); `--edge G` sets the
 near-edge tap gap in kw (0 turns that pass off); `--nosplit` keeps a tapped word followed by a
 swipe one word, as with automatic spaces off (a split loses the line's word); `--assets DIR`

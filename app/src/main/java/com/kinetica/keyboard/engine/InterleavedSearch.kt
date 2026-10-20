@@ -23,7 +23,7 @@ class InterleavedSearch(
         private set
 
     fun run(keep: Int): List<Hit> {
-        val rows = Array(KineticaConstants.MAX_WORD_LEN + 1) { FloatArray(il.rowSize) }
+        val rows = il.workRows()
         il.initialRow().copyInto(rows[0])
         val letters = IntArray(KineticaConstants.MAX_WORD_LEN)
         val visits = IntArray(KineticaConstants.MAX_WORD_LEN + 1)

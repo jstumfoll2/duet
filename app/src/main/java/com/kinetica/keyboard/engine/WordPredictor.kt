@@ -97,7 +97,7 @@ class WordPredictor(
     @Volatile var trigrams: TrigramTable = TrigramTable.EMPTY
 
     private val dtw = DtwMatcher()
-    private val heapDepth = if (reranker != null) maxOf(topK, rerankDepth) else topK
+    private val deepDepth = if (reranker != null) maxOf(topK, rerankDepth) else topK
 
     /**
      * Trace suffix identifying which dictionary a decode line belongs to.
@@ -404,16 +404,31 @@ class WordPredictor(
     // 2026-10-08 device A/B, overlapped words at beta 0.3 went 79% plain -> 69% reranked
     // (29 words; 0.05 was level). Those buffers go to rerankOverlapped instead, which scores
     // each stroke on the letters the interleaved reading gives it, or keep the plain order.
-    private fun reranked(out: List<WordCandidate>, tokens: List<InputToken>): List<WordCandidate> =
+    private fun reranked(out: List<WordCandidate>, tokens: List<InputToken>, read: Reading): List<WordCandidate> =
         when {
-            reranker == null -> out
+            reranker == null || !read.reranks -> out
             // The heap ran rerankDepth deep for the encoder; hand back the shipping top K.
-            Interleave.thumbsOverlap(tokens) -> {
-                val il = geometry?.let { Interleave.of(tokens, it) }
+            read.overlapped -> {
+                val il = read.il ?: geometry?.let { Interleave.of(tokens, it) }
                 (il?.let { reranker.rerankOverlapped(it, tokens, out) } ?: out).take(topK)
             }
             else -> reranker.rerank(tokens, out).take(topK)
         }
+
+    /**
+     * What one decode asks of the reranker. A buffer the reranker leaves in its plain order
+     * (one thumb, under [CandidateReranker.reranks]) decodes exactly as with no reranker: a
+     * [topK] heap and no segmentation. The deep heap's linear offers and a segmentation copy
+     * per accepted word had made one-thumb buffers 15 to 25% slower with the NN switch on.
+     */
+    private class Reading(val overlapped: Boolean, val reranks: Boolean, val depth: Int, val segments: Boolean, val il: Interleave?)
+
+    private fun reading(tokens: List<InputToken>, il: Interleave?): Reading {
+        val r = reranker ?: return Reading(false, false, topK, false, il)
+        val overlapped = il != null || Interleave.thumbsOverlap(tokens)
+        val on = r.reranks(overlapped)
+        return Reading(overlapped, on, if (on) deepDepth else topK, on && r.usesSegmentation(overlapped), il)
+    }
 
     /**
      * Ranked candidates for [input]; see [decodeLetters] for [beam] and [context]. [apostrophe] says the
@@ -581,11 +596,15 @@ class WordPredictor(
         val prevWord = context.lastOrNull()?.let { AccentFolder.fold(it.lowercase()) }
         val prevWordId = prevWord?.let { trie.nodeFor(it) } ?: -1
 
+        val clock = if (DecodeTrace.enabled) PhaseClock(startNs) else null
         // Interleave reads Latin codes only; other scripts keep the cut-and-merge reading.
         val il = if (interleave && alphabet === Alphabet.LATIN) Interleave.of(tokens, g) else null
         val ilHits = if (il != null) interleaved(il, prevWordId) else emptyList()
+        clock?.lap(PhaseClock.INTERLEAVE)
+        val read = reading(tokens, il)
+        val heapDepth = read.depth
 
-        val heap = CandidateHeap(heapDepth, pruneRank = topK)
+        val heap = CandidateHeap(heapDepth, pruneRank = topK, segments = read.segments)
         val seqs = MergeAlternatives.sequences(tokens, dtw)
         val patterns = ArrayList<List<Matcher>>(4)
         for (seq in seqs) {
@@ -608,7 +627,8 @@ class WordPredictor(
         val beamReads = beam && engine != 1 && ThumbBeam.applies(seqs.first(), patterns.firstOrNull())
         if (beamReads && engine == 2) {
             ThumbBeam(this, g, seqs.first(), patterns.first(), heap, prevWordId, prevWord).run()
-            return finish(reranked(withInterleave(heap.sortedByScoreDesc(), ilHits), tokens), startNs)
+            clock?.lap(PhaseClock.BEAM)
+            return finish(reranked(withInterleave(heap.sortedByScoreDesc(), ilHits), tokens, read), startNs, clock)
         }
         for (p in patterns) {
             Search(p, g, prevWordId, prevWord, heap, fuzzyAnchors = false).run()
@@ -634,6 +654,8 @@ class WordPredictor(
             }
         }
 
+        clock?.lap(PhaseClock.PASSES)
+
         // The two-thumb pass: one cursor per thumb, a cut wherever the reading hands over,
         // and a bounded step back in time at each hand-over, so a thumb that reached its key
         // before the other left the letter before it still reads in the word's order.
@@ -644,6 +666,7 @@ class WordPredictor(
                 Search(p!!, g, prevWordId, prevWord, heap, fuzzyAnchors = false, plan = plan).run()
             }
         }
+        clock?.lap(PhaseClock.STREAM)
 
         // Fallback passes for sparse results: relaxed anchors (adjacent-key
         // typos, slightly missed taps in merged input), then transpositions
@@ -682,6 +705,7 @@ class WordPredictor(
                 Search(p, g, prevWordId, prevWord, heap, fuzzyAnchors = true, edgeGapKw = edgeTapGapKw).run()
             }
         }
+        clock?.lap(PhaseClock.FUZZY)
         // Rescue: the lead fits its gesture poorly, which is where retyped words
         // sit (median d 0.59 against 0.25 for accepted commits), or nothing was
         // found. One more pass reads the refused gates as costs, under its own budget.
@@ -696,17 +720,19 @@ class WordPredictor(
                 ).run()
             }
         }
-        if (!beamReads) return finish(reranked(withInterleave(heap.sortedByScoreDesc(), ilHits), tokens), startNs)
+        clock?.lap(PhaseClock.RESCUE)
+        if (!beamReads) return finish(reranked(withInterleave(heap.sortedByScoreDesc(), ilHits), tokens, read), startNs, clock)
         // The beam scores into a copy of the passes' heap, so its abandon budget starts where
         // theirs ended, and may add at most BEAM_MAX_NEW words: a better reading still leads,
         // and the passes' own list keeps its order behind it. The interleaved reading joins the
         // passes' list before the beam's merge, so a beam word that outreads both still leads.
         val passes = heap.sortedByScoreDesc()
-        val beamHeap = CandidateHeap(heapDepth, pruneRank = topK)
+        val beamHeap = CandidateHeap(heapDepth, pruneRank = topK, segments = read.segments)
         for (c in passes) beamHeap.offer(c)
         ThumbBeam(this, g, seqs.first(), patterns.first(), beamHeap, prevWordId, prevWord).run()
-        val merged = mergeBeam(withInterleave(passes, ilHits), beamHeap.sortedByScoreDesc())
-        return finish(reranked(merged, tokens), startNs)
+        val merged = mergeBeam(withInterleave(passes, ilHits), beamHeap.sortedByScoreDesc(), heapDepth)
+        clock?.lap(PhaseClock.BEAM)
+        return finish(reranked(merged, tokens, read), startNs, clock)
     }
 
     /**
@@ -715,7 +741,7 @@ class WordPredictor(
      * only takes a free slot among the first TOP_K: pushing the passes' tail out loses `sarei`, a
      * free slot holds `landscape`. When the passes found nothing, the beam's list is the list.
      */
-    private fun mergeBeam(passes: List<WordCandidate>, beam: List<WordCandidate>): List<WordCandidate> {
+    private fun mergeBeam(passes: List<WordCandidate>, beam: List<WordCandidate>, heapDepth: Int): List<WordCandidate> {
         if (passes.isEmpty()) return beam
         val known = passes.mapTo(HashSet()) { it.word }
         val lead = passes.first().score
@@ -743,7 +769,8 @@ class WordPredictor(
     }
 
     /** The ranked list's trace lines, which every decode ends with. */
-    private fun finish(out: List<WordCandidate>, startNs: Long): List<WordCandidate> {
+    private fun finish(out: List<WordCandidate>, startNs: Long, clock: PhaseClock?): List<WordCandidate> {
+        clock?.lap(PhaseClock.RERANK)
         // Full score components per candidate: rank upsets are usually decided by fw/boost
         // arithmetic, not geometry. Every factor of score = fw * geometricTerm(d) * bm * pb * ck
         // is printed, so a captured row closes arithmetically. `bm` and `pb` are the applied
@@ -768,7 +795,8 @@ class WordPredictor(
                 }
         }
         // The phone's own decode cost, which the JVM corpus can only bound from below.
-        DecodeTrace.log { "decode time$langTag: ${"%.2f".format((System.nanoTime() - startNs) / 1e6)}ms" }
+        // Then where it went, by stage, so a slow phone decode says which stage to look at.
+        DecodeTrace.log { "decode time$langTag: ${"%.2f".format((System.nanoTime() - startNs) / 1e6)}ms" + (clock?.let { " ${it.line()}" } ?: "") }
         return out
     }
 
@@ -1136,7 +1164,7 @@ class WordPredictor(
         // as applied, so a captured row closes arithmetically. The abandon
         // budget above keeps the raw values.
         val bmApplied = KineticaConstants.appliedBoost(bm, geoFit)
-        val wantSeg = reranker != null
+        val wantSeg = heap.segments
         if (word != null) {
             val pb = KineticaConstants.appliedBoost(personalBoost(word), geoFit)
             val pbm = KineticaConstants.appliedBoost(personalBigramBoost(prevWord, word), geoFit)
@@ -2256,9 +2284,10 @@ class WordPredictor(
  * does today, so the top TOP_K entries are today's list, and the extra depth
  * only holds words the unchanged search already scored. Pruning at the deep
  * rank instead loosened every budget and starved the fixed emit cap, which lost
- * words the shipping top 10 finds.
+ * words the shipping top 10 finds. [segments] says whether offers carry their
+ * [WordCandidate.segmentation], for a reranker that reads it.
  */
-class CandidateHeap(private val cap: Int, private val pruneRank: Int = cap) {
+class CandidateHeap(private val cap: Int, private val pruneRank: Int = cap, val segments: Boolean = false) {
     private val items = ArrayList<WordCandidate>(cap + 1)
     private var threshold = 0f
     private var thresholdStale = true
@@ -2539,4 +2568,33 @@ internal fun nearEdge(m: Matcher.Anchor, g: KeyboardGeometry, gapKw: Float): Boo
         if (g.distToCenter(m.x, m.y, code) - own <= gapKw) return true
     }
     return false
+}
+
+/**
+ * Where one traced decode spent its time, stage by stage: each [lap] charges the time since
+ * the last one to a stage. Built only under a trace sink, so a release decode pays nothing.
+ */
+internal class PhaseClock(private var last: Long) {
+    private val ns = LongArray(NAMES.size)
+
+    fun lap(stage: Int) {
+        val now = System.nanoTime()
+        ns[stage] += now - last
+        last = now
+    }
+
+    /** `il 1.20 passes 3.40 ...`, in ms, stages that took no time left out. */
+    fun line(): String = NAMES.indices.filter { ns[it] >= 10_000 }
+        .joinToString(" ") { "${NAMES[it]} ${"%.2f".format(java.util.Locale.ROOT, ns[it] / 1e6)}" }
+
+    companion object {
+        const val INTERLEAVE = 0
+        const val PASSES = 1
+        const val STREAM = 2
+        const val FUZZY = 3
+        const val RESCUE = 4
+        const val BEAM = 5
+        const val RERANK = 6
+        val NAMES = arrayOf("il", "passes", "stream", "fuzzy", "rescue", "beam", "rerank")
+    }
 }
