@@ -172,20 +172,17 @@ class RealDictionaryTest {
         val g = TestData.qwertyGeometry()
         val predictor = WordPredictor(trie, BigramTable.EMPTY, g)
         val tokens = listOf(TestData.swipe("keyboard", g, 0, 600))
-        predictor.decode(tokens, emptyList()) // warmup
-        fun ms(block: () -> Unit): Double {
-            val t0 = System.nanoTime()
-            repeat(10) { block() }
-            return (System.nanoTime() - t0) / 10 / 1_000_000.0
-        }
-        val full = ms { predictor.decode(tokens, emptyList()) }
-        predictor.stale = { true }
-        val stopped = try {
-            ms { predictor.decode(tokens, emptyList()) }
-        } finally {
-            predictor.stale = null
-        }
-        assertTrue("stale decode took $stopped ms against $full", stopped < full)
+        // Counted in stale checks, not wall-clock time, which a busy CI runner made flaky: a
+        // search that keeps going keeps asking, one that stopped asks no more.
+        var freshAsks = 0
+        predictor.stale = { freshAsks++; false }
+        val fresh = try { predictor.decode(tokens, emptyList()) } finally { predictor.stale = null }
+        var staleAsks = 0
+        predictor.stale = { staleAsks++; true }
+        try { predictor.decode(tokens, emptyList()) } finally { predictor.stale = null }
+        assertTrue("the search never asked", staleAsks > 0)
+        assertTrue("stale decode asked $staleAsks times against $freshAsks", staleAsks < freshAsks)
+        assertTrue(fresh.any { it.word == "keyboard" })
         assertTrue(predictor.decode(tokens, emptyList()).any { it.word == "keyboard" })
     }
 
