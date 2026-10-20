@@ -231,7 +231,7 @@ class DeleteSpanTest {
     @Test
     fun aJoinedWordGivesUpItsTailFirst() {
         // `to` tapped and `feel` swiped, read as `toddle`, autospace after it.
-        val text = "it came to toddle "
+        val text = "it came toddle "
         assertEquals("ddle ", tailOf(text, DeleteSpan.wordsFromJoin(text, 1, 5)))
         assertEquals("toddle ", tailOf(text, DeleteSpan.wordsFromJoin(text, 2, 5)))
         assertEquals("came toddle ", tailOf(text, DeleteSpan.wordsFromJoin(text, 3, 5)))
