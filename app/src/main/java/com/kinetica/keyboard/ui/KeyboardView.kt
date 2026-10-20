@@ -346,6 +346,8 @@ class KeyboardView @JvmOverloads constructor(
     // The strip between the numbers row's digits and the top letter row, in view pixels, or
     // empty (top >= bottom) when the row is off or has no gap. See [letterUnderGap].
     private var numberGapTop = 0f
+    /** The narrowest letter key's width, the kw unit; zero before the first layout. */
+    private var letterWidthPx = 0f
     private var numberGapBottom = 0f
 
     // The strip between the bottom letter row and the space row, likewise. See [letterUnderGap].
@@ -833,6 +835,7 @@ class KeyboardView @JvmOverloads constructor(
             if (r.width() < minLetterW) minLetterW = r.width()
         }
         engineActive = rects.isNotEmpty()
+        letterWidthPx = if (engineActive) minLetterW else 0f
         if (!engineActive || minLetterW <= 0f) return
         // The stream-split line is the centre of the letter block, not of the view: with a side
         // inset, half the view width would put the divider off centre and misassign a thumb.
@@ -1142,10 +1145,21 @@ class KeyboardView @JvmOverloads constructor(
         return true
     }
 
-    private fun handleDown(pid: Int, x: Float, touchY: Float, t: Long) {
+    private fun handleDown(pid: Int, touchX: Float, touchY: Float, t: Long) {
         val l = layout ?: return
         val y = letterUnderGap(touchY)
-        val keyIdx = keyIndexAt(x, y)
+        var x = touchX
+        var keyIdx = keyIndexAt(x, y)
+        if (keyIdx == -1) {
+            keyIdx = edgeLetterAt(x, y)
+            // The engine starts a stream only on a letter's rect, so the first sample moves onto
+            // the key's near edge; every later sample is where the thumb really is.
+            if (keyIdx != -1) {
+                val r = keyRects[keyIdx]
+                x = x.coerceIn(r.left, r.right - 1f)
+                DecodeTrace.log { "  touch edge-start key=${l.keys[keyIdx].output} gap=${((touchX - x) / letterWidthPx).fmtKw()}kw" }
+            }
+        }
         downKeyByPointer[pid] = keyIdx
         downXByPointer[pid] = x
         downYByPointer[pid] = y
@@ -2054,6 +2068,25 @@ class KeyboardView @JvmOverloads constructor(
         burstRenderer.clear()
         invalidate()
     }
+
+    /**
+     * The letter beside [x], [y] when the touch missed every key: the empty margin left of `a`
+     * or right of `l`, or a spacing gap in a letter row. The nearest key in the row band decides,
+     * so a margin beside shift or backspace stays theirs, and only within
+     * [KineticaConstants.START_EDGE_ZONE_MAX_KW] of it. -1 elsewhere. Idea from the srwi/kinetica
+     * fork (072d95a): a swipe that began in the margin was dropped.
+     */
+    private fun edgeLetterAt(x: Float, y: Float): Int {
+        val l = layout ?: return -1
+        if (letterWidthPx <= 0f) return -1
+        val best = TouchRules.nearestInRow(
+            keyRects.size, { keyRects[it].left }, { keyRects[it].top }, { keyRects[it].right }, { keyRects[it].bottom },
+            x, y, KineticaConstants.START_EDGE_ZONE_MAX_KW * letterWidthPx,
+        )
+        return if (best != -1 && l.keys[best].isLetter) best else -1
+    }
+
+    private fun Float.fmtKw(): String = "%.2f".format(this)
 
     private fun keyIndexAt(x: Float, y: Float): Int {
         for (i in keyRects.indices) {

@@ -134,10 +134,18 @@ object MergeAlternatives {
                 // isInteriorCut is the same guard against the path instead of the clock,
                 // splitVariants clamps its own index, and sliceOrNull refuses a piece that
                 // cannot carry a letter.
+                //
+                // A tap that lands while the swipe is still parked on its first key is interior
+                // too, however early: "dir" held on d, tapped i at +40 ms, then slid to r. Its
+                // cut is where the thumb leaves the parked key, not the tap's instant, which
+                // falls on the parked run's first samples and leaves nothing to cut.
+                var tCut = tap.tStart
                 if (tap.tStart <= swipe.tStart + KineticaConstants.SPLIT_MARGIN_MS &&
                     !isInteriorCut(swipe, tap.tStart)
                 ) {
-                    continue
+                    val leave = parkedUntil(swipe, tap.tStart) ?: continue
+                    if (!isInteriorCut(swipe, leave)) continue
+                    tCut = leave
                 }
                 // No dead zone before the swipe's end, and a grace window after it: a
                 // reaction-timed cross-stream tap often lands in the last fraction of the
@@ -153,11 +161,11 @@ object MergeAlternatives {
                 // resume family, and the dedup by half boundaries drops any overlap.
                 val variants = ArrayList<SplitVariant>(4)
                 val seenHalves = HashSet<String>(4)
-                val snaps = contactSnaps(swipe, tap.tStart)
+                val snaps = contactSnaps(swipe, tCut)
                 // The tap's own instant first, through the geometry variants, so the resume
                 // family's orderings hold. Then the untrimmed contact cuts, the better evidence,
                 // ahead of MAX_ALT_SEQUENCES. Then geometry at the snapped times.
-                for (v in splitVariants(swipe, tap.tStart, resampler)) {
+                for (v in splitVariants(swipe, tCut, resampler)) {
                     val sig = "${v.first.tStart}-${v.first.tEnd}-${v.second.tStart}"
                     if (seenHalves.add(sig)) variants.add(v)
                 }
@@ -588,6 +596,30 @@ object MergeAlternatives {
      * boundaries; letting this one clamp onto the tail nulled the whole interleave for that
      * buffer.
      */
+    /**
+     * When the thumb drawing [s] leaves its first key, if it was still resting there at [t] and
+     * rested at least [KineticaConstants.PARK_MIN_MS] in all; null otherwise.
+     *
+     * A swipe that sets off at once has moved under [KineticaConstants.PARK_RADIUS_KW] by the
+     * margin too, so the duration is what tells a hold from a start: the leading-tap guard stays
+     * for a moving swipe, where an early tap is the other thumb's previous letter ("sarei").
+     */
+    private fun parkedUntil(s: SwipeToken, t: Long): Long? {
+        val path = s.rawPath
+        if (path.size < 6) return null
+        val x0 = path[0].x
+        val y0 = path[0].y
+        val r2 = KineticaConstants.PARK_RADIUS_KW * KineticaConstants.PARK_RADIUS_KW
+        for (p in path) {
+            val dx = p.x - x0
+            val dy = p.y - y0
+            if (dx * dx + dy * dy > r2) {
+                return if (p.t > t && p.t - s.tStart >= KineticaConstants.PARK_MIN_MS) p.t else null
+            }
+        }
+        return null
+    }
+
     private fun isInteriorCut(s: SwipeToken, t: Long): Boolean {
         val path = s.rawPath
         if (path.size < 6) return false

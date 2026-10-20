@@ -43,6 +43,9 @@ class ResumeAfterInterruptionTest {
             // distractors
             "water" to 4500, "winner" to 3500, "hunted" to 3000,
             "wander" to 2500, "sender" to 2000, "waned" to 800,
+            "dir" to 5000,
+            "die" to 8000, // rival: e sits near the d->r resume leg
+            "rid" to 1000, // rival: r sits near the d press point
             "in" to 9000, "inn" to 1500,
             "the" to 12000, "and" to 15000, "a" to 20000,
         ),
@@ -85,6 +88,12 @@ class ResumeAfterInterruptionTest {
     private fun winter(overshoot: Float) = listOf(
         TestData.dwellSwipe("wi", "er", g, 0, 200, 400, 200, overshoot, StreamId.LEFT),
         TestData.swipe("nt", g, t0 = 300, durMs = 200, stream = StreamId.RIGHT),
+    )
+
+    /** Left presses and holds D, right taps I during the hold, left slides to R and lifts. */
+    private fun dir(tapT: Long) = listOf(
+        TestData.dwellSwipe("d", "r", g, 0, 100, 400, 200, 0f, StreamId.LEFT),
+        TestData.tap('i', g, tapT, StreamId.RIGHT),
     )
 
     // ---- tests ---------------------------------------------------------------
@@ -158,5 +167,15 @@ class ResumeAfterInterruptionTest {
         }
         assumeTrue("it_wordlist asset not found", p != null)
         return Files.newBufferedReader(p!!).use { DictionaryLoader.loadWordlist(it) }
+    }
+
+    @Test
+    fun aTapWhileTheFirstKeyIsHeldSplitsHoweverEarly() {
+        // Ported from the srwi fork (4c8cdf6): a tap 40 ms into a held first key fell under the
+        // leading-tap margin and decoded nothing; at 150 and 300 ms it already decoded "dir".
+        for (tapT in listOf(40L, 150L, 300L)) {
+            val words = decode(dir(tapT))
+            assertTrue("dir (tapT=$tapT) top-1 was ${words.take(3)}", words.firstOrNull() == "dir")
+        }
     }
 }

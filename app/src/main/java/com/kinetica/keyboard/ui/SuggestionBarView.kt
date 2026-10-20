@@ -12,6 +12,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
+import com.kinetica.keyboard.R
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.keys.ActionRow
 
@@ -79,6 +80,9 @@ class SuggestionBarView @JvmOverloads constructor(
 
         /** The menu button opened ([open]) or closed the shortcut row (haptic hook). */
         fun onMenuToggled(open: Boolean) {}
+
+        /** A cell of the hold menu was tapped for [word], held at [source]. */
+        fun onWordMenu(word: String, action: BarAdjust.WordMenuAction, source: BarAdjust.BlockSource) {}
     }
 
     /**
@@ -275,7 +279,10 @@ class SuggestionBarView @JvmOverloads constructor(
             if (field != value) {
                 field = value
                 // A word starting is the thumb going back to typing: the opened row gives way.
-                if (value) closeMenu()
+                if (value) {
+                    closeMenu()
+                    closeWordMenu()
+                }
                 if (words.isEmpty() && actions.isNotEmpty()) invalidate()
             }
         }
@@ -324,6 +331,7 @@ class SuggestionBarView @JvmOverloads constructor(
             adjustSteps = 0
             recycleTracker()
             invalidate()
+            longPressHandler.postDelayed(wordMenuRunnable, WORD_MENU_HOLD_MS)
         }
     }
 
@@ -339,6 +347,111 @@ class SuggestionBarView @JvmOverloads constructor(
         } ?: return null
         val count = col.counts.getOrElse(r) { 0 }
         return Suggestion(word, KineticaConstants.personalTier(count), count)
+    }
+
+    /**
+     * The hold menu: a word held still past [WORD_MENU_HOLD_MS] puts never / less / more /
+     * forget / why across the bar in place of the words, so what the slide does in silence has
+     * plain names. Null when closed. Idea from the lurebat/kinetica fork's wishlist review.
+     */
+    private var menuWord: Suggestion? = null
+    private var menuSource = BarAdjust.BlockSource.OTHER
+
+    /** An answer to "why", across the bar until the next tap. */
+    private var menuNote: String? = null
+
+    // The touch that opened the menu still owns the pointer: its lift must not pick a cell.
+    private var menuSwallowUp = false
+    private var menuDownCell = -1
+
+    private val wordMenuRunnable = Runnable {
+        val target = adjustTarget ?: return@Runnable
+        if (!adjustArmed || adjustSteps != 0) return@Runnable
+        menuWord = target
+        menuSource = adjustSource
+        menuNote = null
+        menuSwallowUp = true
+        resetAdjust()
+        listener?.onReinforceStep()
+        invalidate()
+    }
+
+    /** The menu's labels, the word first: tapping it closes the menu. */
+    private val menuLabels: List<String> by lazy {
+        listOf(
+            context.getString(R.string.bar_menu_never),
+            context.getString(R.string.bar_menu_less),
+            context.getString(R.string.bar_menu_more),
+            context.getString(R.string.bar_menu_forget),
+            context.getString(R.string.bar_menu_why),
+        )
+    }
+
+    /** Whether the hold menu or its answer covers the bar. */
+    val wordMenuOpen: Boolean get() = menuWord != null || menuNote != null
+
+    /** Shows [text] across the bar, the answer to the menu's "why". */
+    fun showWordNote(text: String) {
+        menuWord = null
+        menuNote = text
+        invalidate()
+    }
+
+    /** Closes the hold menu and any answer; the IME calls this on a new field or word. */
+    fun closeWordMenu() {
+        if (!wordMenuOpen) return
+        menuWord = null
+        menuNote = null
+        menuSwallowUp = false
+        invalidate()
+    }
+
+    private fun wordMenuCellCount(): Int = menuLabels.size + 1
+
+    private fun wordMenuCellAt(x: Float): Int =
+        if (width <= 0) -1 else (x / (width.toFloat() / wordMenuCellCount())).toInt().coerceIn(0, wordMenuCellCount() - 1)
+
+    private fun onWordMenuTouch(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> menuDownCell = if (menuWord != null) wordMenuCellAt(ev.x) else -1
+            MotionEvent.ACTION_UP -> {
+                if (menuSwallowUp) {
+                    menuSwallowUp = false
+                    return true
+                }
+                val target = menuWord
+                if (target == null) {
+                    // A tap anywhere puts the words back after an answer.
+                    closeWordMenu()
+                    return true
+                }
+                val cell = wordMenuCellAt(ev.x)
+                if (cell != menuDownCell) return true
+                val action = if (cell == 0) null else BarAdjust.WordMenuAction.entries.getOrNull(cell - 1)
+                menuWord = null
+                invalidate()
+                if (action != null) listener?.onWordMenu(target.word, action, menuSource)
+                performClick()
+            }
+            MotionEvent.ACTION_CANCEL -> menuSwallowUp = false
+        }
+        return true
+    }
+
+    private fun drawWordMenu(canvas: Canvas, w: Float, h: Float, baseY: Float) {
+        val note = menuNote
+        if (note != null) {
+            canvas.drawText(fit(note, textPaint, w), w / 2f, baseY, textPaint)
+            return
+        }
+        val target = menuWord ?: return
+        val cellW = w / wordMenuCellCount()
+        val labels = listOf(target.word) + menuLabels
+        for (i in labels.indices) {
+            val paint = if (i == 0) primaryPaint else textPaint
+            canvas.drawText(fit(labels[i], paint, cellW), cellW * (i + 0.5f), baseY, paint)
+            if (i > 0) canvas.drawRect(cellW * i - 1f, h * 0.2f, cellW * i + 1f, h * 0.8f, dividerPaint)
+        }
     }
 
     /** Signed weight delta for the current slide on [count]. */
@@ -409,6 +522,7 @@ class SuggestionBarView @JvmOverloads constructor(
     /** Composition mode: ranked candidates for the word in progress. */
     fun setSuggestions(candidates: List<Suggestion>) {
         if (candidates.isNotEmpty()) menuOpen = false
+        if (candidates.map { it.word } != words.map { it.word }) closeWordMenu()
         words = candidates
         correctionMode = false
         selectedIndex = -1
@@ -435,6 +549,7 @@ class SuggestionBarView @JvmOverloads constructor(
     fun showCorrection(candidates: List<Suggestion>, selected: Int) {
         // A commit is a new word, so the row opened before it gives way to its alternatives.
         menuOpen = false
+        if (candidates.map { it.word } != words.map { it.word }) closeWordMenu()
         words = candidates
         correctionMode = true
         selectedIndex = selected.coerceIn(0, (words.size - 1).coerceAtLeast(0))
@@ -548,6 +663,13 @@ class SuggestionBarView @JvmOverloads constructor(
             } else {
                 timerDuration = 0L
             }
+        }
+        if (wordMenuOpen) {
+            val rh0 = rowHeight()
+            textPaint.textSize = BarMetrics.textSize(rh0, textScale)
+            primaryPaint.textSize = BarMetrics.textSize(rh0, textScale)
+            drawWordMenu(canvas, w, h, h / 2f - (textPaint.descent() + textPaint.ascent()) / 2f)
+            return
         }
         canvas.save()
         canvas.translate(menuWidth(), 0f)
@@ -779,6 +901,7 @@ class SuggestionBarView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (wordMenuOpen) return onWordMenuTouch(ev)
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downZone = zoneAt(ev.x)
@@ -816,6 +939,9 @@ class SuggestionBarView @JvmOverloads constructor(
                     // Clamped so travel past the blocking step changes nothing: the badge stops
                     // and shows the block, so the armed state reads before the lift.
                     val steps = BarAdjust.clampSteps(adjustTarget?.count ?: 0, raw)
+                    if (BarAdjust.menuHoldBroken(ev.x - downX, adjustStartY - ev.y, WORD_MENU_SLOP_DP * density)) {
+                        longPressHandler.removeCallbacks(wordMenuRunnable)
+                    }
                     if (steps != adjustSteps) {
                         adjustSteps = steps
                         listener?.onReinforceStep()
@@ -867,6 +993,7 @@ class SuggestionBarView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_UP -> {
                 longPressHandler.removeCallbacks(reinforceRunnable)
+                longPressHandler.removeCallbacks(wordMenuRunnable)
                 // A recent cell is never a correction pick, so its hold in place reinforces.
                 val correcting = correctionMode && adjustZone >= 0
                 if (adjustArmed && BarAdjust.appliesOnLift(correcting, adjustSteps)) {
@@ -980,6 +1107,7 @@ class SuggestionBarView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_CANCEL -> {
                 longPressHandler.removeCallbacks(reinforceRunnable)
+                longPressHandler.removeCallbacks(wordMenuRunnable)
                 resetAdjust()
                 pageSwipeConsumed = false
                 downZone = -1
@@ -1094,6 +1222,13 @@ class SuggestionBarView @JvmOverloads constructor(
         // bar tap bump a word's weight. 450 ms spares a deliberate tap and still feels like the
         // key popups.
         const val REINFORCE_HOLD_MS = 450L
+
+        // Further stillness after the slide arms that opens the hold menu instead: about a
+        // second in all, well past the slide's arm, so a slide that starts late is still a slide.
+        const val WORD_MENU_HOLD_MS = 550L
+
+        // Travel from the arm point that makes the hold a slide, not a wait for the menu.
+        const val WORD_MENU_SLOP_DP = 10f
         // Default travel per weight-adjust step, about half a key height; the user's setting
         // moves it, and a tier per step keeps any word within reach.
         const val REINFORCE_STEP_DP = 24f

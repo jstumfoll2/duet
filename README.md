@@ -86,6 +86,11 @@ F-Droid.
   (`w-e-'-r-e`) for "we're"; the trip is cut out of the path before it is decoded. A stroke can
   also end on the key: `h-o` then down to `'` for "who's", or `i` straight to `'` (with `v-e` on
   the other thumb) for "I've".
+- **A tap while the first key is held.** Hold the first letter, tap the next one with the other
+  thumb, then slide on: `d`, tap `i`, slide to `r` gives "dir" even when the tap comes right after
+  the hold starts.
+- **Swipes from the edge.** A swipe or tap that starts in the empty margin beside `a` or `l`, or
+  in a gap between keys, starts on the letter beside it instead of being dropped.
 
 ### English
 
@@ -136,6 +141,11 @@ F-Droid.
   instead.
 - **Colour swatches.** The accent and trail hue sliders show the picked colour as a dot, a tinted
   thumb and a rainbow track, and the trail colour row shows its colour too.
+- **Word menu on the bar.** Hold a suggestion still for about a second: *Never*, *Less*, *More*,
+  *Forget* and *Why?* replace the words. *Less* halves the word's score each time, so even a
+  common word can drop below a rarer one (sliding only ever lowered what you had taught it);
+  *More* undoes a *Less* first; *Forget* clears both; *Why?* shows its dictionary frequency, how
+  often you picked it and any *Less*. Holding and sliding still adjusts the weight as before.
 
 ## For testers: the DEV build
 

@@ -374,6 +374,12 @@ object Prefs {
     /** A recent-word column swaps the other way: an up swipe brings the word above. */
     const val RECENT_SWIPE_REVERSED = "pref_recent_swipe_reversed"
 
+    /**
+     * Words the bar's hold menu downranked ("suggest less"), `lang|word|steps` rows joined by
+     * commas (engine.WordPenalties). Not on any settings screen; the menu's "forget" clears one.
+     */
+    const val WORD_PENALTIES = "pref_word_penalties"
+
     /** The bar's words sit at their own width with a small gap, instead of in equal zones. */
     const val BAR_COMPACT = "pref_bar_compact"
 
