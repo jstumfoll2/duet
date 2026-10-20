@@ -2282,6 +2282,28 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     /**
+     * Puts back the two words a tapped word and a swipe were joined from, when the backspace
+     * comes right after the joined word: `to` tapped and `feel` swiped, committed as `toddle`,
+     * becomes `to feel`. The joined word's +1 is taken back, as an autocorrect undo does.
+     */
+    private fun splitJoinedCommit(): Boolean {
+        val joined = joinedCommit ?: return false
+        if (selectionLength() != 0 || joined.rest == null) return false
+        val before = ich.textBeforeCursor(joined.word.length + 1) ?: return false
+        val (span, text) = joined.splitBefore(before, cursorExpected()) ?: return false
+        joinedCommit = null
+        abandonWord()
+        ich.replaceBeforeCursor(span, text)
+        expectAfter(span, text.length)
+        unlearnWord(joined.word)
+        lastCommitLearned = null
+        composer?.splitLastCommit(joined.word.take(joined.head), joined.rest)
+        DecodeTrace.log { "  joined split word=${joined.word} -> ${text.trimEnd()}" }
+        updateAutoShift()
+        return true
+    }
+
+    /**
      * An autocorrect the user reverted: the letters are not corrected again while the keyboard
      * runs. Nothing is learned here. A backspace that undoes a correction is as often the start
      * of fixing a typo as a vote for it (`today` undone back to `tosay`, 2026-10-18), so the
@@ -3793,6 +3815,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (consumeCtrl("backspace")) return
         cancelAutospace()
         if (undoAutocorrect()) return
+        if (splitJoinedCommit()) return
         val eating = lastCommit.retypeWord ?: backspaceTarget
         // Whether this delete is aimed at the keyboard's own space, decided before the
         // deletion because afterwards the evidence is gone. Deleting the space itself makes
@@ -4262,10 +4285,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         TraceRecorder.label(how)
         val joinedAt = joinPoint(comp, finalWord)
+        // How the swipe after the tapped word read on its own, for a backspace that splits the
+        // commit: only a tapped head that stands as a word, and never a word reopened by hand.
+        val rest = comp.twoWords?.takeIf { reloadedWord == null && it.tapWord != null }?.restWord
         commitWordInternal(finalWord)
         if (joinedAt > 0) {
-            joinedCommit = JoinedCommit(finalWord, joinedAt, cursorExpected())
-            DecodeTrace.log { "  joined word=$finalWord head=${finalWord.take(joinedAt)}" }
+            joinedCommit = JoinedCommit(finalWord, joinedAt, cursorExpected(), rest)
+            DecodeTrace.log { "  joined word=$finalWord head=${finalWord.take(joinedAt)} rest=${rest ?: "-"}" }
         }
         return true
     }

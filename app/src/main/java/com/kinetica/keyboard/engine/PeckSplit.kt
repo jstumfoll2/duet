@@ -13,7 +13,10 @@ import com.kinetica.keyboard.engine.models.WordCandidate
  * with a swipe (`m`, `e` tapped, `rge` swiped), so the swipe ends the tapped word only when the
  * two words explain the buffer clearly better than one word does: the tapped word's own score
  * times the swipe's best reading after it, against the joined buffer's best,
- * [KineticaConstants.PECK_SPLIT_RATIO] times over. The tapped word's score counts at most
+ * [KineticaConstants.PECK_SPLIT_RATIO] times over, or [KineticaConstants.PECK_SPLIT_QUICK_RATIO]
+ * times when the swipe began within [KineticaConstants.PECK_SPLIT_QUICK_GAP_MS] of the last tap's
+ * lift: a word started with taps runs straight on into its swipe (half of them within 51 ms),
+ * while a new word takes a moment to begin. The tapped word's score counts at most
  * [KineticaConstants.PECK_SPLIT_TAP_CAP]: `a` and `to` score 1.5 to 4 once the bigram and the
  * user's own counts are in, which let `a` plus a swiped `low` beat `allow` every time.
  */
@@ -32,9 +35,19 @@ object PeckSplit {
 
     /**
      * A buffer read as two words: the first [head] tokens, all taps, as [tap]'s first word, and
-     * the rest as [rest]'s first, decoded after it.
+     * the rest as [rest]'s first, decoded after it. [chosen] when the two words beat the one
+     * word; a reading that lost is kept so a backspace can still split the commit.
      */
-    class Split(val head: Int, val tap: List<WordCandidate>, val rest: List<WordCandidate>)
+    class Split(
+        val head: Int,
+        val tap: List<WordCandidate>,
+        val rest: List<WordCandidate>,
+        val chosen: Boolean = true,
+    ) {
+        /** The tapped word as its own decode read it; a completion is a guess at a longer word. */
+        val tapWord: String? get() = tap.firstOrNull { it.source != WordCandidate.Source.COMPLETION }?.word
+        val restWord: String? get() = rest.firstOrNull()?.word
+    }
 
     /**
      * The two words [tokens] reads as when they beat one word, or null to keep the buffer one
@@ -47,7 +60,29 @@ object PeckSplit {
         context: List<String>,
         joined: List<WordCandidate>,
         oneLetterWord: (Char) -> Boolean,
-        ratio: Float = KineticaConstants.PECK_SPLIT_RATIO,
+        ratio: Float? = null,
+    ): Split? = read(predictor, tokens, context, joined, oneLetterWord, ratio)?.takeIf { it.chosen }
+
+    /**
+     * How many times better two words must read than one, for a swipe that began [gapMs] after
+     * the last tap lifted.
+     */
+    fun ratioFor(gapMs: Long): Float =
+        if (gapMs < KineticaConstants.PECK_SPLIT_QUICK_GAP_MS) KineticaConstants.PECK_SPLIT_QUICK_RATIO
+        else KineticaConstants.PECK_SPLIT_RATIO
+
+    /**
+     * [tokens] read as two words whether or not they beat one ([Split.chosen] says which), or
+     * null when the buffer has no tapped word at its head to read that way. [ratio] overrides
+     * [ratioFor].
+     */
+    fun read(
+        predictor: WordPredictor,
+        tokens: List<InputToken>,
+        context: List<String>,
+        joined: List<WordCandidate>,
+        oneLetterWord: (Char) -> Boolean,
+        ratio: Float? = null,
     ): Split? {
         val sorted = tokens.sortedBy { it.tStart }
         val head = tapHead(sorted)
@@ -61,11 +96,13 @@ object PeckSplit {
         val restList = predictor.decode(sorted.subList(head, sorted.size), context.takeLast(1) + tap.word)
         val rest = restList.firstOrNull() ?: return null
         val one = joined.firstOrNull()?.score ?: 0f
-        val yes = minOf(tap.score, KineticaConstants.PECK_SPLIT_TAP_CAP) * rest.score > ratio * one
+        val gap = sorted[head].tStart - sorted.subList(0, head).maxOf { it.tEnd }
+        val need = ratio ?: ratioFor(gap)
+        val yes = minOf(tap.score, KineticaConstants.PECK_SPLIT_TAP_CAP) * rest.score > need * one
         DecodeTrace.log {
-            "  peck split ${if (yes) "yes" else "no"} tap=${tap.word}:${tap.score} " +
+            "  peck split ${if (yes) "yes" else "no"} gap=$gap tap=${tap.word}:${tap.score} " +
                 "rest=${rest.word}:${rest.score} joined=${joined.firstOrNull()?.word}:$one"
         }
-        return if (yes) Split(head, tapList, restList) else null
+        return Split(head, tapList, restList, chosen = yes)
     }
 }

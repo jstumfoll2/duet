@@ -71,9 +71,11 @@ F-Droid.
   previous word settles it (`going ti` becomes `going to`), and left alone when nothing does.
 - **A pecked word, then a swipe.** With automatic spaces on, tap `to` and swipe `help` straight
   after with no space: Duet types "to help", not one word made of both (`PeckSplit`). It splits
-  only when the two words read clearly better than one, so `m`, `e` tapped and `rge` swiped still
-  makes "merge", and `a` tapped with `llow` swiped makes "allow". When the two do end up as one
-  word, a backspace slide stops at the join first and leaves "to " for the second word again.
+  when the two words read better than one, and needs a much clearer case when the swipe follows
+  the taps at once, as it does inside a word: `m`, `e` tapped and `rge` swiped still makes "merge",
+  and `a` tapped with `llow` swiped makes "allow". When the two do end up as one word, one
+  backspace right after it puts the two words back (`toddle` becomes "to feel"), and a backspace
+  slide stops at the join first and leaves "to " for the second word again.
 - **A left-out space.** Tapped letters that are no word but a common pair with the space left out
   (`tofeel`) become the two words; backspace right after puts back what you typed.
 - **Words started from the spacebar.** A thumb that lands on the spacebar and rises onto the
