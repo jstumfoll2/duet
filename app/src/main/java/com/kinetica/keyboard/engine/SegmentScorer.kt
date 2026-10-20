@@ -59,7 +59,7 @@ class DtwSegmentScorer : SegmentScorer {
  * cut to TOP_K. Stage A of the neural plan: the search stays exactly as it is,
  * so a reranker can only reorder what the search found, and its value is capped
  * by recall at [WordPredictor]'s rerank depth. Candidates carry their
- * [WordCandidate.segmentation] whenever a reranker is installed.
+ * [WordCandidate.segmentation] whenever the reranker says it reads them ([usesSegmentation]).
  */
 fun interface CandidateReranker {
     fun rerank(tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate>
@@ -69,4 +69,13 @@ fun interface CandidateReranker {
      * the plain order (the default: a one-stroke encoder has no view of the letter order).
      */
     fun rerankOverlapped(il: Interleave, tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate>? = null
+
+    /**
+     * Whether a buffer of this kind (two thumbs drawing at once, or not) can come back in
+     * another order. One that cannot is decoded as with no reranker: no deep heap to fill.
+     */
+    fun reranks(overlapped: Boolean): Boolean = true
+
+    /** Whether [rerank] or [rerankOverlapped] reads [WordCandidate.segmentation] on such a buffer. */
+    fun usesSegmentation(overlapped: Boolean): Boolean = true
 }

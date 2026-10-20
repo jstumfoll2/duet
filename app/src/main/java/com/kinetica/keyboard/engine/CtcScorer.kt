@@ -250,6 +250,12 @@ class CtcReranker(
     /** With [overlap]: leave every other buffer in its plain order (the one-thumb rerank is flat). */
     @Volatile var overlapOnly = false
 
+    override fun reranks(overlapped: Boolean): Boolean =
+        beta != 0f && if (overlapped) overlap else !overlapOnly
+
+    // rerankOverlapped reads each stroke's letters off the interleaved reading instead.
+    override fun usesSegmentation(overlapped: Boolean): Boolean = !overlapped
+
     /**
      * [candidates] for two thumbs drawing at once: each candidate's letters are given to the
      * strokes by its best interleaved reading ([Interleave.strokeLetters]) and each swipe is

@@ -187,6 +187,10 @@ object NeuralRerank {
 
     /** The rerank step alone, timed on the decode thread. */
     private class Timed(private val inner: CtcReranker) : CandidateReranker {
+        override fun reranks(overlapped: Boolean) = inner.reranks(overlapped)
+
+        override fun usesSegmentation(overlapped: Boolean) = inner.usesSegmentation(overlapped)
+
         override fun rerank(tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate> {
             val t0 = SystemClock.elapsedRealtimeNanos()
             val out = inner.rerank(tokens, candidates)

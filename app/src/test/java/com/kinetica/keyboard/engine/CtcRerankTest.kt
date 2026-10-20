@@ -1,5 +1,6 @@
 package com.kinetica.keyboard.engine
 
+import com.kinetica.keyboard.engine.models.InputToken
 import com.kinetica.keyboard.engine.models.StreamId
 import com.kinetica.keyboard.engine.models.WordCandidate
 import java.io.ByteArrayInputStream
@@ -197,6 +198,53 @@ class CtcRerankTest {
             assertEquals(untied(a), untied(b))
         }
         assertTrue(depthSeen > KineticaConstants.TOP_K)
+    }
+
+    /**
+     * A reranker that leaves one-thumb buffers alone (the phone's two-thumb rerank) gets no deep
+     * heap and no segmentations for them: those decode exactly as with no reranker at all.
+     */
+    @Test
+    fun aBufferTheRerankerSkipsDecodesAsToday() {
+        val g = TestData.qwertyGeometry()
+        val dict = en
+        assumeTrue(dict != null)
+        val (trie, forms, bigrams) = dict!!
+        val base = WordPredictor(trie, bigrams, g, forms)
+        var calls = 0
+        val twoThumbOnly = object : CandidateReranker {
+            override fun rerank(tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate> {
+                calls++
+                return candidates
+            }
+
+            override fun reranks(overlapped: Boolean) = overlapped
+        }
+        val skip = WordPredictor(trie, bigrams, g, forms, reranker = twoThumbOnly, rerankDepth = 50)
+        for (w in listOf("hello", "because", "world", "keyboard")) {
+            val tokens = listOf(TestData.sloppySwipe(w, g, 1000, 500, 0.3f))
+            val a = base.decode(tokens, listOf("the"))
+            val b = skip.decode(tokens, listOf("the"))
+            assertEquals(a.map { it.word }, b.map { it.word })
+            assertEquals(a.map { it.score.toRawBits() }, b.map { it.score.toRawBits() })
+            assertTrue(b.all { it.segmentation == null })
+        }
+        assertEquals(0, calls)
+    }
+
+    @Test
+    fun ctcRerankerSaysWhichBuffersItReorders() {
+        val g = TestData.qwertyGeometry()
+        val r = CtcReranker(scorer(), { g }, 0.1f)
+        assertTrue(r.reranks(false))
+        assertTrue(!r.reranks(true))
+        r.overlap = true
+        r.overlapOnly = true
+        assertTrue(!r.reranks(false))
+        assertTrue(r.reranks(true))
+        assertTrue(!r.usesSegmentation(true))
+        r.beta = 0f
+        assertTrue(!r.reranks(true))
     }
 
     @Test

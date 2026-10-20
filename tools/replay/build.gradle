@@ -55,3 +55,14 @@ tasks.register('replay', JavaExec) {
     workingDir = rootProject.file('../..')
     maxHeapSize = '4g'
 }
+
+// Decode latency of this tree on the same traces, to compare two builds. JFR=out.jfr also
+// records a Flight Recorder profile of the run.
+tasks.register('bench', JavaExec) {
+    description = 'Decode latency on trace files: ./gradlew -p tools/replay bench --args="FILE.jsonl"'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.kinetica.keyboard.engine.trace.Bench'
+    if (System.getenv('JFR')) jvmArgs "-XX:StartFlightRecording=filename=${System.getenv('JFR')},settings=profile"
+    workingDir = rootProject.file('../..')
+    maxHeapSize = '4g'
+}
