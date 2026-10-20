@@ -53,6 +53,17 @@ object DeleteSpan {
     }
 
     /**
+     * [words] for a slide that starts right after a word made of two (`to` tapped, `feel` swiped,
+     * read as one word): the first unit takes only the [cut] characters after the join, so the
+     * slide stops at the boundary, and the rest walk on from there as [words] does.
+     */
+    fun wordsFromJoin(text: CharSequence, units: Int, cut: Int): Int {
+        if (units <= 0) return 0
+        if (cut <= 0 || cut > text.length) return words(text, units)
+        return cut + words(text.subSequence(0, text.length - cut), units - 1)
+    }
+
+    /**
      * Length of the tail of [text] holding the last [units] whitespace-delimited
      * words, trailing whitespace included. Punctuation is part of a word, so one slide step
      * removes "word," and leaves no comma behind.

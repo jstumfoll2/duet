@@ -165,8 +165,19 @@ class GestureStream(
             )
         }
         // A mid-word trip to the apostrophe key: decode the letters without it.
-        val cut = geometry.apostropheRectKw()?.let { ApostropheExcursion.find(points, it) }
+        val cut = geometry.apostropheRectKw()?.let { r ->
+            val left = geometry.nearestKey(r[0], (r[1] + r[3]) / 2f).takeIf { it >= 0 }?.let { geometry.rectKw(it) }
+            ApostropheExcursion.find(points, r, left)
+        }
         if (cut != null) {
+            // A stroke from its first letter straight to the key (`I've` as i, then ') leaves
+            // that letter alone: a tap, marked.
+            if (cut.first == 1 && cut.last == points.size - 1) {
+                return TapToken(
+                    streamId, downCode, downX, downY,
+                    longPress = false, tStart = downTime, tEnd = t, apostrophe = true,
+                )
+            }
             val c = ApostropheExcursion.apply(points, contacts, dwells, cut)
             val res = FloatArray(2 * KineticaConstants.RESAMPLE_N)
             RESAMPLER.resample(c.points, res)

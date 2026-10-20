@@ -1440,7 +1440,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 comp?.onToken(token)
             }
             is SwipeToken -> {
-                if (tentativeLength == 0) wordShift = shift.state
+                // Only for the word's first token. A two-thumb word whose first stroke lifted
+                // while the other thumb was still down shows nothing yet, and that first
+                // stroke has already spent the auto-shift: `trying` after `example. `.
+                if (tentativeLength == 0 && comp?.hasPendingWord != true) wordShift = shift.state
                 if (comp == null) {
                     Log.w(TAG, "swipe before dictionary ready, dropped")
                     return
@@ -3360,6 +3363,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // unit is a word, or a character when the char-slide preference is on.
     private var stagedDeletion = ""
     private var stagedDeletionLength = 0
+    // The last commit when it was two words read as one (`to` tapped and `feel` swiped, shown
+    // as `toddle`): where it ends and how many of its letters came before the join. A backspace
+    // slide from right after it stops at the join first. Checked against the text when used.
+    private var joinedCommit: JoinedCommit? = null
+    // The characters the slide's first unit takes when it stops at that join, or 0.
+    private var stageJoinCut = 0
     // Cursor offset the staged span is measured back from, captured once when staging
     // starts. selStart/selEnd follow every selection made below, so re-reading them
     // mid-slide would walk this backwards a span at a time. -1 means nothing is staged.
@@ -3400,7 +3409,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             }
         }
         val before = stageBefore
-        val span = DeleteSpan.staged(stageSelected, before, units, chars)
+        if (stagedDeletionLength == 0) {
+            stageJoinCut = if (chars || stageSelected > 0) 0 else joinedCommit?.cutBefore(before, stageAnchor) ?: 0
+        }
+        val span = if (stageJoinCut > 0 && !chars && stageSelected == 0) {
+            DeleteSpan.wordsFromJoin(before, units, stageJoinCut)
+        } else {
+            DeleteSpan.staged(stageSelected, before, units, chars)
+        }
         stagedDeletionLength = span
         val tail = (span - stageSelected).coerceIn(0, before.length)
         stagedDeletion =
@@ -3430,6 +3446,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         stagedDeletion = ""
         stagedDeletionLength = 0
+        stageJoinCut = 0
         stageAnchor = -1
         stageSelected = 0
         stageBefore = ""
@@ -3441,6 +3458,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val span = stagedDeletionLength
         val anchor = stageAnchor
         val staged = stagedDeletion
+        val atJoin = stageJoinCut > 0 && span == stageJoinCut
         // No cursor restore here: the span is about to go, and collapsing the selection
         // first would make the delete flicker.
         clearStagedDeletion(restoreCursor = false)
@@ -3460,7 +3478,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         if (eating != null) traceBackspaceInto(eating, "slide")
         abandonWord()
-        if (deletedAutospace) {
+        if (atJoin) {
+            // Back to the word before the join, and the space a word gets, so the next word
+            // is typed as one of its own: `to ` and then `feel` again.
+            joinedCommit = null
+            DecodeTrace.log { "  backspace slide stopped at join cut=$span" }
+            commitTracked(" ")
+            autospaceInserted = true
+        } else if (deletedAutospace) {
             forgetAutospace()
             DecodeTrace.log { "  autospace refuse src=slide" }
         }
@@ -4167,8 +4192,29 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             } else {
                 null
             }
-            if (keeps) nextCommitDeliberate = true
-            if (keeps && threshold != null) {
+            // Two words with the space left out (`tofeel`): the space goes back. Letters typed
+            // onto a reopened word are cut only where the reopened word ended.
+            val spaced = if (target == null && slip == null && threshold != null && !editorState.addressField) {
+                when {
+                    !keeps -> p.spaceSplit(tentativeWord)
+                    reloadedWord != null && reloadedByHand && lastLiteral.lowercase() !in rejectedCorrections ->
+                        p.spaceSplit(tentativeWord, reloadedWord!!.length)
+                    else -> null
+                }
+            } else {
+                null
+            }
+            if (keeps && spaced == null) nextCommitDeliberate = true
+            if (spaced != null) {
+                val display = "${spaced.first} ${spaced.second}"
+                val typed = tentativeWord
+                DecodeTrace.log { "  space split typed=$typed -> $display" }
+                replaceTentative(display)
+                finalWord = display
+                how = "autocorrect"
+                autocorrectUndo = AutocorrectUndo(typed, display, cursorExpected())
+                lastAutocorrect = AutocorrectUndo(typed, display, cursorExpected())
+            } else if (keeps && threshold != null) {
                 DecodeTrace.log {
                     "  autocorrect kept typed=$lastLiteral " +
                         if (reloadedWord != null && reloadedByHand) "src=edit" else "src=undone"
@@ -4215,8 +4261,33 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             finalWord = cased
         }
         TraceRecorder.label(how)
+        val joinedAt = joinPoint(comp, finalWord)
         commitWordInternal(finalWord)
+        if (joinedAt > 0) {
+            joinedCommit = JoinedCommit(finalWord, joinedAt, cursorExpected())
+            DecodeTrace.log { "  joined word=$finalWord head=${finalWord.take(joinedAt)}" }
+        }
         return true
+    }
+
+    /**
+     * Where [word], about to be committed from [comp], joins two words the user typed as two:
+     * after the tapped letters a swipe followed (`to` and a swiped `feel`, read as `toddle`), or
+     * after a reopened word the user typed more onto (`to`, then `feel` tapped onto it). The
+     * part before must be a word, the part after at least two letters, and the committed word
+     * must still start with it. 0 when it is one word.
+     */
+    private fun joinPoint(comp: WordComposer, word: String): Int {
+        if (word.any { it == ' ' }) return 0
+        val head = when {
+            reloadedWord != null -> reloadedWord!!
+            comp.hasSwipeToken() -> comp.tapHeadLiteral()
+            else -> ""
+        }
+        if (head.isEmpty() || word.length - head.length < 2) return 0
+        if (!word.startsWith(head, ignoreCase = true)) return 0
+        if (predictor?.isWordIgnoringCase(head) != true) return 0
+        return head.length
     }
 
     /**
@@ -4636,6 +4707,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     private fun commitWordInternal(word: String) {
+        joinedCommit = null
         val previousDeliberate = lastCommitDeliberate
         lastCommitDeliberate = nextCommitDeliberate
         nextCommitDeliberate = false

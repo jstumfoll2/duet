@@ -397,3 +397,26 @@ internal fun mergeNextWords(
     val seen = HashSet<String>()
     return (active + other).sortedByDescending { it.score }.filter { seen.add(it.word.lowercase()) }.take(limit)
 }
+
+/**
+ * A committed word that was two words read as one: [word], ending at offset [end], whose first
+ * [head] letters were a word of their own before the join (`to` of `toddle`, from `to` tapped
+ * and `feel` swiped).
+ */
+internal class JoinedCommit(val word: String, val head: Int, val end: Int) {
+    /**
+     * How many characters before [anchor] a backspace slide's first unit takes to stop at the
+     * join, [before] being the text before [anchor]: the letters after it, and the space after
+     * the word if one follows. 0 unless the cursor sits right after this word, or after it and
+     * one space, and the text there is still the word.
+     */
+    fun cutBefore(before: CharSequence, anchor: Int): Int {
+        val tail = word.length - head
+        if (tail <= 0) return 0
+        return when {
+            anchor == end && before.endsWith(word) -> tail
+            anchor == end + 1 && before.endsWith("$word ") -> tail + 1
+            else -> 0
+        }
+    }
+}

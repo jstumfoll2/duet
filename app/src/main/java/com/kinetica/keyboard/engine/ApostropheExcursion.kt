@@ -30,6 +30,16 @@ import kotlin.math.sqrt
  *    was the worry here; across the 7 062 recorded gestures in the developer's traces
  *    (2026-10-02 and 2026-10-06) no home-row sample ever went past x 9.44 kw, against
  *    the key's 9.5, so a lift on the key is taken as meant.
+ *    The turn is first looked for as the point where the distance to the key stops
+ *    growing. A stroke that heads for the key all the way from its start has no such point,
+ *    and two shapes of it are taken by heading instead (batch 11: every swiped `I've` and
+ *    `who's` read the key as L and came out `vile` and `who'lls`):
+ *     - STRAIGHT from its first letter, at most [MAX_STRAIGHT_KW] away (`I've` as i, then
+ *       straight to '): the cut leaves that first sample alone, and GestureStream makes
+ *       the stroke a tap on it, marked.
+ *     - from a turn in heading ([TURN_COS]) that the distance missed (`who's` as h-o, then
+ *       down to '), when the leg after the turn never sits on the key left of it: a lift
+ *       past L at the end of `festival` turns there too, and must not lose its L.
  *
  * Leg ends are found by walking away from the key while the distance to its centre keeps
  * growing, so a leg ends at the turn where the path started heading for the key, or at the
@@ -57,12 +67,29 @@ object ApostropheExcursion {
     private const val LEG_TOLERANCE_KW = 0.05f
 
     /**
+     * The farthest a STRAIGHT ending may start from the key's centre, kw. `I've` from i is
+     * 2.2 to 2.6 in batch 11 and `m'` from m 3.1 to 3.4; a stroke from t that ran on past L
+     * at the end of `actually` was 5.3.
+     */
+    const val MAX_STRAIGHT_KW = 3.5f
+
+    /** Below this cosine between the path's heading and the way to the key, the path turned. */
+    private const val TURN_COS = 0.7071f
+
+    /** Shortest step the heading is measured over, kw, so sample jitter does not read as a turn. */
+    private const val HEADING_STEP_KW = 0.1f
+
+    /** How near the stroke's start a heading turn counts as the start itself, kw. */
+    private const val START_KW = 0.3f
+
+    /**
      * The samples to drop, or null when [points] made no trip to [rect] (kw: left, top,
      * right, bottom) and did not end on it. The range never includes the sample where the
      * path turned toward the key, nor (for a trip) the one where it turned back: the path
-     * joins them with a straight line. For an ending it runs to the last sample.
+     * joins them with a straight line. For an ending it runs to the last sample. [left] is the
+     * letter key beside the key (L on QWERTY), which a heading turn's leg must not sit on.
      */
-    fun find(points: List<PathPoint>, rect: FloatArray): IntRange? {
+    fun find(points: List<PathPoint>, rect: FloatArray, left: FloatArray? = null): IntRange? {
         val n = points.size
         var a = -1
         for (i in 0 until n) {
@@ -82,8 +109,8 @@ object ApostropheExcursion {
 
         if (b >= n - 1) {
             // An ending: only from a turn, and only after real travel to the key.
-            if (s == 0 || dist(points[s], cx, cy) < MIN_LEG_KW) return null
-            return (s + 1) until n
+            if (s > 0 && dist(points[s], cx, cy) >= MIN_LEG_KW) return (s + 1) until n
+            return headingEnding(points, a, left, cx, cy)
         }
         var e = b
         while (e < n - 1 && dist(points[e + 1], cx, cy) >= dist(points[e], cx, cy) - LEG_TOLERANCE_KW) e++
@@ -93,6 +120,35 @@ object ApostropheExcursion {
         if (cx - points[s].x < TURN_X_KW || points[e].x - cx > -TURN_X_KW) return null
         if (e - s < 2) return null
         return (s + 1) until e
+    }
+
+    /**
+     * The cut for an ending whose distance to the key grew all the way back to the stroke's
+     * start ([find]): from the last turn in heading before the key was entered at [entry], or
+     * everything after the first sample when there is none. Null when neither shape fits.
+     */
+    private fun headingEnding(points: List<PathPoint>, entry: Int, left: FloatArray?, cx: Float, cy: Float): IntRange? {
+        var j = entry
+        while (j > 0) {
+            var k = j - 1
+            while (k > 0 && dist(points[k], points[j].x, points[j].y) < HEADING_STEP_KW) k--
+            val vx = points[j].x - points[k].x
+            val vy = points[j].y - points[k].y
+            val wx = cx - points[j].x
+            val wy = cy - points[j].y
+            val v = sqrt(vx * vx + vy * vy)
+            val w = sqrt(wx * wx + wy * wy)
+            if (v > 0f && w > 0f && (vx * wx + vy * wy) / (v * w) < TURN_COS) break
+            j = k
+        }
+        val leg = dist(points[j], cx, cy)
+        if (leg < MIN_LEG_KW) return null
+        val n = points.size
+        if (dist(points[j], points[0].x, points[0].y) <= START_KW) {
+            return if (dist(points[0], cx, cy) <= MAX_STRAIGHT_KW) 1 until n else null
+        }
+        if (left != null && (j + 1 until n).any { inside(points[it], left) }) return null
+        return (j + 1) until n
     }
 
     /** What a swipe's per-sample records look like once [cut] is removed from its path. */

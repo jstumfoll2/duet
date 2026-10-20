@@ -62,6 +62,20 @@ class PeckSplitTest {
     }
 
     @Test
+    fun aTappedAThenASwipedTailStaysOneWord() {
+        // Batch 11: `a` tapped and `llow` swiped read as `a low` three times out of three. The
+        // tapped word's score is capped, so a frequent `a` no longer outweighs `allow`.
+        assertNull(split(TestData.tap('a', g, 0), TestData.swipe("llow", g, 300, 300)))
+    }
+
+    @Test
+    fun aStrokeMarkedForTheApostropheNeverSplits() {
+        // `I've`: i struck to the apostrophe key is a marked tap, then v-e swiped.
+        val i = TestData.tap('i', g, 0, StreamId.RIGHT).copy(apostrophe = true)
+        assertNull(split(i, TestData.swipe("be", g, 300, 300)))
+    }
+
+    @Test
     fun aLoneLetterThatIsNoWordNeverSplits() {
         assertNull(split(TestData.tap('p', g, 0), TestData.swipe("help", g, 300, 300)))
     }

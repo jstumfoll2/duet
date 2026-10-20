@@ -13,7 +13,9 @@ import com.kinetica.keyboard.engine.models.WordCandidate
  * with a swipe (`m`, `e` tapped, `rge` swiped), so the swipe ends the tapped word only when the
  * two words explain the buffer clearly better than one word does: the tapped word's own score
  * times the swipe's best reading after it, against the joined buffer's best,
- * [KineticaConstants.PECK_SPLIT_RATIO] times over.
+ * [KineticaConstants.PECK_SPLIT_RATIO] times over. The tapped word's score counts at most
+ * [KineticaConstants.PECK_SPLIT_TAP_CAP]: `a` and `to` score 1.5 to 4 once the bigram and the
+ * user's own counts are in, which let `a` plus a swiped `low` beat `allow` every time.
  */
 object PeckSplit {
     /**
@@ -50,6 +52,8 @@ object PeckSplit {
         val sorted = tokens.sortedBy { it.tStart }
         val head = tapHead(sorted)
         if (head == 0) return null
+        // A tap that was a stroke to the apostrophe key (`I've` as i, then ') starts a word.
+        if (sorted.any { it is TapToken && it.apostrophe }) return null
         val tapList = predictor.decode(sorted.subList(0, head), context)
         // The tapped word as its own decode reads it; a completion is a guess at a longer word.
         val tap = tapList.firstOrNull { it.source != WordCandidate.Source.COMPLETION } ?: return null
@@ -57,7 +61,7 @@ object PeckSplit {
         val restList = predictor.decode(sorted.subList(head, sorted.size), context.takeLast(1) + tap.word)
         val rest = restList.firstOrNull() ?: return null
         val one = joined.firstOrNull()?.score ?: 0f
-        val yes = tap.score * rest.score > ratio * one
+        val yes = minOf(tap.score, KineticaConstants.PECK_SPLIT_TAP_CAP) * rest.score > ratio * one
         DecodeTrace.log {
             "  peck split ${if (yes) "yes" else "no"} tap=${tap.word}:${tap.score} " +
                 "rest=${rest.word}:${rest.score} joined=${joined.firstOrNull()?.word}:$one"
