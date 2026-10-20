@@ -20,6 +20,8 @@ sourceSets {
         kotlin {
             srcDir "$app/test/java"
             srcDir "$app/testDebug/java"
+            // JVM-only tools (Bench reads java.lang.management, which Android's unit tests lack).
+            srcDir 'src/test/kotlin'
             include "$eng/**"
             // Import Android code (KineticaIME, the layout package, Prefs); the
             // Android build runs them.
