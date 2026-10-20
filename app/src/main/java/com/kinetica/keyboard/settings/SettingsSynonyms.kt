@@ -159,6 +159,7 @@ object SettingsSynonyms {
         "pref_dictionary_screen" to listOf("words", "learned", "personal", "export", "import", "blocked"),
         "pref_backup_screen" to listOf("backup", "export", "import", "restore", "undo", "snapshot", "phone", "move"),
         "pref_licenses_screen" to listOf("legal", "attribution", "open source", "credits"),
+        "pref_traces_screen" to listOf("trace", "traces", "practice", "export", "record", "recording", "neural", "rerank", "dev"),
         "pref_contribute_screen" to listOf("donate", "donation", "coffee", "ko-fi", "kofi", "tip", "support"),
         "pref_group_learn" to listOf("help", "tutorial", "how to", "practice", "practise", "tips"),
         "pref_group_bar" to listOf("topbar", "toolbar", "candidates", "strip", "bar"),

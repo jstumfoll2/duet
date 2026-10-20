@@ -127,20 +127,23 @@ F-Droid.
 
 ## For testers: the DEV build
 
-The DEV build has everything above, plus a **Duet DEV trace** icon in the launcher.
+The DEV build has everything above, plus a **Traces and practice** screen. It is one app with one
+launcher icon: open the screen from *Settings > Traces and practice* or from the button on Duet DEV's
+start screen. (Builds before this change had a second *Duet DEV trace* icon; updating removes it,
+and recorded traces and settings carry over because the app id is unchanged.)
 
-- **Trace recording** (on by default in the DEV build, with a switch on the trace screen): each
+- **Trace recording** (word traces on by default in the DEV build, with switches on the traces screen): each
   word you type is saved on the phone with its touch samples and the list the bar showed.
   Password and private fields and incognito are never recorded, and traces are kept out of cloud
   backup.
-- **Practice mode** (*Duet DEV practice*, from the trace screen): prompts a word, asks for three
+- **Practice mode** (*Duet DEV practice*, from the traces screen): prompts a word, asks for three
   attempts, and records each as a labelled trace. *Discard last swipe* drops a bad attempt, and
   the word length can be picked.
 - **Export**: *Export* and *Export word traces* write the traces to a file you choose through
   Android's file picker. The app itself has no network access, so sending them anywhere is up to
   you.
 - **Neural rerank** (off by default): a small CTC model, trained from scratch on FUTO's MIT swipe
-  dataset (never FUTO's weights), can reorder the bar's list. The trace screen turns it on and sets
+  dataset (never FUTO's weights), can reorder the bar's list. The traces screen turns it on and sets
   its weight. Off builds exactly the release decoder.
 
 Traces are personal typing data: keep them out of this repository.

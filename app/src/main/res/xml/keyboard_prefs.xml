@@ -1061,6 +1061,13 @@
         </PreferenceCategory>
     </PreferenceScreen>
 
+    <!-- DEV build only: KeyboardPrefsFragment removes it where TraceScreen finds no screen. -->
+    <Preference
+        android:key="pref_traces_screen"
+        android:title="@string/pref_traces_title"
+        app:singleLineTitle="false"
+        android:summary="@string/pref_traces_summary" />
+
     <Preference
         android:key="pref_contribute_screen"
         android:title="@string/contribute_title"

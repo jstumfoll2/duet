@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.setPadding
 import com.kinetica.keyboard.R
 import com.kinetica.keyboard.settings.SettingsActivity
+import com.kinetica.keyboard.settings.TraceScreen
 
 /**
  * Three-step enable flow: system-enable the IME, pick it as current keyboard,
@@ -88,6 +89,16 @@ class MainActivity : AppCompatActivity() {
                 }
             },
         )
+        // The DEV build's traces and practice, here as well as in Settings since this is the
+        // screen the launcher icon opens.
+        TraceScreen.intent(this)?.let { traces ->
+            root.addView(
+                Button(this).apply {
+                    text = getString(R.string.pref_traces_title)
+                    setOnClickListener { startActivity(traces) }
+                },
+            )
+        }
 
         setContentView(root)
     }

@@ -88,6 +88,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
             true
         }
         if (rootKey == SettingsSynonyms.LONGPRESS_GROUP) addLetterRows()
+        wireTraceScreen()
         dropIconSpace(preferenceScreen)
         wireThemePreview()
         wireSizePreview()
@@ -524,6 +525,16 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
             child.isIconSpaceReserved = false
             if (child is PreferenceGroup) dropIconSpace(child)
         }
+    }
+
+    /**
+     * Points the traces row at the DEV build's trace screen, or removes it in a build that has
+     * none. Removed rather than hidden, so search, which walks every row, cannot find it either.
+     */
+    private fun wireTraceScreen() {
+        val pref = findPreference<Preference>(TraceScreen.PREF_KEY) ?: return
+        val intent = context?.let { TraceScreen.intent(it) }
+        if (intent != null) pref.intent = intent else pref.parent?.removePreference(pref)
     }
 
     /**
