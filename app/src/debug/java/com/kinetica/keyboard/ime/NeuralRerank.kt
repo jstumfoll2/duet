@@ -26,12 +26,15 @@ import java.io.IOException
  * predictors kept off the live decode thread, so every prompt scores the two
  * decoders on the same swipe whichever one is live. The model ships as a DEV
  * asset only: trained by the project's train workflow from scratch on FUTO's
- * MIT swipe dataset (no FUTO weights), and never in a release APK.
+ * MIT swipe dataset (no FUTO weights), and never in a release APK. futo_split_v1 is futo_v1
+ * fine-tuned on those swipes cut at the midline into two-thumb strokes (train_split workflow):
+ * overlapped words at beta 0.1, 84.8% vs 83.2% on one half of ten batches, 78.6% vs 78.9%
+ * on the other.
  */
 object NeuralRerank {
 
-    const val MODEL_ASSET = "ctc/futo_v1.kctc"
-    const val MODEL_NAME = "futo_v1"
+    const val MODEL_ASSET = "ctc/futo_split_v1.kctc"
+    const val MODEL_NAME = "futo_split_v1"
 
     /**
      * Two-thumb rerank, ten trace batches split in halves: 0.1 was best on one half and
