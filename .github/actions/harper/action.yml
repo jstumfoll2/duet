@@ -22,10 +22,8 @@ runs:
         rustup show active-toolchain || rustup toolchain install
         command -v cargo-ndk || cargo install cargo-ndk --locked --version 4.1.2
 
-    # ubuntu-latest ships an NDK; ANDROID_NDK_LATEST_HOME is exported by the runner image.
+    # ubuntu-latest ships an NDK; the script finds it through ANDROID_NDK_ROOT.
     - shell: bash
-      env:
-        ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
       run: native/harper-jni/build-android.sh
 
     - shell: bash

@@ -5,6 +5,13 @@
 # builds; the grammar setting then finds no library and stays inert.
 set -euo pipefail
 cd "$(dirname "$0")"
+# GitHub's runner image exports ANDROID_NDK_ROOT (and sometimes ANDROID_NDK_LATEST_HOME).
+export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-${ANDROID_NDK_LATEST_HOME:-}}}"
+if [ -z "$ANDROID_NDK_HOME" ]; then
+  echo "Set ANDROID_NDK_HOME to an Android NDK" >&2
+  exit 1
+fi
+echo "NDK: $ANDROID_NDK_HOME"
 # Paths baked into panic messages would differ between machines; map them to fixed names.
 export RUSTFLAGS="--remap-path-prefix=$PWD=duet-harper --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=cargo"
 cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 --platform 26 -o target/jniLibs build --release --locked
