@@ -105,4 +105,51 @@ object PeckSplit {
         }
         return Split(head, tapList, restList, chosen = yes)
     }
+
+    /**
+     * A word an automatic space ended and a letter then reopened (the retraction), read as that
+     * word and what was typed after it: `to` and `a…` against `toad`. The first [head] tokens in
+     * [tokens]' own order are the reopened word's taps (a reload seeds them first, with times of
+     * its own making, so they are not sorted in); the rest is decoded after it. The space went
+     * in because the user paused, so two words need only [ratio] times one word's score.
+     *
+     * A rest of taps alone must read as a word, not a completion, and one letter only as a word
+     * that stands alone: `ad` then `d` keeps `add`, since `d` is no word.
+     * Null when there is nothing after the head to read.
+     */
+    fun readRejoin(
+        predictor: WordPredictor,
+        tokens: List<InputToken>,
+        head: Int,
+        context: List<String>,
+        joined: List<WordCandidate>,
+        oneLetterWord: (Char) -> Boolean,
+        ratio: Float = KineticaConstants.REJOIN_SPLIT_RATIO,
+    ): Split? {
+        if (head <= 0 || head >= tokens.size) return null
+        val headTokens = tokens.subList(0, head)
+        if (headTokens.any { it !is TapToken }) return null
+        val restTokens = tokens.subList(head, tokens.size).sortedBy { it.tStart }
+        if (restTokens.any { it is TapToken && it.apostrophe }) return null
+        val tapList = predictor.decode(headTokens, context)
+        val tap = tapList.firstOrNull { it.source != WordCandidate.Source.COMPLETION } ?: return null
+        val restList = predictor.decode(restTokens, context.takeLast(1) + tap.word)
+        val rest = restList.firstOrNull()
+        val one = joined.firstOrNull()?.score ?: 0f
+        val restSpelled = rest != null && (restTokens.any { it !is TapToken } || restIsWord(predictor, rest, oneLetterWord))
+        val yes = rest != null && restSpelled &&
+            minOf(tap.score, KineticaConstants.PECK_SPLIT_TAP_CAP) * rest.score > ratio * one
+        DecodeTrace.log {
+            "  rejoin ${if (yes) "split" else "join"} head=${tap.word}:${tap.score} " +
+                "rest=${rest?.word}:${rest?.score} joined=${joined.firstOrNull()?.word}:$one"
+        }
+        if (rest == null) return null
+        return Split(head, tapList, restList, chosen = yes)
+    }
+
+    // A tapped rest reads as a word of its own, a one-letter one only where letters stand alone.
+    private fun restIsWord(predictor: WordPredictor, rest: WordCandidate, oneLetterWord: (Char) -> Boolean): Boolean {
+        if (rest.source == WordCandidate.Source.COMPLETION) return false
+        return if (rest.word.length == 1) oneLetterWord(rest.word[0].lowercaseChar()) else predictor.isWord(rest.word)
+    }
 }

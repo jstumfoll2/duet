@@ -185,6 +185,16 @@ object KineticaConstants {
     const val PECK_SPLIT_TAP_CAP = 1f
 
     /**
+     * How many times one word's score two words must beat when an automatic space was taken
+     * back and the word ends (PeckSplit.readRejoin). Twelve batches (2026-10-21), each word with
+     * the next word's tokens typed onto its seeded taps (5,801 that should split), and each
+     * tapped word cut where its head is a word (1,537 that should join): 1.25 keeps 1,517 joins
+     * and splits 1,552 of 1,703 tapped and 4,003 of 4,098 swiped next words. At 1 it keeps 1,487
+     * joins; at 1.5, 1,529 joins and 3,959 swiped splits. Retraction alone joined all of them.
+     */
+    const val REJOIN_SPLIT_RATIO = 1.25f
+
+    /**
      * How strongly the bundled pairs must hold two words as following one another for tapped
      * letters with no space to be split into them (WordPredictor.spaceSplit). Eleven batches
      * hold five such commits that split at all: `howto` 255, `aslong` 199, `tofeel` 142 (three

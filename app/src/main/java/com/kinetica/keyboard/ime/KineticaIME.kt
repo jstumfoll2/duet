@@ -483,9 +483,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val taps = autospacesTappedWord(
             enabled = config.autospaceTappedWords,
             hasSwipeToken = hasSwipe,
-            literal = lastLiteral,
-            literalIsWord = predictor?.isWord(lastLiteral) == true,
-            literalIsStandaloneLetter = standaloneLetter(lastLiteral),
+            literal = autospaceLiteral(lastLiteral),
+            literalIsWord = predictor?.isWord(autospaceLiteral(lastLiteral)) == true,
+            literalIsStandaloneLetter = standaloneLetter(autospaceLiteral(lastLiteral)),
             addressField = editorState.addressField,
             // Re-read when the timer fires, not at scheduling: this site inserts the space,
             // and the text can have moved since.
@@ -1566,14 +1566,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * caller then finishes the swipe's word as usual.
      */
     private fun finalizeSplitHead(comp: WordComposer) {
+        // Read before splitHead clears it: a word reopened by a retraction keeps its own case.
+        val rejoined = reloadedWord?.takeIf { comp.rejoinHead > 0 }
+        val shown = tentativeWord
         val s = comp.splitHead() ?: return
         splitting = true
         try {
             val literal = comp.literal()
-            DecodeTrace.log { "  peck split commit head=$literal shown=$tentativeWord" }
+            DecodeTrace.log { "  peck split commit head=$literal shown=$shown" }
             // What the editor would hold had the swipe not come: the letters as tapped, with
             // the taps' own decode behind them for autocorrect.
-            replaceTentative(displayWord(literal))
+            replaceTentative(rejoined?.takeIf { it.equals(literal, ignoreCase = true) } ?: displayWord(literal))
             lastCandidates = s.tap
             lastTentative = s.tap.firstOrNull()
             lastLiteral = literal
@@ -1582,6 +1585,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             commitTracked(" ")
             if (wordShift == ShiftState.State.SHIFT) wordShift = ShiftState.State.NONE
             comp.rejoinTail(s)
+            // Tapped letters reach the editor one at a time, and the head's commit took them
+            // with it: they go back as typed, after the space.
+            if (rejoined != null && !comp.hasSwipeToken() && shown.length > rejoined.length &&
+                shown.startsWith(rejoined, ignoreCase = true)
+            ) {
+                replaceTentative(shown.substring(rejoined.length))
+            }
         } finally {
             splitting = false
         }
@@ -1630,12 +1640,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             // retractable.
             val joiner =
                 ich.textBeforeCursor(tentativeLength + 1)?.dropLast(tentativeLength) ?: ""
+            // A word reopened by a retraction and read as two is judged by its second word.
+            val spaced = autospaceLiteral(literal)
             if (autospacesTappedWord(
                     enabled = config.autospaceTappedWords,
                     hasSwipeToken = false,
-                    literal = literal,
-                    literalIsWord = predictor?.isWord(literal) == true,
-                    literalIsStandaloneLetter = standaloneLetter(literal),
+                    literal = spaced,
+                    literalIsWord = predictor?.isWord(spaced) == true,
+                    literalIsStandaloneLetter = standaloneLetter(spaced),
                     addressField = editorState.addressField,
                     // The word's own letters are already committed, so the character
                     // before it sits one further back than the word itself.
@@ -1737,6 +1749,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         return tail.isNotEmpty() && p.isLivePrefix(tail + next)
     }
 
+    /**
+     * The letters an automatic space is judged by: [literal], or only those after the head when
+     * a word an autospace ended was reopened and now reads better as two words
+     * ([com.kinetica.keyboard.engine.PeckSplit.readRejoin]): `to` then `a` waits for the space
+     * after `a`, not after the non-word `toa`.
+     */
+    private fun autospaceLiteral(literal: String): String {
+        val comp = composer ?: return literal
+        val s = comp.split ?: return literal
+        return if (comp.rejoinHead > 0 && s.head < literal.length) literal.substring(s.head) else literal
+    }
+
     /** Whether [literal] is one letter that is a word by itself in the active language. */
     private fun standaloneLetter(literal: String): Boolean =
         literal.length == 1 && StandaloneLetters.isWord(literal[0], config.language)
@@ -1774,9 +1798,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         cancelAutospace()
         autospacePending = true
         val swipe = composer?.hasSwipeToken() == true
-        val letter = !swipe && lastLiteral.length == 1
+        val lit = autospaceLiteral(lastLiteral)
+        val letter = !swipe && lit.length == 1
         // Smart timing reads the letters themselves, so it replaces the one-letter floor too.
-        val share = if (!swipe && config.autospaceSmart) predictor?.endShare(lastLiteral) else null
+        val share = if (!swipe && config.autospaceSmart) predictor?.endShare(lit) else null
         val gap = if (share != null) medianLetterGap(composer?.tapStarts().orEmpty()) else -1L
         val delay = when {
             swipe -> config.autospaceDelayMs
@@ -1788,7 +1813,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val now = SystemClock.uptimeMillis()
         val wait = autospaceWait(delay, composer?.lastTokenEnd ?: -1L, now)
         DecodeTrace.log {
-            "  autospace arm kind=$kind delay=$delay wait=$wait lit=$lastLiteral" +
+            "  autospace arm kind=$kind delay=$delay wait=$wait lit=$lit" +
                 (if (share != null) " share=${"%.2f".format(share)} gap=$gap" else "")
         }
         mainHandler.postDelayed(autospaceRunnable, wait)
@@ -3485,6 +3510,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         autospaceFromTaps = false
         DecodeTrace.log { "  autospace retract" }
         reloadWordUnderCursor(beforeTime, byHand = false)
+        // The space is gone, not the question: the word and what follows are weighed against one
+        // word as typing goes on, and the better reading is applied when the word ends.
+        if (reloadedWord != null) composer?.markRejoin()
     }
 
     /**
@@ -4398,7 +4426,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             return false
         }
 
-        if (!splitting && comp.split != null && peckSplitAllowed()) finalizeSplitHead(comp)
+        if (!splitting && comp.split != null && (comp.rejoinHead > 0 || peckSplitAllowed())) finalizeSplitHead(comp)
 
         var finalWord = tentativeWord
         var how = if (comp.hasSwipeToken()) "tentative" else "typed"
@@ -4499,7 +4527,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val joinedAt = joinPoint(comp, finalWord)
         // How the swipe after the tapped word read on its own, for a backspace that splits the
         // commit: only a tapped head that stands as a word, and never a word reopened by hand.
-        val rest = comp.twoWords?.takeIf { reloadedWord == null && it.tapWord != null }?.restWord
+        val rest = comp.twoWords?.takeIf { (reloadedWord == null || comp.rejoinHead > 0) && it.tapWord != null }?.restWord
         commitWordInternal(finalWord)
         if (joinedAt > 0) {
             joinedCommit = JoinedCommit(finalWord, joinedAt, cursorExpected(), rest)

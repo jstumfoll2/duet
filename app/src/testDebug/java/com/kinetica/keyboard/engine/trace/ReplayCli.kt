@@ -2,6 +2,7 @@ package com.kinetica.keyboard.engine.trace
 
 import com.kinetica.keyboard.engine.CtcScorer
 import com.kinetica.keyboard.engine.KineticaConstants
+import com.kinetica.keyboard.engine.WordPredictor
 import java.io.File
 
 /**
@@ -34,6 +35,10 @@ import java.io.File
  *       word and the swiped word after it with the space left out (split), with the joined,
  *       tapped and swiped readings and whether PeckSplit splits it. Reads committed labels
  *       (no retype relabelling): it pairs each commit with the next word's context.
+ *   rejoindata TRACE.jsonl...
+ *       One row per buffer of a word an automatic space ended, reopened, and typed on: a word
+ *       and the next word's tokens after its seeded taps (split), and a tapped word cut where its
+ *       head is a word (join), with the head, rest and joined readings (PeckSplit.readRejoin).
  *   synth [--assets DIR] [--words N] [--alt LANG] [--noise X] [--seed S] OUT.jsonl
  *       Records a synthetic English session to OUT (default 300 words).
  */
@@ -207,6 +212,45 @@ object ReplayCli {
                         val nextTokens = try { SwipeTrace.replayTokens(next) } catch (e: RuntimeException) { continue }
                         if (nextTokens.minByOrNull { it.tStart } !is com.kinetica.keyboard.engine.models.SwipeToken) continue
                         println(splitRow(h, f.name, n, "split", w, tokens + nextTokens, w.context, label, nextLabel))
+                    }
+                }
+            }
+            "rejoindata" -> {
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                for (f in a.map { File(it) }) {
+                    val words = read(f, sink)
+                    for ((i, pair) in words.withIndex()) {
+                        val (n, w) = pair
+                        val label = w.label?.lowercase() ?: continue
+                        if (!label.all { it in 'a'..'z' }) continue
+                        val tokens = try { SwipeTrace.replayTokens(w) } catch (e: RuntimeException) { continue }
+                        if (tokens.isEmpty()) continue
+                        val p = h.predictorFor(w)
+                        val one = { ch: Char -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }
+                        // Join: a tapped word whose letters are the label, cut after a head that is a word.
+                        val taps = tokens.sortedBy { it.tStart }
+                        val literal = taps.joinToString("") { t -> (t as? com.kinetica.keyboard.engine.models.TapToken)?.let { p.alphabet.charOf(it.code).toString() } ?: "?" }
+                        if (literal == label && label.length >= 2 && p.isWord(label)) {
+                            for (cut in 1 until label.length) {
+                                val head = label.substring(0, cut)
+                                if (if (cut == 1) !one(head[0]) else !p.isWord(head)) continue
+                                val seeds = seedTaps(p, head, taps.first().tStart) ?: continue
+                                println(rejoinRow(p, f.name, n, "join", seeds + taps.drop(cut), cut, w.context, head, label.substring(cut), label, one))
+                            }
+                        }
+                        // Split: this word, then the next one's tokens typed onto it.
+                        val next = words.getOrNull(i + 1)?.second ?: continue
+                        val nextLabel = next.label?.lowercase() ?: continue
+                        if (next.context.lastOrNull()?.lowercase() != w.committed?.lowercase()) continue
+                        if (!nextLabel.all { it in 'a'..'z' }) continue
+                        if (if (label.length == 1) !one(label[0]) else !p.isWord(label)) continue
+                        val nextTokens = try { SwipeTrace.replayTokens(next) } catch (e: RuntimeException) { continue }
+                        if (nextTokens.isEmpty()) continue
+                        val seeds = seedTaps(p, label, nextTokens.minOf { it.tStart }) ?: continue
+                        println(rejoinRow(p, f.name, n, "split", seeds + nextTokens, label.length, w.context, label, nextLabel, label + nextLabel, one))
                     }
                 }
             }
@@ -485,6 +529,49 @@ object ReplayCli {
             c(restList.firstOrNull()), ReplayHarness.rankOf(label2.ifEmpty { "-" }, restList),
             restList.firstOrNull { it.word == label }?.score ?: 0f,
             com.kinetica.keyboard.engine.PeckSplit.split(p, sorted, context, joined, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }) != null,
+        ).joinToString("\t")
+    }
+
+    // A reopened word's taps as the IME seeds them: key centres, 1 ms apart, just before [before].
+    private fun seedTaps(p: WordPredictor, word: String, before: Long): List<com.kinetica.keyboard.engine.models.InputToken>? {
+        val g = p.geometry ?: return null
+        val codes = p.alphabet.encode(word) ?: return null
+        return codes.mapIndexed { i, code ->
+            if (!g.hasKey(code)) return null
+            com.kinetica.keyboard.engine.models.TapToken(
+                com.kinetica.keyboard.engine.models.StreamId.LEFT, code, g.centerX(code), g.centerY(code),
+                longPress = false, tStart = before - 10 + i, tEnd = before - 9 + i,
+            )
+        }
+    }
+
+    private fun rejoinRow(
+        p: WordPredictor,
+        file: String,
+        n: Int,
+        kind: String,
+        tokens: List<com.kinetica.keyboard.engine.models.InputToken>,
+        head: Int,
+        context: List<String>,
+        headWord: String,
+        restLabel: String,
+        joinedLabel: String,
+        one: (Char) -> Boolean,
+    ): String {
+        val joined = p.decode(tokens.sortedBy { it.tStart }, context)
+        val s = com.kinetica.keyboard.engine.PeckSplit.readRejoin(p, tokens, head, context, joined, one)
+        val restTokens = tokens.drop(head)
+        val restTaps = restTokens.all { it is com.kinetica.keyboard.engine.models.TapToken }
+        val firstRest = restTokens.minByOrNull { it.tStart }
+        val liveFuse = firstRest is com.kinetica.keyboard.engine.models.TapToken &&
+            p.isLivePrefix(headWord + p.alphabet.charOf(firstRest.code))
+        val tap = s?.tap?.firstOrNull { it.source != com.kinetica.keyboard.engine.models.WordCandidate.Source.COMPLETION }
+        val rest = s?.rest?.firstOrNull()
+        return listOf(
+            file, n, kind, headWord, restLabel, joinedLabel, restTaps, liveFuse,
+            tap?.word ?: "-", tap?.score ?: 0f, rest?.word ?: "-", rest?.score ?: 0f,
+            joined.firstOrNull()?.word ?: "-", joined.firstOrNull()?.score ?: 0f,
+            s?.chosen ?: false, joined.firstOrNull { it.word == joinedLabel }?.score ?: 0f,
         ).joinToString("\t")
     }
 
