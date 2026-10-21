@@ -145,9 +145,14 @@ F-Droid.
 - **Theme presets.** Pure black (AMOLED), Ocean, Forest, Sunset, Paper, Lavender and High
   contrast, in Keyboard theme next to Duet dark, Material You and Custom colour. Duet dark stays
   the default.
-- **Gap above the space bar** (25% by default). The top of the space bar row (space, comma,
-  period, enter) is a margin that types the letter above, so a thumb aiming low for `b` or `n` no
-  longer types a space. Settings > Size and layout, 0 to 50%. The letter keys do not move.
+- **Gap above the space bar** (25% of a letter row by default). A strip between the bottom
+  letters and the space bar row (space, comma, period, enter) types the letter above, so a thumb
+  aiming low for `b` or `n` no longer types a space. Settings > Size and layout, 0 to 50%. The
+  gap under the numbers row works the same way. Both gaps are added beside their rows, and the
+  board grows to fit, so no key is shortened.
+- **Numbers row and space bar row height.** Each is a percent of a letter key's height, 50 to
+  150% (Settings > Size and layout, 100% by default, matching the letters). The board grows or
+  shrinks to fit; the letter keys and swipe decoding are unchanged.
 - **Spacing between keys.** How far apart keys are drawn, 0 to 300% of the stock spacing
   (Settings > Size and layout). Drawing only: touch targets and swipe decoding are unchanged.
 - **Autospace mid-paragraph.** A word written before text that already follows (`cats|.` or

@@ -558,6 +558,26 @@
                     app:seekBarIncrement="5"
                     app:showSeekBarValue="true" />
                 <SeekBarPreference
+                    android:key="pref_bottom_row_size"
+                    android:title="@string/pref_bottom_row_size_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_bottom_row_size_summary"
+                    android:defaultValue="100"
+                    android:max="150"
+                    app:min="50"
+                    app:seekBarIncrement="5"
+                    app:showSeekBarValue="true" />
+                <SeekBarPreference
+                    android:key="pref_number_row_size"
+                    android:title="@string/pref_number_row_size_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_number_row_size_summary"
+                    android:defaultValue="100"
+                    android:max="150"
+                    app:min="50"
+                    app:seekBarIncrement="5"
+                    app:showSeekBarValue="true" />
+                <SeekBarPreference
                     android:key="pref_key_gap"
                     android:title="@string/pref_key_gap_title"
                     app:singleLineTitle="false"

@@ -99,16 +99,42 @@ class NumberRowTest {
     }
 
     @Test
-    fun theGapShortensTheDigitsAndLeavesTheLettersWhereTheyWere() {
-        val plain = LayoutMutations.withNumberRow(qwerty())
+    fun theGapSitsUnderFullHeightDigitsAndTheLettersKeepTheirSize() {
+        val growth = LayoutMutations.boardGrowth(numberRow = true, numberGap = 0.25f)
+        assertEquals(1f + 0.25f * 1.25f, growth, 1e-6f)
         val gapped = LayoutMutations.withNumberRow(qwerty(), 0.25f)
         val digit = gapped.keys.first { it.id == "num_9" }
-        val plainDigit = plain.keys.first { it.id == "num_9" }
+        val o = gapped.keys.first { it.id == "o" }
         assertEquals(0f, digit.y, 1e-6f)
-        assertEquals(plainDigit.h * 0.75f, digit.h, 1e-6f)
-        assertEquals(plain.keys.filter { it.isLetter }, gapped.keys.filter { it.isLetter })
-        // Capped at half the row.
-        assertEquals(plainDigit.h * 0.5f, LayoutMutations.withNumberRow(qwerty(), 0.9f).keys.first { it.id == "num_9" }.h, 1e-6f)
+        // In pixels, on the grown board: the digit is a letter key tall, the gap a quarter row.
+        assertEquals(0.25f * viewH, digit.h * viewH * growth, 1e-2f)
+        assertEquals(0.25f * viewH, o.h * viewH * growth, 1e-2f)
+        assertEquals(0.25f * 1.25f * viewH, o.y * viewH * growth, 1e-2f)
+        // Capped at half a row.
+        val capped = LayoutMutations.withNumberRow(qwerty(), 0.9f).keys.first { it.id == "num_9" }
+        assertEquals(capped.h * 0.5f, LayoutMutations.withNumberRow(qwerty(), 0.9f).keys.first { it.id == "q" }.y - capped.h, 1e-6f)
+    }
+
+    @Test
+    fun theDigitsSizeChangesOnlyTheDigits() {
+        val growth = LayoutMutations.boardGrowth(numberRow = true, numberGap = 0.25f, numberSize = 0.7f)
+        val l = LayoutMutations.withNumberRow(qwerty(), 0.25f, 0.7f)
+        assertEquals(0.25f * 0.7f * viewH, l.keys.first { it.id == "num_1" }.h * viewH * growth, 1e-2f)
+        assertEquals(0.25f * viewH, l.keys.first { it.id == "q" }.h * viewH * growth, 1e-2f)
+    }
+
+    @Test
+    fun bothRowsTogetherKeepEveryLetterDistanceInKw() {
+        // The order AlphaLayouts applies them in, on the board the service grows to fit.
+        val l = LayoutMutations.withNumberRow(LayoutMutations.withSpaceRowGap(qwerty(), 0.25f, 1.2f), 0.25f, 0.8f)
+        val growth = LayoutMutations.boardGrowth(true, 0.25f, 0.8f, 0.25f, 1.2f)
+        val base = geometry(qwerty(), viewH)
+        val grown = geometry(l, viewH * growth)
+        for (a in 0 until 26) for (b in 0 until 26) {
+            assertTrue(abs(base.keyDist(a, b) - grown.keyDist(a, b)) < 1e-3f)
+        }
+        assertEquals(1f, l.keys.maxOf { it.y + it.h }, 1e-5f)
+        assertEquals(0.25f * viewH, l.keys.first { it.id == "q" }.h * viewH * growth, 1e-2f)
     }
 
     @Test

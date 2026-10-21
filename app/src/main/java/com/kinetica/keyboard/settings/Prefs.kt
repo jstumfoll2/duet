@@ -83,6 +83,14 @@ object Prefs {
      */
     const val SPACE_ROW_GAP_PCT = "pref_space_row_gap"
 
+    /**
+     * The numbers row's and the bottom row's key height, in percent of a letter key, 50 to 150.
+     * The board grows or shrinks to fit (LayoutMutations.boardGrowth); the letter keys keep their
+     * size, so swipes decode the same.
+     */
+    const val NUMBER_ROW_SIZE_PCT = "pref_number_row_size"
+    const val BOTTOM_ROW_SIZE_PCT = "pref_bottom_row_size"
+
     /** The drawn spacing between keys, in percent of the stock spacing; touch targets keep their size. */
     const val KEY_GAP_PCT = "pref_key_gap"
 
@@ -712,6 +720,9 @@ object Prefs {
     // A quarter of the space row: a thumb aiming low for the bottom letters kept typing a space.
     const val DEFAULT_SPACE_ROW_GAP_PCT = 25
     const val DEFAULT_KEY_GAP_PCT = 100
+    // A letter key's height: the gaps are added beside the rows, not cut out of their keys.
+    const val DEFAULT_NUMBER_ROW_SIZE_PCT = 100
+    const val DEFAULT_BOTTOM_ROW_SIZE_PCT = 100
     // Three quarters of a letter key, up from half; the home row moves left 0.25 key to make room.
     const val DEFAULT_APOSTROPHE_WIDTH_PCT = 75
     const val DEFAULT_SLIP_CORRECTION = true

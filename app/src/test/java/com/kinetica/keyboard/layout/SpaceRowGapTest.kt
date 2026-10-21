@@ -5,8 +5,9 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
- * The gap above the space row takes the top of the bottom row's keys and leaves every letter
- * where it was, so the decoder's geometry is unchanged and only stray space touches go.
+ * The gap above the space row is added between the letters and the bottom row, and the board
+ * grows to hold it, so every letter key keeps its size (the decoder's geometry is unchanged) and
+ * the space bar keeps a letter key's height unless its own setting changes it.
  */
 class SpaceRowGapTest {
 
@@ -25,19 +26,37 @@ class SpaceRowGapTest {
         return KeyboardLayout("qwerty", "en_US", keys)
     }
 
+    /** [layout] in pixels of a board [growth] times as tall as a 1000 px letter area. */
+    private fun px(layout: KeyboardLayout, growth: Float): Map<String, Pair<Float, Float>> =
+        layout.keys.associate { it.id to Pair(it.y * 1000f * growth, it.h * 1000f * growth) }
+
     @Test
-    fun lettersStayPutAndTheBottomRowLosesItsTop() {
+    fun theGapIsAddedAndEveryKeyKeepsALetterKeysHeight() {
         val base = qwerty()
-        val gapped = LayoutMutations.withSpaceRowGap(base, 0.25f)
-        for ((a, b) in base.keys.zip(gapped.keys)) {
-            if (a.isLetter) {
-                assertEquals(a, b)
-            } else {
-                assertEquals(a.id, 0.75f + 0.25f * 0.25f, b.y, 1e-5f)
-                assertEquals(a.id, 0.25f * 0.75f, b.h, 1e-5f)
-                // The row still reaches the board's bottom edge.
-                assertEquals(a.id, 1f, b.y + b.h, 1e-5f)
-            }
+        val growth = LayoutMutations.boardGrowth(numberRow = false, spaceGap = 0.25f)
+        assertEquals(1f + 0.25f * 0.25f, growth, 1e-6f)
+        val before = px(base, 1f)
+        val after = px(LayoutMutations.withSpaceRowGap(base, 0.25f), growth)
+        for (k in base.keys) {
+            val (y0, h0) = before.getValue(k.id)
+            val (y1, h1) = after.getValue(k.id)
+            assertEquals(k.id, h0, h1, 1e-2f)
+            if (k.isLetter) assertEquals(k.id, y0, y1, 1e-2f) else assertEquals(k.id, y0 + 62.5f, y1, 1e-2f)
+        }
+        // The row still reaches the board's bottom edge.
+        assertEquals(1f, LayoutMutations.withSpaceRowGap(base, 0.25f).keys.maxOf { it.y + it.h }, 1e-5f)
+    }
+
+    @Test
+    fun theBottomRowSizeChangesOnlyTheBottomRow() {
+        val base = qwerty()
+        val growth = LayoutMutations.boardGrowth(numberRow = false, spaceGap = 0.25f, spaceSize = 0.8f)
+        val before = px(base, 1f)
+        val after = px(LayoutMutations.withSpaceRowGap(base, 0.25f, 0.8f), growth)
+        assertEquals(250f * 0.8f, after.getValue("space").second, 1e-2f)
+        for (k in base.keys.filter { it.isLetter }) {
+            assertEquals(k.id, before.getValue(k.id).first, after.getValue(k.id).first, 1e-2f)
+            assertEquals(k.id, before.getValue(k.id).second, after.getValue(k.id).second, 1e-2f)
         }
     }
 
@@ -48,8 +67,10 @@ class SpaceRowGapTest {
     }
 
     @Test
-    fun theGapIsCapped() {
-        val space = LayoutMutations.withSpaceRowGap(qwerty(), 0.9f).keys.first { it.id == "space" }
-        assertEquals(0.25f * (1f - LayoutMutations.MAX_SPACE_ROW_GAP), space.h, 1e-5f)
+    fun theGapAndSizeAreCapped() {
+        val space = LayoutMutations.withSpaceRowGap(qwerty(), 0.9f, 9f).keys.first { it.id == "space" }
+        val growth = LayoutMutations.boardGrowth(numberRow = false, spaceGap = 0.9f, spaceSize = 9f)
+        assertEquals(1f + 0.25f * (LayoutMutations.MAX_SPACE_ROW_GAP + LayoutMutations.MAX_ROW_SIZE - 1f), growth, 1e-6f)
+        assertEquals(0.25f * LayoutMutations.MAX_ROW_SIZE, space.h * growth, 1e-5f)
     }
 }

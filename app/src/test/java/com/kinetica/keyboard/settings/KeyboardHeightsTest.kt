@@ -1,6 +1,7 @@
 package com.kinetica.keyboard.settings
 
 import com.kinetica.keyboard.engine.KineticaConstants
+import com.kinetica.keyboard.layout.LayoutMutations
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -122,10 +123,14 @@ class KeyboardHeightsTest {
     @Test
     fun theNumbersRowGrowsTheBoardAndTheSettingKeepsMeaningTheLetters() {
         // The service and the size preview share this arithmetic.
-        assertEquals(1000, KeyboardHeights.boardPx(800, numberRow = true))
-        assertEquals(800, KeyboardHeights.boardPx(800, numberRow = false))
-        assertEquals(800, KeyboardHeights.letterPx(1000, numberRow = true))
-        assertEquals(1000, KeyboardHeights.letterPx(1000, numberRow = false))
+        assertEquals(1000, KeyboardHeights.boardPx(800, LayoutMutations.NUMBER_ROW_GROWTH))
+        assertEquals(800, KeyboardHeights.boardPx(800, 1f))
+        assertEquals(800, KeyboardHeights.letterPx(1000, LayoutMutations.NUMBER_ROW_GROWTH))
+        assertEquals(1000, KeyboardHeights.letterPx(1000, 1f))
+        // The shipped defaults: both gaps are added, the digits and space bar are letter-key tall.
+        val growth = LayoutMutations.boardGrowth(numberRow = true, numberGap = 0.25f, spaceGap = 0.25f)
+        assertEquals(1100, KeyboardHeights.boardPx(800, growth))
+        assertEquals(800, KeyboardHeights.letterPx(1100, growth))
     }
 
     @Test
