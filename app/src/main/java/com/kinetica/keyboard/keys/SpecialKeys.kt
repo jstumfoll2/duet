@@ -39,4 +39,14 @@ object SpecialKeys {
         EditorAction.PAGE_DOWN -> "pagedown"
         else -> null
     }
+
+    /**
+     * The shortcut an editing action is sent as: Ctrl+Z and Ctrl+Shift+Z, which TextView, Compose
+     * and Chrome all read as undo and redo, as from a hardware keyboard. Null for any other action.
+     */
+    fun comboFor(action: EditorAction): KeyCombo? = when (action) {
+        EditorAction.UNDO -> KeyCombo(ctrl = true, shift = false, alt = false, key = "z")
+        EditorAction.REDO -> KeyCombo(ctrl = true, shift = true, alt = false, key = "z")
+        else -> null
+    }
 }

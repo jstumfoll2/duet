@@ -52,4 +52,21 @@ class SpecialKeysTest {
         assertNull(ActionRow.actionForGlyph("←"))
         assertEquals(ActionRow.Notice.Sent(EditorAction.TAB), ActionRow.notice(EditorAction.TAB, ActionRow.KeyboardState(true, listOf("en"), "en", "full", null)))
     }
+
+    @Test
+    fun undoAndRedoGoOutAsTheHardwareShortcut() {
+        // The undo context-menu command did nothing in Compose and Chrome fields (2026-10-21);
+        // Ctrl+Z and Ctrl+Shift+Z are what TextView, Compose and Chrome all read.
+        val undo = SpecialKeys.comboFor(EditorAction.UNDO)!!
+        assertEquals(KeyEvent.KEYCODE_Z, undo.keyCode())
+        assertTrue(undo.metaState() and KeyEvent.META_CTRL_ON != 0)
+        assertEquals(0, undo.metaState() and KeyEvent.META_SHIFT_ON)
+        val redo = SpecialKeys.comboFor(EditorAction.REDO)!!
+        assertEquals(KeyEvent.KEYCODE_Z, redo.keyCode())
+        assertTrue(redo.metaState() and KeyEvent.META_CTRL_ON != 0)
+        assertTrue(redo.metaState() and KeyEvent.META_SHIFT_ON != 0)
+        for (a in EditorAction.entries.filter { it != EditorAction.UNDO && it != EditorAction.REDO }) {
+            assertNull(a.name, SpecialKeys.comboFor(a))
+        }
+    }
 }
