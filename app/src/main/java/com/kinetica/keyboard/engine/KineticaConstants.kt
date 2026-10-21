@@ -164,6 +164,7 @@ object KineticaConstants {
      * tapped word left out of 646 pairs and 881 real tap-then-swipe words: one ratio of 2
      * split 466 pairs right and lost 21 real words; 1.25 here and 3 for a quick swipe split
      * 495 and lose the same 21. Owner report: two words were still read as one too often.
+     * With [BoundaryModel] on, its fitted model decides instead (#67).
      */
     const val PECK_SPLIT_RATIO = 1.25f
 
@@ -191,6 +192,7 @@ object KineticaConstants {
      * tapped word cut where its head is a word (1,537 that should join): 1.25 keeps 1,517 joins
      * and splits 1,552 of 1,703 tapped and 4,003 of 4,098 swiped next words. At 1 it keeps 1,487
      * joins; at 1.5, 1,529 joins and 3,959 swiped splits. Retraction alone joined all of them.
+     * With [BoundaryModel] on, its fitted model decides instead (#67).
      */
     const val REJOIN_SPLIT_RATIO = 1.25f
 

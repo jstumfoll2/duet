@@ -43,6 +43,7 @@ import java.io.File
  *   terms [--lines] TRACE.jsonl...
  *       For each line whose label is listed but not first: the score term it lost most on
  *       against the winner (ScoreTerms), tallied over all such lines.
+ *   --boundary (any command) decides word boundaries with the fitted BoundaryModel.
  *   synth [--assets DIR] [--words N] [--alt LANG] [--noise X] [--seed S] OUT.jsonl
  *       Records a synthetic English session to OUT (default 300 words).
  */
@@ -57,6 +58,8 @@ object ReplayCli {
         opt(a, "--skipfrom")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_FROM = it.toInt() }
         opt(a, "--skip")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_KW = it.toFloat() }
         forceTouch = a.remove("--touchforce")
+        // --boundary (any command): word boundaries decided by the fitted BoundaryModel.
+        if (a.remove("--boundary")) com.kinetica.keyboard.engine.BoundaryModel.enabled = true
         val assets = File(opt(a, "--assets") ?: defaultAssets())
         when (cmd) {
             "replay" -> {
@@ -575,6 +578,8 @@ object ReplayCli {
             c(restList.firstOrNull()), ReplayHarness.rankOf(label2.ifEmpty { "-" }, restList),
             restList.firstOrNull { it.word == label }?.score ?: 0f,
             com.kinetica.keyboard.engine.PeckSplit.split(p, sorted, context, joined, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }) != null,
+            // Whether the buffer may be read as two words at all (PeckSplit.read is not null).
+            com.kinetica.keyboard.engine.PeckSplit.read(p, sorted, context, joined, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }) != null,
         ).joinToString("\t")
     }
 
@@ -618,6 +623,9 @@ object ReplayCli {
             tap?.word ?: "-", tap?.score ?: 0f, rest?.word ?: "-", rest?.score ?: 0f,
             joined.firstOrNull()?.word ?: "-", joined.firstOrNull()?.score ?: 0f,
             s?.chosen ?: false, joined.firstOrNull { it.word == joinedLabel }?.score ?: 0f,
+            // Whether the rest may stand as a word (a swipe, or taps that spell one).
+            rest != null && (!restTaps || (rest.source != com.kinetica.keyboard.engine.models.WordCandidate.Source.COMPLETION &&
+                (if (rest.word.length == 1) one(rest.word[0].lowercaseChar()) else p.isWord(rest.word)))),
         ).joinToString("\t")
     }
 
