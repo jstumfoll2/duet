@@ -8,6 +8,11 @@ committed word comes out on top. Plain JVM: it needs a JDK, not the Android SDK.
 # between a tapped word and the swiped word after it (split), one TSV row each
 ./gradlew -p tools/replay replay --args="splitdata TRACE.jsonl..."
 
+# Which score term each miss lost on: for every line whose label is listed but not
+# first, the ScoreTerms factor (freq, geo, bigram, path, ...) with the biggest deficit
+# against the winner, tallied. --lines prints each line too.
+./gradlew -p tools/replay replay --args="terms [--lines] TRACE.jsonl..."
+
 # Record a synthetic session (useful for trying the tools; not an accuracy figure)
 ./gradlew -p tools/replay replay --args="synth --words 300 /tmp/synth.jsonl"
 

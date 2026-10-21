@@ -60,7 +60,17 @@ data class WordCandidate(
      * score pieces separately. Null in the shipping decode.
      */
     val segmentation: Segmentation? = null,
+    /**
+     * [score] taken apart by factor, as natural logs ([ScoreTerms]). A ledger beside the
+     * product, so the ranking is untouched; [ScoreTerms.NONE] where nothing was recorded
+     * (test fixtures, a candidate the heap was going to refuse).
+     */
+    val terms: ScoreTerms = ScoreTerms.NONE,
 ) {
+    /** This candidate with its score times [factor], recorded under [term]. */
+    fun scaled(term: ScoreTerms.Term, factor: Float): WordCandidate =
+        copy(score = score * factor, terms = terms.times(term, factor))
+
     /**
      * [letters] are the trie's folded codes; each piece spells `letters[from until to]`, or
      * `Piece.letters[from until to]` when the piece has its own (one thumb's letters).

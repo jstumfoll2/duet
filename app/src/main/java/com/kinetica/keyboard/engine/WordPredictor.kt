@@ -2,6 +2,7 @@ package com.kinetica.keyboard.engine
 
 import com.kinetica.keyboard.engine.models.Dwell
 import com.kinetica.keyboard.engine.models.InputToken
+import com.kinetica.keyboard.engine.models.ScoreTerms
 import com.kinetica.keyboard.engine.models.StreamId
 import com.kinetica.keyboard.engine.models.SwipeToken
 import com.kinetica.keyboard.engine.models.TapToken
@@ -135,7 +136,7 @@ class WordPredictor(
                 c
             } else {
                 changed = true
-                c.copy(score = c.score * WordPenalties.factor(steps))
+                c.scaled(ScoreTerms.Term.PENALTY, WordPenalties.factor(steps))
             }
         }
         if (!changed) return list
@@ -353,7 +354,7 @@ class WordPredictor(
         val best = LinkedHashMap<String, WordCandidate>()
         for (c in rest) best[c.word] = c
         for (c in il) {
-            val w = c.copy(score = c.score * interleaveWeight)
+            val w = c.scaled(ScoreTerms.Term.INTERLEAVE, interleaveWeight)
             val have = best[c.word]
             if (have == null || w.score > have.score) best[c.word] = w
         }
@@ -369,18 +370,30 @@ class WordPredictor(
         val hits = search.run(KineticaConstants.INTERLEAVE_KEEP)
         val out = ArrayList<WordCandidate>(hits.size)
         for (h in hits) {
-            val geo = InterleavedSearch.geometric(h.cost) * interleavedShortKeep(il, h.word)
+            val geoFit = InterleavedSearch.geometric(h.cost)
+            val shortKeep = interleavedShortKeep(il, h.word)
+            val geo = geoFit * shortKeep
             val bm = bigrams.multiplier(prevWordId, h.node)
             val variants = forms[h.node]
             if (variants == null) {
                 val pb = personalBoost(h.word)
-                out.add(WordCandidate(h.word, h.fw * geo * bm * pb, h.cost, h.fw, bm, h.node, WordCandidate.Source.MERGED, language, pb))
+                out.add(
+                    WordCandidate(
+                        h.word, h.fw * geo * bm * pb, h.cost, h.fw, bm, h.node, WordCandidate.Source.MERGED, language, pb,
+                        terms = ScoreTerms.of(h.fw, geoFit, bm, pb, path = shortKeep),
+                    ),
+                )
             } else {
                 for (v in variants) {
                     val fwV = KineticaConstants.FREQ_WEIGHT_FLOOR +
                         (1f - KineticaConstants.FREQ_WEIGHT_FLOOR) * v.freqByte / 255f
                     val pb = personalBoost(v.display)
-                    out.add(WordCandidate(v.display, fwV * geo * bm * pb, h.cost, fwV, bm, h.node, WordCandidate.Source.MERGED, language, pb))
+                    out.add(
+                        WordCandidate(
+                            v.display, fwV * geo * bm * pb, h.cost, fwV, bm, h.node, WordCandidate.Source.MERGED, language, pb,
+                            terms = ScoreTerms.of(fwV, geoFit, bm, pb, path = shortKeep),
+                        ),
+                    )
                 }
             }
         }
@@ -479,7 +492,7 @@ class WordPredictor(
             val raw = table.multiplier(firstId, prevWordId, c.wordId, trigramBoostMax)
             if (raw == 1f) c else {
                 changed = true
-                c.copy(score = c.score * KineticaConstants.appliedBoost(raw, c.dtwDistance))
+                c.scaled(ScoreTerms.Term.TRIGRAM, KineticaConstants.appliedBoost(raw, c.dtwDistance))
             }
         }
         if (!changed) return list
@@ -512,9 +525,9 @@ class WordPredictor(
             }
             offer(
                 when {
-                    held.any { HeldDoubles.doubles(codes, it) } -> c.copy(score = c.score * heldDoubleBoost)
+                    held.any { HeldDoubles.doubles(codes, it) } -> c.scaled(ScoreTerms.Term.HELD_DOUBLE, heldDoubleBoost)
                     heldDoubleMissKeep != 1f && (1 until codes.size).any { codes[it] == codes[it - 1] } ->
-                        c.copy(score = c.score * heldDoubleMissKeep)
+                        c.scaled(ScoreTerms.Term.HELD_DOUBLE, heldDoubleMissKeep)
                     else -> c
                 },
             )
@@ -532,7 +545,9 @@ class WordPredictor(
                 val bmRaw = bigrams.multiplier(prevWordId, node)
                 val bm = if (c.bigramMultiplier > 1f) bmRaw else 1f
                 val score = c.score / (c.frequencyWeight * c.bigramMultiplier) * fw * bm * heldDoubleBoost
-                offer(c.copy(word = form?.display ?: spelled, score = score, frequencyWeight = fw, bigramMultiplier = bm, wordId = node, segmentation = null))
+                val terms = c.terms.with(ScoreTerms.Term.FREQ, fw).with(ScoreTerms.Term.BIGRAM, bm)
+                    .times(ScoreTerms.Term.HELD_DOUBLE, heldDoubleBoost)
+                offer(c.copy(word = form?.display ?: spelled, score = score, frequencyWeight = fw, bigramMultiplier = bm, wordId = node, segmentation = null, terms = terms))
             }
         }
         return best.values.sortedByDescending { it.score }.take(topK)
@@ -559,7 +574,7 @@ class WordPredictor(
                 offer(c)
                 continue
             }
-            offer(c.copy(score = c.score * KineticaConstants.APOSTROPHE_MISS_KEEP))
+            offer(c.scaled(ScoreTerms.Term.APOSTROPHE, KineticaConstants.APOSTROPHE_MISS_KEEP))
             val base = c.word.lowercase()
             MarkedContractions.of(language, base)?.let { offer(c.copy(word = it, segmentation = null)) }
             if (c.frequencyWeight <= 0f || c.bigramMultiplier <= 0f) continue
@@ -577,7 +592,8 @@ class WordPredictor(
                 val bmRaw = bigrams.multiplier(prevWordId, node)
                 val bm = if (c.bigramMultiplier > 1f) bmRaw else 1f
                 val score = c.score / (c.frequencyWeight * c.bigramMultiplier) * fw * bm
-                offer(c.copy(word = display, score = score, frequencyWeight = fw, bigramMultiplier = bm, wordId = node, segmentation = null))
+                val terms = c.terms.with(ScoreTerms.Term.FREQ, fw).with(ScoreTerms.Term.BIGRAM, bm)
+                offer(c.copy(word = display, score = score, frequencyWeight = fw, bigramMultiplier = bm, wordId = node, segmentation = null, terms = terms))
             }
         }
         return best.values.sortedByDescending { it.score }.take(topK)
@@ -600,7 +616,7 @@ class WordPredictor(
         val asIs = decodeRepaired(repaired, context, beam)
         val other = decodeRepaired(regrouped, context, beam)
         val best = HashMap<String, WordCandidate>()
-        for (c in asIs + other.map { it.copy(score = it.score * ContactRepair.REGROUP_KEEP) }) {
+        for (c in asIs + other.map { it.scaled(ScoreTerms.Term.REGROUP, ContactRepair.REGROUP_KEEP) }) {
             val held = best[c.word]
             if (held == null || c.score > held.score) best[c.word] = c
         }
@@ -816,6 +832,13 @@ class WordPredictor(
                         "ck=${(it.contactKeep * 100).toInt() / 100f}," +
                         "pbm=${(it.personalBigram * 100).toInt() / 100f},${it.source})"
                 }
+        }
+        // The same five as natural-log terms (ScoreTerms), every factor the list applied after
+        // the search included (trigram, held doubles, apostrophe, interleave, regroup, downrank,
+        // rerank), so a lost word reads as the term it lost on. A line of its own: tools parse
+        // the line above.
+        DecodeTrace.log {
+            "decode terms$langTag: " + out.take(5).joinToString(" | ") { "${it.word} ${it.terms}" }
         }
         // The phone's own decode cost, which the JVM corpus can only bound from below.
         // Then where it went, by stage, so a slow phone decode says which stage to look at.
@@ -1192,11 +1215,13 @@ class WordPredictor(
             val pb = KineticaConstants.appliedBoost(personalBoost(word), geoFit)
             val pbm = KineticaConstants.appliedBoost(personalBigramBoost(prevWord, word), geoFit)
             val score = fw * geo * bmApplied * pb * pbm * contactKeep
-            val seg = if (wantSeg && heap.accepts(word, score)) segmentation(letters, depth, pieceCount, pieceSeg, pieceLetters, pieceFrom, pieceTo) else null
+            val accepted = heap.accepts(word, score)
+            val seg = if (wantSeg && accepted) segmentation(letters, depth, pieceCount, pieceSeg, pieceLetters, pieceFrom, pieceTo) else null
+            val terms = if (accepted) ScoreTerms.of(fw, geo, bmApplied, pb, pbm, contactKeep) else ScoreTerms.NONE
             heap.offer(
                 WordCandidate(
                     word, score, dTotal, fw, bmApplied, node, source, language, pb,
-                    contactKeep, pbm, seg,
+                    contactKeep, pbm, seg, terms,
                 ),
             )
         } else {
@@ -1209,11 +1234,13 @@ class WordPredictor(
                 val pbmV =
                     KineticaConstants.appliedBoost(personalBigramBoost(prevWord, v.display), geoFit)
                 val score = fwV * geo * bmApplied * pbV * pbmV * contactKeep
-                val seg = if (wantSeg && heap.accepts(v.display, score)) segmentation(letters, depth, pieceCount, pieceSeg, pieceLetters, pieceFrom, pieceTo) else null
+                val accepted = heap.accepts(v.display, score)
+                val seg = if (wantSeg && accepted) segmentation(letters, depth, pieceCount, pieceSeg, pieceLetters, pieceFrom, pieceTo) else null
+                val terms = if (accepted) ScoreTerms.of(fwV, geo, bmApplied, pbV, pbmV, contactKeep) else ScoreTerms.NONE
                 heap.offer(
                     WordCandidate(
                         v.display, score, dTotal, fwV, bmApplied, node, source, language, pbV,
-                        contactKeep, pbmV, seg,
+                        contactKeep, pbmV, seg, terms,
                     ),
                 )
             }

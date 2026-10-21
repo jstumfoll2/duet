@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.SystemClock
 import android.util.Log
+import com.kinetica.keyboard.engine.BoundaryModel
 import com.kinetica.keyboard.engine.CandidateReranker
 import com.kinetica.keyboard.engine.CtcReranker
 import com.kinetica.keyboard.engine.CtcScorer
@@ -49,6 +50,7 @@ object NeuralRerank {
     private const val PREFS = "neural_v1"
     private const val PREF_ENABLED = "enabled"
     private const val PREF_BETA = "beta"
+    private const val PREF_BOUNDARY = "boundary_model"
 
     private const val TAG = "KineticaNeural"
 
@@ -101,7 +103,20 @@ object NeuralRerank {
         if (prefs != null) return
         appContext = context.applicationContext
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        BoundaryModel.enabled = boundaryModel
     }
+
+    /**
+     * Word boundaries (a tapped word then a swipe, a reopened word typed on) decided by the
+     * fitted [BoundaryModel] instead of PeckSplit's ratios (#67). On by default in this build;
+     * the release build never turns it on.
+     */
+    var boundaryModel: Boolean
+        get() = prefs?.getBoolean(PREF_BOUNDARY, true) ?: true
+        set(on) {
+            prefs?.edit()?.putBoolean(PREF_BOUNDARY, on)?.apply()
+            BoundaryModel.enabled = on
+        }
 
     fun detach() {
         onChange = null

@@ -3,6 +3,7 @@ package com.kinetica.keyboard.engine.trace
 import com.kinetica.keyboard.engine.CtcScorer
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.WordPredictor
+import com.kinetica.keyboard.engine.models.ScoreTerms
 import java.io.File
 
 /**
@@ -39,6 +40,10 @@ import java.io.File
  *       One row per buffer of a word an automatic space ended, reopened, and typed on: a word
  *       and the next word's tokens after its seeded taps (split), and a tapped word cut where its
  *       head is a word (join), with the head, rest and joined readings (PeckSplit.readRejoin).
+ *   terms [--lines] TRACE.jsonl...
+ *       For each line whose label is listed but not first: the score term it lost most on
+ *       against the winner (ScoreTerms), tallied over all such lines.
+ *   --boundary (any command) decides word boundaries with the fitted BoundaryModel.
  *   synth [--assets DIR] [--words N] [--alt LANG] [--noise X] [--seed S] OUT.jsonl
  *       Records a synthetic English session to OUT (default 300 words).
  */
@@ -53,6 +58,8 @@ object ReplayCli {
         opt(a, "--skipfrom")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_FROM = it.toInt() }
         opt(a, "--skip")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_KW = it.toFloat() }
         forceTouch = a.remove("--touchforce")
+        // --boundary (any command): word boundaries decided by the fitted BoundaryModel.
+        if (a.remove("--boundary")) com.kinetica.keyboard.engine.BoundaryModel.enabled = true
         val assets = File(opt(a, "--assets") ?: defaultAssets())
         when (cmd) {
             "replay" -> {
@@ -134,6 +141,88 @@ object ReplayCli {
                     println("${f.name}\t$n\t${r.word.label}\t${r.rank}\t${r.buckets.joinToString(",")}\t${r.shipping.firstOrNull()?.word ?: ""}\t${r.micros}")
                 }
             }
+            "terms" -> {
+                // terms [--lines] FILE...: for each line whose label is listed but not first, the
+                // score term (ScoreTerms) it lost most on against the winner, tallied. --lines
+                // also prints each such line.
+                val lines = a.remove("--lines")
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                val decided = java.util.EnumMap<ScoreTerms.Term, Int>(ScoreTerms.Term::class.java)
+                val deficit = java.util.EnumMap<ScoreTerms.Term, Double>(ScoreTerms.Term::class.java)
+                var top = 0
+                var lost = 0
+                var unlisted = 0
+                for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
+                    val label = w.label?.lowercase() ?: continue
+                    val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
+                    when {
+                        r.rank == 1 || r.typedAsIs -> { top++; continue }
+                        r.rank == 0 -> { unlisted++; continue }
+                    }
+                    val win = r.shipping[0]
+                    val mine = r.shipping[r.rank - 1]
+                    lost++
+                    var worst = ScoreTerms.Term.FREQ
+                    var worstD = Float.MAX_VALUE
+                    for (t in ScoreTerms.Term.entries) {
+                        val d = mine.terms[t] - win.terms[t]
+                        if (d < 0f) deficit[t] = (deficit[t] ?: 0.0) - d
+                        if (d < worstD) { worstD = d; worst = t }
+                    }
+                    decided[worst] = (decided[worst] ?: 0) + 1
+                    if (lines) println("${f.name}\t$n\t$label\t${r.rank}\t${win.word}\t${worst.key}\t${"%.3f".format(worstD)}\t${mine.terms} || ${win.terms}")
+                }
+                println("top=$top lost-in-list=$lost unlisted=$unlisted")
+                println("term          decided  mean deficit (ln, over lost lines)")
+                for (t in ScoreTerms.Term.entries) {
+                    val c = decided[t] ?: 0
+                    val d = (deficit[t] ?: 0.0) / maxOf(lost, 1)
+                    if (c == 0 && d == 0.0) continue
+                    println("%-12s %8d  %.3f".format(t.key, c, d))
+                }
+            }
+            "deepfeatures" -> {
+                // deepfeatures FILE...: one JSON object per scored line with the deep list (--k
+                // deep), each candidate's score terms in ScoreTerms.Term order, its fit d, source,
+                // and the centre-to-centre length of its letters, for refitting the score (#68).
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
+                    val label = w.label?.lowercase() ?: continue
+                    val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
+                    val g = w.geometry.build()
+                    val alphabet = h.predictorFor(w).alphabet
+                    val swipes = r.tokens.filterIsInstance<com.kinetica.keyboard.engine.models.SwipeToken>()
+                    fun ideal(word: String): Float {
+                        val codes = alphabet.encode(com.kinetica.keyboard.engine.AccentFolder.fold(word.lowercase()).replace("'", "")) ?: return -1f
+                        var len = 0f
+                        for (i in 1 until codes.size) {
+                            if (!g.hasKey(codes[i - 1]) || !g.hasKey(codes[i])) return -1f
+                            len += g.keyDist(codes[i - 1], codes[i])
+                        }
+                        return len
+                    }
+                    val sb = StringBuilder()
+                    sb.append("{\"f\":\"").append(f.name).append("\",\"n\":").append(n)
+                        .append(",\"label\":\"").append(label.replace("\"", "")).append("\",\"asis\":").append(r.typedAsIs)
+                        .append(",\"rank\":").append(r.rank)
+                        .append(",\"b\":\"").append(r.buckets.joinToString(",")).append("\"")
+                        .append(",\"taps\":").append(r.tokens.size - swipes.size)
+                        .append(",\"arcs\":[").append(swipes.joinToString(",") { it.arcLen.toString() }).append("]")
+                        .append(",\"c\":[")
+                    r.deep.forEachIndexed { i, c ->
+                        if (i > 0) sb.append(',')
+                        sb.append("[\"").append(c.word.replace("\"", "")).append("\",").append(c.score).append(',')
+                            .append(c.dtwDistance).append(",\"").append(c.source.name).append("\",").append(ideal(c.word)).append(",[")
+                            .append(ScoreTerms.Term.entries.joinToString(",") { c.terms[it].toString() }).append("]]")
+                    }
+                    sb.append("]}")
+                    println(sb)
+                }
+            }
             "features" -> {
                 // features FILE...: one JSON object per scored line, the shipping list with each
                 // candidate's score factors, for fitting score weights offline.
@@ -156,7 +245,7 @@ object ReplayCli {
                             .append(c.dtwDistance).append(',').append(c.frequencyWeight).append(',').append(c.bigramMultiplier)
                             .append(',').append(c.personalBoost).append(',').append(c.contactKeep).append(',')
                             .append(c.personalBigram).append(",\"").append(c.source.name).append("\",\"")
-                            .append(c.language).append("\"]")
+                            .append(c.language).append("\",\"").append(c.terms).append("\"]")
                     }
                     sb.append("]}")
                     println(sb)
@@ -529,6 +618,8 @@ object ReplayCli {
             c(restList.firstOrNull()), ReplayHarness.rankOf(label2.ifEmpty { "-" }, restList),
             restList.firstOrNull { it.word == label }?.score ?: 0f,
             com.kinetica.keyboard.engine.PeckSplit.split(p, sorted, context, joined, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }) != null,
+            // Whether the buffer may be read as two words at all (PeckSplit.read is not null).
+            com.kinetica.keyboard.engine.PeckSplit.read(p, sorted, context, joined, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }) != null,
         ).joinToString("\t")
     }
 
@@ -572,6 +663,9 @@ object ReplayCli {
             tap?.word ?: "-", tap?.score ?: 0f, rest?.word ?: "-", rest?.score ?: 0f,
             joined.firstOrNull()?.word ?: "-", joined.firstOrNull()?.score ?: 0f,
             s?.chosen ?: false, joined.firstOrNull { it.word == joinedLabel }?.score ?: 0f,
+            // Whether the rest may stand as a word (a swipe, or taps that spell one).
+            rest != null && (!restTaps || (rest.source != com.kinetica.keyboard.engine.models.WordCandidate.Source.COMPLETION &&
+                (if (rest.word.length == 1) one(rest.word[0].lowercaseChar()) else p.isWord(rest.word)))),
         ).joinToString("\t")
     }
 

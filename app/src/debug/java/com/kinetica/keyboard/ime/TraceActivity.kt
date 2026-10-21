@@ -119,6 +119,16 @@ class TraceActivity : AppCompatActivity() {
                 refresh()
             }
         }
+        val boundaryToggle = SwitchCompat(this).apply {
+            text = getString(R.string.boundary_toggle)
+            textSize = 16f
+            isChecked = NeuralRerank.boundaryModel
+            setOnCheckedChangeListener { _, on -> NeuralRerank.boundaryModel = on }
+        }
+        val boundaryExplain = TextView(this).apply {
+            text = getString(R.string.boundary_explain)
+            textSize = 13f
+        }
         val betaRow = RadioGroup(this).apply {
             orientation = RadioGroup.HORIZONTAL
             val current = NeuralRerank.beta
@@ -162,6 +172,8 @@ class TraceActivity : AppCompatActivity() {
             addView(betaLabel)
             addView(betaRow)
             addView(neuralExplain)
+            addView(boundaryToggle)
+            addView(boundaryExplain)
         }
         setContentView(ScrollView(this).apply { addView(column) })
     }

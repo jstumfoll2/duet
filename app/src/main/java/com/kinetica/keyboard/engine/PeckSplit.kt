@@ -74,7 +74,7 @@ object PeckSplit {
     /**
      * [tokens] read as two words whether or not they beat one ([Split.chosen] says which), or
      * null when the buffer has no tapped word at its head to read that way. [ratio] overrides
-     * [ratioFor].
+     * [ratioFor] and [BoundaryModel].
      */
     fun read(
         predictor: WordPredictor,
@@ -98,9 +98,14 @@ object PeckSplit {
         val one = joined.firstOrNull()?.score ?: 0f
         val gap = sorted[head].tStart - sorted.subList(0, head).maxOf { it.tEnd }
         val need = ratio ?: ratioFor(gap)
-        val yes = minOf(tap.score, KineticaConstants.PECK_SPLIT_TAP_CAP) * rest.score > need * one
+        val model = ratio == null && BoundaryModel.enabled
+        val yes = if (model) {
+            BoundaryModel.splits(tap.score, rest.score, one, gap, restSwipes = true)
+        } else {
+            minOf(tap.score, KineticaConstants.PECK_SPLIT_TAP_CAP) * rest.score > need * one
+        }
         DecodeTrace.log {
-            "  peck split ${if (yes) "yes" else "no"} gap=$gap tap=${tap.word}:${tap.score} " +
+            "  peck split ${if (yes) "yes" else "no"}${if (model) " (model)" else ""} gap=$gap tap=${tap.word}:${tap.score} " +
                 "rest=${rest.word}:${rest.score} joined=${joined.firstOrNull()?.word}:$one"
         }
         return Split(head, tapList, restList, chosen = yes)
@@ -111,7 +116,8 @@ object PeckSplit {
      * word and what was typed after it: `to` and `a…` against `toad`. The first [head] tokens in
      * [tokens]' own order are the reopened word's taps (a reload seeds them first, with times of
      * its own making, so they are not sorted in); the rest is decoded after it. The space went
-     * in because the user paused, so two words need only [ratio] times one word's score.
+     * in because the user paused, so two words need only [ratio] times one word's score
+     * ([KineticaConstants.REJOIN_SPLIT_RATIO] by default, or [BoundaryModel]'s call when it is on).
      *
      * A rest of taps alone must read as a word, not a completion, and one letter only as a word
      * that stands alone: `ad` then `d` keeps `add`, since `d` is no word.
@@ -124,7 +130,7 @@ object PeckSplit {
         context: List<String>,
         joined: List<WordCandidate>,
         oneLetterWord: (Char) -> Boolean,
-        ratio: Float = KineticaConstants.REJOIN_SPLIT_RATIO,
+        ratio: Float? = null,
     ): Split? {
         if (head <= 0 || head >= tokens.size) return null
         val headTokens = tokens.subList(0, head)
@@ -137,10 +143,15 @@ object PeckSplit {
         val rest = restList.firstOrNull()
         val one = joined.firstOrNull()?.score ?: 0f
         val restSpelled = rest != null && (restTokens.any { it !is TapToken } || restIsWord(predictor, rest, oneLetterWord))
-        val yes = rest != null && restSpelled &&
-            minOf(tap.score, KineticaConstants.PECK_SPLIT_TAP_CAP) * rest.score > ratio * one
+        val model = ratio == null && BoundaryModel.enabled
+        val yes = rest != null && restSpelled && if (model) {
+            BoundaryModel.splits(tap.score, rest.score, one, gapMs = null, restSwipes = restTokens.any { it !is TapToken })
+        } else {
+            minOf(tap.score, KineticaConstants.PECK_SPLIT_TAP_CAP) * rest.score >
+                (ratio ?: KineticaConstants.REJOIN_SPLIT_RATIO) * one
+        }
         DecodeTrace.log {
-            "  rejoin ${if (yes) "split" else "join"} head=${tap.word}:${tap.score} " +
+            "  rejoin ${if (yes) "split" else "join"}${if (model) " (model)" else ""} head=${tap.word}:${tap.score} " +
                 "rest=${rest?.word}:${rest?.score} joined=${joined.firstOrNull()?.word}:$one"
         }
         if (rest == null) return null
