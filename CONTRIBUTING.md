@@ -20,9 +20,16 @@ the PR description, with exact steps and the expected result for each.
   is what keeps the golden-decode tests plain JVM tests.
 - **Zero network.** The manifest declares no INTERNET permission and never
   will. No dependency or feature that needs the network.
-- **No third-party gesture/prediction libraries.** DTW, trie, resampling,
-  and the dual-stream merge are implemented from scratch so every constant
-  is understood and tunable. Keep it that way.
+- **Third-party libraries and models are welcome (Duet).** Upstream
+  Kinetica bans third-party gesture and prediction libraries. Duet, as a
+  fork, allows them, models and their weights included, for features such
+  as grammar checking (2026-10-21). Each one must run fully on the device,
+  ship under terms compatible with distributing it in a GPL-3.0 app, have
+  its licence and source listed in THIRD_PARTY_NOTICES, and sit behind a
+  setting when it changes what gets typed. Say in the PR where a model's
+  training data carries other terms. The core swipe decoder (DTW, trie,
+  resampling, the dual-stream merge) stays in-house so every constant is
+  understood and tunable.
 - **Commit-only text model.** The word in progress is committed text,
   replaced through batch edits. No `setComposingText` or
   `setComposingRegion`: composing spans behave differently from app to app.

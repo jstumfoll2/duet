@@ -390,7 +390,8 @@ The gate every change must pass, the same one CI runs:
 
 The engine is pure Kotlin and tested on the JVM, including golden decodes against the real
 dictionaries. [CONTRIBUTING.md](CONTRIBUTING.md) has the hard rules: no Android types under
-`engine/`, no network, no third-party gesture or prediction libraries, tunables in
+`engine/`, no network, third-party libraries and models only when they run on the device and
+are listed in THIRD_PARTY_NOTICES (the swipe decoder itself stays in-house), tunables in
 `engine/KineticaConstants.kt`.
 
 ### Releases
