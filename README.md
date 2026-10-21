@@ -344,7 +344,8 @@ Everything below comes from Kinetica and works the same in Duet.
   letter. For slang, codes and anything the dictionary keeps fighting.
 - **Automatic spaces after tapped words too.** Typing and correction > Spacing > *Autospace tapped words too*. A
   word the dictionary holds gets its space after a pause, and the next letter takes it back if the
-  word was not over. Three sliders set the delays. *Smart timing for tapped words* (on) reads the
+  word was not over. Once the next word is finished, Duet weighs it as one word or two and puts
+  the space back when two read better: `to` then `a` stays `to a`, `the` then `y` becomes `they`. Three sliders set the delays. *Smart timing for tapped words* (on) reads the
   letters: `if` and `my` space sooner, `th` waits longer, and a word you spell slowly waits for your
   own pace.
 - **A shorter keyboard.** *Keyboard height* goes down to 10% of the screen, *Suggestion bar height*

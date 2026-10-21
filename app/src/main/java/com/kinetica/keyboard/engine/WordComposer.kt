@@ -113,6 +113,7 @@ class WordComposer(
         val weights: Map<String, Float>? = null,
         val apostrophe: Boolean = false,
         val peckSplit: Boolean = false,
+        val rejoinHead: Int = 0,
     )
 
     private val decodeLock = Any()
@@ -242,7 +243,22 @@ class WordComposer(
         tokens.clear()
         tokens.addAll(seedTokens)
         seeded = seedTokens.size
+        rejoinHead = 0
         requestDecode()
+    }
+
+    /**
+     * How many seeded taps lead the buffer as a word an automatic space ended, when a letter
+     * took the space back ([PeckSplit.readRejoin]); 0 otherwise. The word and what is typed
+     * after it are weighed against one word at every decode, and the better reading is applied
+     * when the word ends. Main thread.
+     */
+    var rejoinHead = 0
+        private set
+
+    /** The buffer in hand was seeded from a word an automatic space ended; see [rejoinHead]. */
+    fun markRejoin() {
+        rejoinHead = seeded
     }
 
     /**
@@ -281,10 +297,12 @@ class WordComposer(
      */
     fun splitHead(): PeckSplit.Split? {
         val s = split ?: return null
-        val sorted = tokens.sortedBy { it.tStart }
+        // A rejoin's head is the seeded taps, first in the list whatever their made-up times.
+        val sorted = if (rejoinHead > 0) ArrayList(tokens) else tokens.sortedBy { it.tStart }
         if (s.head >= sorted.size || sorted.take(s.head).any { it !is TapToken }) return null
         split = null
         twoWords = null
+        rejoinHead = 0
         tail = sorted.drop(s.head)
         tokens.clear()
         tokens.addAll(sorted.take(s.head))
@@ -309,7 +327,9 @@ class WordComposer(
             shown = s.rest
             shownFor = tokens.size
         }
-        callbacks.onCandidates(s.rest, s.rest.firstOrNull(), "", gen)
+        // A tapped tail keeps its letters as the literal, as any tapped word does, for autocorrect.
+        val literal = if (tokens.all { it is TapToken }) buildLiteral(tokens) else ""
+        callbacks.onCandidates(s.rest, s.rest.firstOrNull(), literal, gen)
     }
 
     /** Word committed to the editor: becomes bigram context, buffer resets. */
@@ -323,6 +343,7 @@ class WordComposer(
         while (context.size > 2) context.removeFirst()
         tokens.clear()
         seeded = 0
+        rejoinHead = 0
         split = null
         twoWords = null
         generation.incrementAndGet()
@@ -421,6 +442,7 @@ class WordComposer(
         endBuffer(null)
         tokens.clear()
         seeded = 0
+        rejoinHead = 0
         split = null
         twoWords = null
         tail = emptyList()
@@ -462,6 +484,7 @@ class WordComposer(
             apostrophe = apostropheMarked,
             // A word reloaded from the editor and swiped on is one word by intent.
             peckSplit = peckSplit && seeded == 0,
+            rejoinHead = rejoinHead,
         )
         val scheduleWorker = synchronized(decodeLock) {
             pendingDecode = request
@@ -517,7 +540,9 @@ class WordComposer(
                 null
             }
             val active = predictor.decodeFor(request)
-            val split = if (request.peckSplit && request.literal.isEmpty()) {
+            val split = if (request.rejoinHead > 0) {
+                PeckSplit.readRejoin(predictor, request.tokens, request.rejoinHead, request.context, active, oneLetterWord)
+            } else if (request.peckSplit && request.literal.isEmpty()) {
                 PeckSplit.read(predictor, request.tokens, request.context, active, oneLetterWord)
             } else {
                 null
