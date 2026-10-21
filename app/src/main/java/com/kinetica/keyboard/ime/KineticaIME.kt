@@ -44,6 +44,7 @@ import com.kinetica.keyboard.engine.DictionaryLoader
 import com.kinetica.keyboard.engine.DigitSlips
 import com.kinetica.keyboard.engine.GestureEngine
 import com.kinetica.keyboard.engine.GrammarCheck
+import com.kinetica.keyboard.engine.HarperLints
 import com.kinetica.keyboard.engine.KeyboardGeometry
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.LanguageMomentum
@@ -59,6 +60,7 @@ import com.kinetica.keyboard.engine.models.StreamId
 import com.kinetica.keyboard.engine.models.SwipeToken
 import com.kinetica.keyboard.engine.models.TapToken
 import com.kinetica.keyboard.engine.models.WordCandidate
+import com.kinetica.keyboard.grammar.HarperChecker
 import com.kinetica.keyboard.keys.ActionRow
 import com.kinetica.keyboard.keys.AutoCapitalization
 import com.kinetica.keyboard.keys.ChordKey
@@ -247,10 +249,25 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val shown: List<String>,
         val images: List<ClipboardHistory.Image?> = emptyList(),
     ) {
-        enum class Kind { CLIPS, FRESH_CLIP, CODES }
+        enum class Kind { CLIPS, FRESH_CLIP, CODES, GRAMMAR }
     }
 
     private var barOffer: BarOffer? = null
+
+    /** Harper's grammar check ([HarperChecker]), while the setting is on; built on first use. */
+    private var harper: HarperChecker? = null
+    private var harperDialect = 0
+
+    /** The last check's result: the text checked and the editor offset where it ended. */
+    private class HarperPending(val text: String, val cursorAt: Int, val lints: List<HarperLints.Lint>)
+    private var harperPending: HarperPending? = null
+
+    /** The problem the bar's grammar chips fix: where it starts in the editor and its text. */
+    private class HarperOffer(val start: Int, val problem: String, val edits: List<HarperLints.Edit>)
+    private var harperOffer: HarperOffer? = null
+
+    /** Problems already offered ([HarperLints.key]), so an ignored one does not come back. */
+    private val harperOffered = LinkedHashSet<String>()
 
     /** The clips this process saw copied, in memory only ([ClipboardHistory]). */
     private val clipboardHistory = ClipboardHistory()
@@ -657,6 +674,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 .unregisterOnSharedPreferenceChangeListener(it)
         }
         NeuralRerank.detach()
+        harper?.close()
+        harper = null
         clipListener?.let { getSystemService(ClipboardManager::class.java)?.removePrimaryClipChangedListener(it) }
         clipListener = null
         smsCodes.unwatch()
@@ -2202,6 +2221,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val quiet = lastCandidates.isEmpty() && lastCommit.stripWord == null && keptBar == null &&
             expansionChoice == null && barOffer == null
         if (quiet && tentativeLength == 0 && composer?.hasPendingWord != true && offerFreshClip()) return
+        if (quiet && tentativeLength == 0 && composer?.hasPendingWord != true && offerHarperFix()) return
         val idle = quiet && config.nextWord && !editorState.privateMode && tentativeLength == 0 &&
             composer?.hasPendingWord != true
         if (!idle) {
@@ -2945,7 +2965,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             when (kind) {
                 BarOffer.Kind.CLIPS -> preview
                 BarOffer.Kind.FRESH_CLIP -> "📋 " + preview
-                BarOffer.Kind.CODES -> t
+                BarOffer.Kind.CODES, BarOffer.Kind.GRAMMAR -> t
             }
         }
         val shown = ExpansionRows.distinctLabels(labels)
@@ -2958,10 +2978,15 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     /** The bar moved on from an offer; a fresh clip left unpicked is not offered by itself again. */
     private fun dropBarOffer() {
         if (barOffer?.kind == BarOffer.Kind.FRESH_CLIP) clipboardHistory.markFreshUsed()
+        if (barOffer?.kind == BarOffer.Kind.GRAMMAR) harperOffer = null
         barOffer = null
     }
 
     private fun pickBarOffer(offer: BarOffer, index: Int) {
+        if (offer.kind == BarOffer.Kind.GRAMMAR) {
+            applyHarperFix(index)
+            return
+        }
         if (offer.kind == BarOffer.Kind.FRESH_CLIP) clipboardHistory.markFreshUsed()
         suggestionBar?.clearSuggestions()
         val text = offer.texts[index]
@@ -4950,6 +4975,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         composer?.commitWord(word.lowercase())
         if (!previousDeliberate) fixPreviousWord(word)
+        requestHarper()
         tentativeLength = 0
         tentativeWord = ""
         lastCandidates = emptyList()
@@ -5037,6 +5063,87 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             learnWord(fixed, lang = "en")
         }
         DecodeTrace.log { "  grammar word=$prev fixed=$fixed next=${word.lowercase()}" }
+    }
+
+    /**
+     * Hands the sentence before the cursor to Harper after a word goes on screen, when the
+     * setting is on. English fields that offer corrections only; the result waits in
+     * [harperPending] until the bar is idle ([offerHarperFix]).
+     */
+    private fun requestHarper() {
+        if (!config.harperGrammar || config.language != "en" || !editorState.offersCorrections ||
+            editorState.privateMode
+        ) {
+            if (!config.harperGrammar && harper != null) {
+                harper?.close()
+                harper = null
+            }
+            harperPending = null
+            return
+        }
+        val dialect = if (config.britishSpelling) 1 else 0
+        if (harper != null && harperDialect != dialect) {
+            harper?.close()
+            harper = null
+        }
+        val checker = harper ?: HarperChecker(mainHandler, dialect).also {
+            harper = it
+            harperDialect = dialect
+        }
+        if (checker.unavailable) return
+        val tail = ich.textBeforeCursor(HARPER_TAIL_CHARS)?.toString() ?: return
+        val text = tail.substring(HarperLints.windowStart(tail, tail.length >= HARPER_TAIL_CHARS))
+        if (text.isBlank()) return
+        val at = cursorExpected()
+        checker.lint(text) { encoded ->
+            harperPending = HarperPending(text, at, HarperLints.parse(encoded))
+            if (barOffer == null) refreshPredictions()
+        }
+    }
+
+    /**
+     * Puts one grammar problem's fixes on the idle bar, one chip each; true when shown. The
+     * text Harper checked must still be in the editor where it was, with only typing after it.
+     */
+    private fun offerHarperFix(): Boolean {
+        val pending = harperPending ?: return false
+        harperPending = null
+        if (!config.harperGrammar || pending.lints.isEmpty() || selectionLength() != 0) return false
+        val moved = cursorExpected() - pending.cursorAt
+        if (moved < 0) return false
+        val now = ich.textBeforeCursor(moved + pending.text.length)?.toString() ?: return false
+        if (now.length != moved + pending.text.length || !now.startsWith(pending.text)) return false
+        val base = pending.cursorAt - pending.text.length
+        val lint = HarperLints.pick(pending.lints, pending.text, harperOffered, base) ?: return false
+        harperOffered.add(HarperLints.key(lint, pending.text, base))
+        if (harperOffered.size > HARPER_OFFERED_KEPT) harperOffered.remove(harperOffered.first())
+        val problem = pending.text.substring(lint.start, lint.end)
+        val edits = lint.edits.take(HarperLints.MAX_FIXES)
+        DecodeTrace.log { "  harper offer kind=${lint.kind} fixes=${edits.size}" }
+        showBarOffer(BarOffer.Kind.GRAMMAR, edits.map { HarperLints.label(it, problem) })
+        harperOffer = HarperOffer(base + lint.start, problem, edits)
+        return true
+    }
+
+    /** Applies the grammar chip at [index]: the problem is rewritten where it still stands. */
+    private fun applyHarperFix(index: Int) {
+        val offer = harperOffer ?: return
+        harperOffer = null
+        suggestionBar?.clearSuggestions()
+        val edit = offer.edits.getOrNull(index) ?: return
+        val back = cursorExpected() - offer.start
+        val before = if (back > 0) ich.textBeforeCursor(back)?.toString() else null
+        if (before == null || before.length != back || !before.startsWith(offer.problem) || selectionLength() != 0) {
+            DecodeTrace.log { "  harper fix refused" }
+            refreshPredictions()
+            return
+        }
+        val rewritten = HarperLints.applied(edit, offer.problem) + before.substring(offer.problem.length)
+        ich.replaceBeforeCursor(back, rewritten)
+        expectAfter(back, rewritten.length)
+        DecodeTrace.log { "  harper fix kind=${edit.kind}" }
+        updateAutoShift()
+        refreshPredictions()
     }
 
     private fun abandonWord() {
@@ -5217,6 +5324,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
         /** Editor text read for the grammar pass: two words back from the word just committed. */
         const val GRAMMAR_TAIL_CHARS = 64
+
+        /** Editor text handed to Harper: the sentence being written and some before it. */
+        const val HARPER_TAIL_CHARS = 400
+
+        /** Grammar problems remembered as offered, oldest forgotten first. */
+        const val HARPER_OFFERED_KEPT = 64
 
         /** Spaces read back for a backspace to collapse; a longer run collapses in steps. */
         const val SPACE_RUN_READ_CHARS = 32

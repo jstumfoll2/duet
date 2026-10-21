@@ -201,6 +201,8 @@ data class KeyboardConfig(
     val incognito: Boolean = false,
     /** The system key click on each key press. */
     val keySound: Boolean = false,
+    /** Harper's grammar fixes as chips on the idle bar (English only). */
+    val harperGrammar: Boolean = false,
     /** Emoji for the word before the cursor in the suggestion bar. */
     val emojiSuggestions: Boolean = false,
     /** The floating keyboard, its width as a percent of the screen, and where it sits. */
@@ -450,6 +452,7 @@ data class KeyboardConfig(
             peckMode = prefs.getBoolean(Prefs.PECK_MODE, Prefs.DEFAULT_PECK_MODE),
             incognito = prefs.getBoolean(Prefs.INCOGNITO, Prefs.DEFAULT_INCOGNITO),
             keySound = prefs.getBoolean(Prefs.KEY_SOUND, Prefs.DEFAULT_KEY_SOUND),
+            harperGrammar = prefs.getBoolean(Prefs.HARPER_GRAMMAR, Prefs.DEFAULT_HARPER_GRAMMAR),
             emojiSuggestions = prefs.getBoolean(Prefs.EMOJI_SUGGESTIONS, Prefs.DEFAULT_EMOJI_SUGGESTIONS),
             floating = prefs.getBoolean(Prefs.FLOATING, Prefs.DEFAULT_FLOATING),
             floatWidthPct = prefs.getInt(Prefs.FLOAT_WIDTH_PCT, Prefs.DEFAULT_FLOAT_WIDTH_PCT),

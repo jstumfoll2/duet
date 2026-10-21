@@ -104,6 +104,11 @@ F-Droid.
 - Word triples (`en_trigrams.txt`) for context, on top of Kinetica's word pairs.
 - A small grammar pass on the word before the one just written: `a`/`an`, `could of`, `he don't`,
   and confusion pairs such as `then`/`than` when the next word settles them (`GrammarCheck`).
+- Grammar suggestions from [Harper](https://github.com/Automattic/harper) (opt-in: Settings >
+  Typing > Grammar suggestions). After each word, the sentence is checked on the phone by the
+  bundled Harper library (Apache-2.0, rule-based, a few milliseconds per sentence), and a problem's
+  fixes appear on the idle bar as ✎ chips. Nothing changes unless you tap one. Spelling stays with
+  Duet's own dictionaries.
 - Language-aware learning: a new word needs three commits before it is learned, and a word is
   learned in the language it belongs to, so English typed in Spanish mode does not fill the
   Spanish list.
@@ -375,6 +380,16 @@ at the SDK.
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+The grammar suggestions need Harper's native library, built from Rust (`native/harper-jni`)
+before Gradle runs. CI does this; locally, with the Android NDK and
+`cargo install cargo-ndk --locked --version 4.1.2`:
+
+```bash
+ANDROID_NDK_HOME=/path/to/ndk native/harper-jni/build-android.sh
+```
+
+Skip it and the app still builds; the grammar setting then has no library and does nothing.
 
 The debug build is Duet DEV (`io.github.jstumfoll2.duet.dev`), beside the release app with its
 own data. `assembleRelease` builds the release app, signed only when a `keystore.properties`

@@ -515,6 +515,12 @@ object Prefs {
     const val KEY_SOUND = "pref_key_sound"
 
     /**
+     * Harper grammar suggestions: after each word, the sentence is checked on the device by the
+     * bundled Harper library and a problem's fixes are offered as chips on the idle bar.
+     */
+    const val HARPER_GRAMMAR = "pref_harper_grammar"
+
+    /**
      * The floating keyboard: narrower, and moved anywhere by its handle, with the app usable
      * around it. Its width is [FLOAT_WIDTH_PCT]; where it sits is [FLOAT_LEFT_PCT] and
      * [FLOAT_LIFT_DP], written by the handle, not by a settings row.
@@ -735,6 +741,7 @@ object Prefs {
     const val DEFAULT_PECK_MODE = false
     const val DEFAULT_INCOGNITO = false
     const val DEFAULT_KEY_SOUND = false
+    const val DEFAULT_HARPER_GRAMMAR = false
     const val DEFAULT_EMOJI_SUGGESTIONS = false
     const val DEFAULT_EMOJI_TONE = 0
     const val DEFAULT_FLOATING = false

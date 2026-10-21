@@ -1,0 +1,36 @@
+name: Build Harper
+description: >
+  Builds the Harper grammar library (native/harper-jni) for the app's Android ABIs, and
+  for the host so the JVM tests can call it through JNI (DUET_HARPER_LIB).
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          ~/.cargo/bin/cargo-ndk
+          native/harper-jni/target
+        key: harper-${{ runner.os }}-${{ hashFiles('native/harper-jni/Cargo.lock', 'native/harper-jni/rust-toolchain.toml', 'native/harper-jni/src/**') }}
+        restore-keys: harper-${{ runner.os }}-
+
+    # rustup installs the toolchain and Android targets pinned in rust-toolchain.toml.
+    - shell: bash
+      working-directory: native/harper-jni
+      run: |
+        rustup show active-toolchain || rustup toolchain install
+        command -v cargo-ndk || cargo install cargo-ndk --locked --version 4.1.2
+
+    # ubuntu-latest ships an NDK; ANDROID_NDK_LATEST_HOME is exported by the runner image.
+    - shell: bash
+      env:
+        ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+      run: native/harper-jni/build-android.sh
+
+    - shell: bash
+      working-directory: native/harper-jni
+      run: |
+        cargo test --release --locked
+        cargo build --release --locked --lib
+        echo "DUET_HARPER_LIB=$PWD/target/release/libduet_harper.so" >> "$GITHUB_ENV"

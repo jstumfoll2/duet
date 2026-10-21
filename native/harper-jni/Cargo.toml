@@ -1,0 +1,25 @@
+[package]
+name = "duet-harper"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "JNI bridge from Duet to the Harper grammar checker"
+publish = false
+
+[lib]
+name = "duet_harper"
+# cdylib is the .so Android loads; rlib lets `cargo test` link the unit tests.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Harper is Apache-2.0 (see THIRD_PARTY_NOTICES). The thesaurus is left out: it only
+# feeds a synonym API Duet does not call, and it is a large part of the binary.
+harper-core = { version = "=2.13.0", default-features = false, features = ["concurrent"] }
+jni = { version = "0.21.1", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

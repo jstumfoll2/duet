@@ -28,6 +28,9 @@ jobs:
           # A pull request that swaps gradle-wrapper.jar fails here instead of running it.
           validate-wrappers: true
 
+      # Harper's native library, packed into both APKs and loaded by HarperNativeTest.
+      - uses: ./.github/actions/harper
+
       # The project's exact green gate: build both apps, JVM golden suite, lint. The
       # DEV versionCode is the commit time in minutes, so newer builds always update.
       - run: ./gradlew assembleDebug assembleRelease test lint -PdevVersionCode=$(( $(git log -1 --format=%ct) / 60 ))

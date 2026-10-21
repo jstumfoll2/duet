@@ -34,6 +34,12 @@
                     android:summary="@string/pref_auto_capitalize_summary"
                     android:defaultValue="true" />
                 <SwitchPreferenceCompat
+                    android:key="pref_harper_grammar"
+                    android:title="@string/pref_harper_grammar_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_harper_grammar_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
                     android:key="pref_peck_mode"
                     android:title="@string/pref_peck_mode_title"
                     app:singleLineTitle="false"
