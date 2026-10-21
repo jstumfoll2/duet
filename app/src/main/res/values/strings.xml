@@ -130,6 +130,8 @@
     <string name="pref_word_ends_on_space_summary">No timer: taps and swipes add to the same word however long you take, until a space, punctuation or enter. For long words written in pieces</string>
     <string name="pref_autospace_tapped_words_title">Autospace tapped words too</string>
     <string name="pref_autospace_tapped_words_summary">A tapped word gets a space when you pause, if its letters spell a word. Another letter takes the space back</string>
+    <string name="pref_autospace_smart_title">Smart timing for tapped words</string>
+    <string name="pref_autospace_smart_summary">Words like if and my space sooner, beginnings like th wait longer, and a word you spell slowly waits for your pace. The tap delay sets the middle</string>
     <string name="pref_autospace_delay_title">Autospace delay after a swipe (ms)</string>
     <string name="pref_autospace_delay_summary">How long a swiped word waits for its space. Raise it if spaces land inside words you are still swiping</string>
     <string name="pref_autospace_tap_delay_title">Autospace delay after tapping (ms)</string>

@@ -339,7 +339,9 @@ Everything below comes from Kinetica and works the same in Duet.
   letter. For slang, codes and anything the dictionary keeps fighting.
 - **Automatic spaces after tapped words too.** Typing and correction > Spacing > *Autospace tapped words too*. A
   word the dictionary holds gets its space after a pause, and the next letter takes it back if the
-  word was not over. Three sliders set the delays.
+  word was not over. Three sliders set the delays. *Smart timing for tapped words* (on) reads the
+  letters: `if` and `my` space sooner, `th` waits longer, and a word you spell slowly waits for your
+  own pace.
 - **A shorter keyboard.** *Keyboard height* goes down to 10% of the screen, *Suggestion bar height*
   shrinks the bar and its text, and *Resize handle height* at 0 removes the grip.
 - **Long-press without the accents.** *Hide accented letters on long-press* leaves digits, symbols

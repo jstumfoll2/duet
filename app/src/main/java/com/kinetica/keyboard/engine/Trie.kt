@@ -1,5 +1,6 @@
 package com.kinetica.keyboard.engine
 
+import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
 
@@ -28,6 +29,8 @@ class Trie private constructor(
     val wordCount: Int,
     /** The letters this trie is spelled in; its codes are this alphabet's. */
     val alphabet: Alphabet,
+    /** ln(1 + the largest raw count), the scale [freqByteFor] quantized against; see [endShare]. */
+    private val logMaxCount: Double = ln(1.0 + 1.0),
 ) {
     val nodeCount: Int get() = nodes.size / 2
     val root: Int get() = 0
@@ -115,6 +118,51 @@ class Trie private constructor(
         for (i in n - 1 downTo 0) sb.append(alphabet.charOf(codes[i]))
         return sb.toString()
     }
+
+    /**
+     * How much of the frequency at and below [node] is the word [node] itself: its count over its
+     * own count plus every longer word it begins, or 0 when [node] is not a word.
+     *
+     * The autospace question "is this the whole word or the start of a longer one", asked of the
+     * dictionary: `if` is 0.99 (only `ifs`, `iffy` follow), `to` 0.8, `i` 0.33 (`it`, `is`, `in`),
+     * `th` 0.0. Counts are rebuilt from the frequency bytes, so the share is good to a few
+     * percent. The walk visits the whole subtree; [maxNodes] bounds it for the shortest
+     * prefixes, and a cut-off walk only understates the share's denominator.
+     */
+    fun endShare(node: Int, maxNodes: Int = 60_000): Float {
+        if (node < 0 || !isWord(node)) return 0f
+        if (childCount(node) == 0) return 1f
+        val own = countOf(frequency(node))
+        var below = 0.0
+        val stack = IntArray(KineticaConstants.MAX_WORD_LEN + 2)
+        val next = IntArray(KineticaConstants.MAX_WORD_LEN + 2)
+        // Depth-first over the contiguous child ranges: stack[d] is the child being visited at
+        // depth d, next[d] one past the last child of its parent.
+        var depth = 0
+        stack[0] = firstChild(node)
+        next[0] = firstChild(node) + childCount(node)
+        var visited = 0
+        while (depth >= 0 && visited < maxNodes) {
+            val n = stack[depth]
+            visited++
+            if (isWord(n)) below += countOf(frequency(n))
+            if (childCount(n) > 0 && depth + 1 < stack.size) {
+                depth++
+                stack[depth] = firstChild(n)
+                next[depth] = firstChild(n) + childCount(n)
+                continue
+            }
+            // Next sibling, climbing while a range is spent.
+            while (depth >= 0) {
+                stack[depth]++
+                if (stack[depth] < next[depth]) break
+                depth--
+            }
+        }
+        return (own / (own + below)).toFloat()
+    }
+
+    private fun countOf(freqByte: Int): Double = exp(freqByte * logMaxCount / 255.0) - 1.0
 
     /** Approximate retained size for the memory-budget test. */
     fun sizeBytes(): Int = nodes.size * 4
@@ -289,7 +337,7 @@ class Trie private constructor(
                     nextFree = (packed[id * 2 + 1] and 0xFFFFFF) + count
                 }
             }
-            return Trie(packed, uniqueWords, alphabet)
+            return Trie(packed, uniqueWords, alphabet, ln(1.0 + maxCountFinal))
         }
 
         private fun common(a: IntArray, b: IntArray): Int {

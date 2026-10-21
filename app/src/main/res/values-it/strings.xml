@@ -107,6 +107,8 @@
     <string name="pref_word_ends_on_space_title">La parola finisce solo con uno spazio</string>
     <string name="pref_word_ends_on_space_summary">Nessun timer: tocchi e swipe continuano la stessa parola, per quanto tempo ci metti, finché non arriva uno spazio, la punteggiatura o Invio. Per le parole lunghe scritte a pezzi</string>
     <string name="pref_autospace_tapped_words_title">Spazio automatico anche per le parole scritte a tocchi</string>
+    <string name="pref_autospace_smart_title">Tempi intelligenti per le parole a tocchi</string>
+    <string name="pref_autospace_smart_summary">Parole come se e mi ricevono lo spazio prima, inizi come th aspettano di più, e una parola scritta lentamente segue il tuo ritmo. Il ritardo dei tocchi fissa il centro</string>
     <string name="pref_autospace_tapped_words_summary">Una parola scritta a tocchi riceve lo spazio quando ti fermi, se le sue lettere formano una parola. Un\'altra lettera toglie lo spazio</string>
     <string name="pref_autospace_delay_title">Attesa dello spazio dopo uno swipe (ms)</string>
     <string name="pref_autospace_delay_summary">Quanto aspetta lo spazio dopo una parola scritta con uno swipe. Alzalo se gli spazi finiscono dentro parole che stai ancora scrivendo</string>

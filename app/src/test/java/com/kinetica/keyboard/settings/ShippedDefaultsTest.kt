@@ -71,6 +71,7 @@ class ShippedDefaultsTest {
         pref_autospace bool false
         pref_autospace_delay_ms int 300
         pref_autospace_retract_ms int 600
+        pref_autospace_smart bool true
         pref_autospace_tap_delay_ms int 300
         pref_autospace_tapped_words bool false
         pref_backspace_char_slide bool false

@@ -124,6 +124,7 @@ object SettingsSynonyms {
         Prefs.AUTOSPACE_TAP_DELAY_MS to listOf("space", "timing", "wait", "pause", "typing"),
         Prefs.AUTOSPACE_RETRACT_MS to listOf("space", "undo", "take back", "timing"),
         Prefs.AUTOSPACE_TAPPED_WORDS to listOf("space", "typing", "pecking"),
+        Prefs.AUTOSPACE_SMART to listOf("space", "timing", "pecking", "short words", "smart"),
         Prefs.WORD_ENDS_ON_SPACE to listOf("space", "commit", "finish"),
         Prefs.SPACELESS_SPACE to listOf("space", "no space", "compound", "join"),
         Prefs.DOUBLE_SPACE_PERIOD to listOf("space", "full stop", "period", "dot", "double", "sentence"),

@@ -216,6 +216,61 @@ internal fun autospaceWait(delay: Long, liftAt: Long, now: Long): Long {
 }
 
 /**
+ * The wait before a tapped word's automatic space with smart timing on ([Prefs.AUTOSPACE_SMART]):
+ * the tap delay scaled by how likely the letters are a whole word, never shorter than the user's
+ * own pause between this word's letters while that is in doubt.
+ *
+ * [endShare] is [com.kinetica.keyboard.engine.WordPredictor.endShare]: `if` and `my` are near 1,
+ * `to` 0.8, `i` and `it` about 0.3 to 0.5, `th` 0. Three bands, measured on 950 pecked-word pauses
+ * from eight capture batches (pauses inside a word against pauses before the user's own space):
+ * - [SMART_SURE_SHARE] and above wait [SMART_SURE_FACTOR] of the delay. 223 word ends against
+ *   21 mid-word pauses sat there.
+ * - Below [SMART_UNSURE_SHARE] waits [SMART_UNSURE_FACTOR] times it: 163 mid-word pauses against
+ *   62 ends, mostly `th`, `al` and `re` on the way to longer words.
+ * - Between, the delay itself; `i` and `a` are here, so the one-letter floor no longer applies.
+ * At a 150 ms delay this spaced 69% of pecked words before the user's own space against 57%,
+ * and cut premature spaces from 13% of mid-word pauses to 9%.
+ *
+ * [letterGapMs] is the median pause between this word's taps ([medianLetterGap]), or -1. Someone
+ * spelling a word slowly pauses that long between letters, so a pause no longer than that is no
+ * sign the word ended; the sure band skips the guard. At a 60 ms delay it cut premature spaces
+ * from 23% to 16%.
+ */
+internal fun smartTapDelay(base: Long, endShare: Float, letterGapMs: Long): Long {
+    val sure = endShare >= SMART_SURE_SHARE
+    val scaled = when {
+        sure -> base * SMART_SURE_FACTOR
+        endShare < SMART_UNSURE_SHARE -> base * SMART_UNSURE_FACTOR
+        else -> base.toFloat()
+    }.toLong()
+    val guarded = if (!sure && letterGapMs > 0) maxOf(scaled, letterGapMs) else scaled
+    return guarded.coerceIn(SMART_MIN_DELAY_MS, SMART_MAX_DELAY_MS)
+}
+
+/**
+ * The median pause between consecutive taps in [starts], ignoring two-thumb near-simultaneous
+ * pairs (under [LETTER_GAP_MIN_MS], reloaded words also carry 1 ms seeds) and breaks over
+ * [LETTER_GAP_MAX_MS]; -1 when no pause qualifies.
+ */
+internal fun medianLetterGap(starts: List<Long>): Long {
+    if (starts.size < 2) return -1
+    val gaps = starts.zipWithNext { a, b -> b - a }
+        .filter { it in LETTER_GAP_MIN_MS..LETTER_GAP_MAX_MS }
+        .sorted()
+    if (gaps.isEmpty()) return -1
+    return gaps[gaps.size / 2]
+}
+
+internal const val SMART_SURE_SHARE = 0.8f
+internal const val SMART_UNSURE_SHARE = 0.25f
+internal const val SMART_SURE_FACTOR = 0.4f
+internal const val SMART_UNSURE_FACTOR = 3f
+internal const val SMART_MIN_DELAY_MS = 10L
+internal const val SMART_MAX_DELAY_MS = 2000L
+private const val LETTER_GAP_MIN_MS = 20L
+private const val LETTER_GAP_MAX_MS = 1500L
+
+/**
  * Whether [text] is punctuation that sits against the word before it, so an automatic space
  * in front of it should go.
  *

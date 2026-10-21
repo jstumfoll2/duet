@@ -1751,15 +1751,22 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         autospacePending = true
         val swipe = composer?.hasSwipeToken() == true
         val letter = !swipe && lastLiteral.length == 1
+        // Smart timing reads the letters themselves, so it replaces the one-letter floor too.
+        val share = if (!swipe && config.autospaceSmart) predictor?.endShare(lastLiteral) else null
+        val gap = if (share != null) medianLetterGap(composer?.tapStarts().orEmpty()) else -1L
         val delay = when {
             swipe -> config.autospaceDelayMs
+            share != null -> smartTapDelay(config.autospaceTapDelayMs, share, gap)
             letter -> config.autospaceSingleLetterDelayMs
             else -> config.autospaceTapDelayMs
         }
         val kind = if (swipe) "swipe" else if (letter) "letter" else "tap"
         val now = SystemClock.uptimeMillis()
         val wait = autospaceWait(delay, composer?.lastTokenEnd ?: -1L, now)
-        DecodeTrace.log { "  autospace arm kind=$kind delay=$delay wait=$wait lit=$lastLiteral" }
+        DecodeTrace.log {
+            "  autospace arm kind=$kind delay=$delay wait=$wait lit=$lastLiteral" +
+                (if (share != null) " share=${"%.2f".format(share)} gap=$gap" else "")
+        }
         mainHandler.postDelayed(autospaceRunnable, wait)
         if (config.autospaceTimer) suggestionBar?.showAutospaceTimer(now - (delay - wait), delay)
     }
