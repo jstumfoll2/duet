@@ -144,6 +144,10 @@ jobs:
           } > keystore.properties
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
+      # Harper's native library, packed into both APKs.
+      - uses: ./.github/actions/harper
+        if: steps.plan.outputs.bump != 'none'
+
       # CI already ran the tests and lint on this code; the bump only changes
       # the version, so build the APKs and nothing more.
       - name: Build the APKs

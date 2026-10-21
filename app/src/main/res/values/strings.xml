@@ -162,6 +162,8 @@
     <string name="pref_british_spelling_summary">Rank colour, centre and organise above the American spellings. English only</string>
     <string name="pref_enabled_languages_summary">Languages the language switch cycles through (order: English, Italiano, Español, Polski, Čeština, Nederlands, Deutsch, Français, Norsk, then the experimental Русский, עברית, العربية, Українська)</string>
     <string name="pref_peck_mode_title">Peck-type mode</string>
+    <string name="pref_harper_grammar_title">Grammar suggestions (Harper)</string>
+    <string name="pref_harper_grammar_summary">English only. After each word, the sentence is checked on this phone by Harper, and a fix shows on the bar as a ✎ chip; tap it to apply. Nothing changes unless you tap</string>
     <string name="pref_incognito_title">Incognito</string>
     <string name="pref_incognito_summary">Learn nothing in any field: no new words, no word pairs, no recent emoji and no clipboard history. Suggestions and autocorrect keep working. The spacebar shows 🕶 while it is on</string>
     <!-- TAP is the spacebar's own label and stays in English. -->

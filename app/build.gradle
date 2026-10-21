@@ -37,6 +37,9 @@ android {
     sourceSets {
         main {
             assets.srcDirs += noticesDir
+            // libduet_harper.so (Harper grammar checker), built by
+            // native/harper-jni/build-android.sh; absent, the app builds without it.
+            jniLibs.srcDirs += rootProject.file('native/harper-jni/target/jniLibs')
         }
     }
 

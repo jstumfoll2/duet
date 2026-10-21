@@ -44,6 +44,9 @@ jobs:
             printf 'keyPassword=%s\n' "$KEY_PASSWORD"
           } > keystore.properties
 
+      # Harper's native library, packed into the APK and loaded by HarperNativeTest.
+      - uses: ./.github/actions/harper
+
       # A release passes the same gate as any other change: JVM golden suite and
       # lint before anything is signed.
       - run: ./gradlew test lint assembleRelease

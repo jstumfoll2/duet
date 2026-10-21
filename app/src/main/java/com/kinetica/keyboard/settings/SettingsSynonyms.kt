@@ -130,6 +130,7 @@ object SettingsSynonyms {
 
         // Typing
         Prefs.AUTOCORRECT_LEVEL to listOf("correction", "spelling", "fix", "aggressive"),
+        Prefs.HARPER_GRAMMAR to listOf("grammar", "harper", "proofread", "check", "fix", "sentence"),
         Prefs.AUTO_CAPITALIZE to listOf("capital", "uppercase", "shift", "sentence"),
         Prefs.LANGUAGE to listOf("dictionary", "locale", "keyboard language"),
         Prefs.SYNC_SYSTEM_LANGUAGE to listOf("android", "subtype", "locale", "globe", "picker"),
