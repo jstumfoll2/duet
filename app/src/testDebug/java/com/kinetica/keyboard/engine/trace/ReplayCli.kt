@@ -12,7 +12,8 @@ import java.io.File
  *       Replays every v1 line, checks exactness, prints top-1, top-3, MRR and
  *       recall@N (default 50) overall and per bucket. Exits 1 when any
  *       comparable line fails to reproduce. Every command relabels retyped
- *       words (see [read]); --plain keeps the committed labels.
+ *       words (see [read]); --plain keeps the committed labels. Every command skips a word
+ *       line an earlier file already had; --keepdups scores it again.
  *       With --ctc MODEL.kctc [--beta B] [--depth D] the shipping run adds the
  *       stage-A CTC rerank over a heap D deep (default 50).
  *   ranks [--learn words|phrases] [--pickw N] [--seed FILE] [--hdfree] TRACE.jsonl...
@@ -43,6 +44,7 @@ object ReplayCli {
         val a = args.toMutableList()
         val cmd = a.removeFirstOrNull() ?: usage()
         retypes = !a.remove("--plain")
+        dedupe = !a.remove("--keepdups")
         opt(a, "--skipfrom")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_FROM = it.toInt() }
         opt(a, "--skip")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_KW = it.toFloat() }
         forceTouch = a.remove("--touchforce")
@@ -254,6 +256,14 @@ object ReplayCli {
      */
     var retypes = true
 
+    /** Skip a word line identical to one already read into the same report (see [ReplayReport.seenLines]). */
+    var dedupe = true
+
+    private fun digest(line: String): String =
+        java.util.Base64.getEncoder().encodeToString(
+            java.security.MessageDigest.getInstance("SHA-1").digest(line.toByteArray()),
+        )
+
     /**
      * Word lines of [f] with their line numbers, correction and discard lines
      * applied: a correction relabels the most recent earlier word committed as
@@ -269,12 +279,21 @@ object ReplayCli {
         // Indexes in [words] of the last free-typed commit and the earlier commits relabelled to it.
         var chain = ArrayList<Int>()
         var undone = false
+        // The last word line was a repeat, so the key, correction and discard lines after it
+        // belong to that repeat too.
+        var skipped = false
         f.useLines { lines ->
             for ((i, line) in lines.withIndex()) {
                 if (line.isBlank()) continue
                 try {
                     when (val l = SwipeTrace.decodeLine(line)) {
                         is SwipeTrace.Line.WordLine -> {
+                            if (dedupe && !report.seenLines.add(digest(line))) {
+                                report.duplicates++
+                                skipped = true
+                                continue
+                            }
+                            skipped = false
                             val w = l.word
                             val committed = w.committed
                             if (committed == null) {
@@ -309,9 +328,9 @@ object ReplayCli {
                             words.add(i + 1 to w)
                             if (w.target == null) chain.add(words.size - 1) else chain = ArrayList()
                         }
-                        is SwipeTrace.Line.Discard -> { words.removeLastOrNull(); chain = ArrayList() }
-                        is SwipeTrace.Line.Key -> if (l.name == "backspace" && chain.isNotEmpty()) undone = true
-                        is SwipeTrace.Line.Correction -> {
+                        is SwipeTrace.Line.Discard -> if (!skipped) { words.removeLastOrNull(); chain = ArrayList() }
+                        is SwipeTrace.Line.Key -> if (!skipped && l.name == "backspace" && chain.isNotEmpty()) undone = true
+                        is SwipeTrace.Line.Correction -> if (!skipped) {
                             val k = words.indexOfLast { it.second.committed.equals(l.from, ignoreCase = true) }
                             if (k >= 0) {
                                 val (n, w) = words[k]
