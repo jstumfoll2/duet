@@ -538,6 +538,11 @@
     <string name="pref_comma_custom_title">Testo a scelta del tasto virgola</string>
     <string name="pref_comma_custom_summary">Usato dalle opzioni carattere e testo a scelta qui sopra</string>
     <string name="emoji_recent">Usate spesso</string>
+    <string name="emoji_search">Cerca emoji</string>
+    <string name="emoji_search_hint">Cerca emoji</string>
+    <string name="emoji_search_close">Torna alle schede emoji</string>
+    <string name="emoji_search_none">Nessuna emoji trovata</string>
+    <string name="emoji_skin_tone">Tono della pelle</string>
     <string name="pref_theme_mode_title">Tema della tastiera</string>
     <string name="pref_theme_brightness_title">Chiaro o scuro</string>
     <string name="theme_preview_note_custom">Anteprima: trascina la tonalità qui sopra per cambiarla</string>

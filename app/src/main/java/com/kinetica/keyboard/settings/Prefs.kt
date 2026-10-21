@@ -520,6 +520,14 @@ object Prefs {
     /** Emoji for the word before the cursor in the suggestion bar ("pizza" offers 🍕). */
     const val EMOJI_SUGGESTIONS = "pref_emoji_suggestions"
 
+    /**
+     * The emoji panel's default skin tone, 0 (none) to 5 (darkest), set from the panel's
+     * footer hand; [EMOJI_TONES] holds the per-emoji ones from a long press, as
+     * `emoji=tone` pairs. Neither has a Settings row: the panel is where tones are seen.
+     */
+    const val EMOJI_TONE = "pref_emoji_tone"
+    const val EMOJI_TONES = "pref_emoji_tones"
+
     /** Legacy: the reserved peck-toggle letter, converted the same way as [LANG_CYCLE_KEY]. */
     const val PECK_CHORD_KEY = "pref_peck_chord_key"
     const val THEME_MODE = "pref_theme_mode"
@@ -720,6 +728,7 @@ object Prefs {
     const val DEFAULT_INCOGNITO = false
     const val DEFAULT_KEY_SOUND = false
     const val DEFAULT_EMOJI_SUGGESTIONS = false
+    const val DEFAULT_EMOJI_TONE = 0
     const val DEFAULT_FLOATING = false
     const val DEFAULT_FLOAT_WIDTH_PCT = 80
     const val DEFAULT_FLOAT_LEFT_PCT = 50
