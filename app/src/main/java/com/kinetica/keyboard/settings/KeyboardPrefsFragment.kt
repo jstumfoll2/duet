@@ -274,7 +274,12 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
     ) {
         for (i in 0 until group.preferenceCount) {
             val child = group.getPreference(i)
-            val key = child.key ?: continue
+            val key = child.key
+            if (key == null) {
+                // A heading has no key, but the rows under it are on the same screen.
+                if (child is PreferenceGroup) collectEntries(child, screenKey, screenTitle, out)
+                continue
+            }
             val title = child.title?.toString().orEmpty()
             // The theme swatch is the only row with no title, and a result needs words.
             if (title.isNotEmpty()) {
@@ -594,6 +599,10 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
             )
             // The "theme colour" trail follows the accent, so its swatch moves with the theme.
             trailSwatch?.themeAccentHue = theme.accentHue
+            // Grayed out, not hidden, where the theme ignores them: the rows stay findable and
+            // the preview note says why they do nothing.
+            hue?.isEnabled = KeyboardTheme.hueAffects(resolvedMode)
+            brightness?.isEnabled = !ThemePresets.isPreset(resolvedMode)
             preview.show(
                 theme,
                 getString(
@@ -628,7 +637,9 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
      */
     private inner class TrailSwatch(private val row: ListPreference) {
         var mode: String? = row.value
-            set(v) { field = v; paint() }
+            set(v) { field = v; paint(); customHueRow?.isEnabled = v == TRAIL_CUSTOM }
+        var customHueRow: HueSliderPreference? = null
+            set(v) { field = v; v?.isEnabled = mode == TRAIL_CUSTOM }
         var customHue: Int = preferenceManager.sharedPreferences
             ?.getInt(Prefs.TRAIL_COLOR_CUSTOM_HUE, 200) ?: 200
             set(v) { field = v; paint() }
@@ -664,11 +675,13 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
             swatch.mode = value as? String
             true
         }
-        findPreference<HueSliderPreference>(Prefs.TRAIL_COLOR_CUSTOM_HUE)
-            ?.setOnPreferenceChangeListener { _, value ->
-                (value as? Int)?.let { swatch.customHue = it }
-                true
-            }
+        val customHue = findPreference<HueSliderPreference>(Prefs.TRAIL_COLOR_CUSTOM_HUE)
+        customHue?.setOnPreferenceChangeListener { _, value ->
+            (value as? Int)?.let { swatch.customHue = it }
+            true
+        }
+        // Only the custom-hue trail reads the slider.
+        swatch.customHueRow = customHue
         // Covers screens without the theme rows, where wireThemePreview never sets the accent.
         preferenceManager.sharedPreferences?.let { prefs ->
             val config = KeyboardConfig.from(prefs)
@@ -686,6 +699,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         const val LETTER_NOTE_KEY = "pref_letter_alternates_note"
         const val PREVIEW_KEY = "pref_theme_preview"
         const val TRAIL_DOT_DP = 24f
+        const val TRAIL_CUSTOM = "custom"
         // TrailRenderer's stroke saturation, so the dot is the colour the trail draws.
         const val TRAIL_SAT = 0.85f
         val SIZE_PREVIEW_KEYS = listOf("pref_size_preview", "pref_bar_preview")

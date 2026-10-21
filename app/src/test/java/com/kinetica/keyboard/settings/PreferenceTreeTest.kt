@@ -139,6 +139,52 @@ class PreferenceTreeTest {
     }
 
     @Test
+    fun theTopLevelReadsTypingThenKeyboardThenHelp() {
+        // Jason could not find settings in the old order, with the bar and learning buried
+        // under Typing. Each group a tap from the top, the everyday ones first.
+        val top = screenOf(prefsXml()).filterValues { it == null }.keys.toList()
+        assertEquals(
+            listOf(
+                "pref_group_typing", "pref_group_bar", "pref_group_languages", "pref_group_learning",
+                "pref_group_look", "pref_group_size", "pref_group_keys", "pref_group_gestures",
+                "pref_group_learn", "pref_backup_screen", "pref_group_about", "pref_version",
+            ),
+            top,
+        )
+    }
+
+    @Test
+    fun eachSettingSitsWhereItsNameSaysItWould() {
+        val where = screenOf(prefsXml())
+        // What the enter key and a new field do is about keys, not about correction.
+        for (k in listOf(
+            "pref_enter_action", "pref_enter_hold_sends", "pref_field_keys",
+            "pref_numpad_for_numbers", "pref_letters_on_new_field",
+        )) assertEquals(k, "pref_group_keys", where[k])
+        // Everything about what Duet keeps and learns, beside the dictionary.
+        for (k in listOf("pref_dictionary_screen", "pref_incognito", "pref_contact_names", "pref_learn_phrases")) {
+            assertEquals(k, "pref_group_learning", where[k])
+        }
+        for (k in listOf("pref_vibration", "pref_key_sound", "pref_trail_color")) {
+            assertEquals(k, "pref_group_look", where[k])
+        }
+    }
+
+    @Test
+    fun everyScreenWithManyRowsHasHeadings() {
+        // A long screen without headings is the same wall of rows the top level used to be.
+        val xml = prefsXml()
+        for (screen in listOf(
+            "pref_group_typing", "pref_group_bar", "pref_group_learning",
+            "pref_group_look", "pref_group_size", "pref_group_keys",
+        )) {
+            val start = xml.indexOf("android:key=\"$screen\"")
+            val body = xml.substring(start, xml.indexOf("</PreferenceScreen>", start))
+            assertTrue("$screen has no headings", "<PreferenceCategory" in body)
+        }
+    }
+
+    @Test
     fun theTopLevelStaysShortEnoughToScan() {
         // A flat list of 52 rows could not be navigated.
         val top = screenOf(prefsXml()).filterValues { it == null }

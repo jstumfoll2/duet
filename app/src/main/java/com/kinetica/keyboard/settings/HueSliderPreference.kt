@@ -65,7 +65,10 @@ class HueSliderPreference @JvmOverloads constructor(
             // The theme's tint would paint the rainbow over in one accent colour.
             it.progressTintList = null
             it.progressBackgroundTintList = null
+            // The rainbow keeps its colours when the row is disabled, so fade it with the text.
+            it.alpha = if (isEnabled) 1f else DISABLED_ALPHA
         }
+        dot?.alpha = ((if (isEnabled) 1f else DISABLED_ALPHA) * 255).toInt()
         paint(value)
     }
 
@@ -100,5 +103,7 @@ class HueSliderPreference @JvmOverloads constructor(
         const val TRACK_DP = 6f
         const val HUE_STOPS = 12
         const val OUTLINE = 0x66888888
+        // Material's disabled-content opacity.
+        const val DISABLED_ALPHA = 0.38f
     }
 }
