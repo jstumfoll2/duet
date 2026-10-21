@@ -583,11 +583,27 @@ class WordPredictor(
      * whose stronger foreign readings would otherwise crowd the active list.
      */
     private fun decodeLetters(input: List<InputToken>, context: List<String>, beam: Boolean): List<WordCandidate> {
+        // Two thumbs the touchscreen briefly merged into one contact, split back.
+        val repaired = ContactRepair.repair(input)
+        // A merge that left no blip may have swapped which pointer is which thumb: read the
+        // buffer both ways and keep each word's better score, the regrouped reading's charged
+        // (ContactRepair.regrouped, REGROUP_KEEP).
+        val regrouped = ContactRepair.regrouped(repaired) ?: return decodeRepaired(repaired, context, beam)
+        DecodeTrace.log { "contact regroup$langTag: ${repaired.size} -> ${regrouped.size} tokens" }
+        val asIs = decodeRepaired(repaired, context, beam)
+        val other = decodeRepaired(regrouped, context, beam)
+        val best = HashMap<String, WordCandidate>()
+        for (c in asIs + other.map { it.copy(score = it.score * ContactRepair.REGROUP_KEEP) }) {
+            val held = best[c.word]
+            if (held == null || c.score > held.score) best[c.word] = c
+        }
+        return best.values.sortedByDescending { it.score }.take(maxOf(asIs.size, other.size))
+    }
+
+    private fun decodeRepaired(repaired: List<InputToken>, context: List<String>, beam: Boolean): List<WordCandidate> {
         val g = geometry ?: return emptyList()
         // A board in another script, for the moment a language switch leaves them apart.
         if (g.alphabet !== trie.alphabet) return emptyList()
-        // Two thumbs the touchscreen briefly merged into one contact, split back.
-        val repaired = ContactRepair.repair(input)
         val tokens = touchModel?.apply(repaired, g) ?: repaired
         if (tokens.isEmpty() || tokens.size > KineticaConstants.MAX_WORD_LEN) return emptyList()
         // Timed only under a trace sink, so a release build pays nothing for it.
