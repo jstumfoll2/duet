@@ -52,3 +52,11 @@ FUTO's *dataset* is MIT and fine.
 swipe, or after a taken-back automatic space) from the replay harness's `splitdata` and
 `rejoindata` rows. It prints the held-out comparison against the ratio rules and the weights to
 paste in. Needs numpy only; see the script's docstring for the commands.
+
+## Score weights
+
+`score_fit.py` refits one weight per score term (ScoreTerms) on the replay harness's
+`deepfeatures` top-50 lists, each half of the batches held out, and tries a non-saturating swipe
+cost and an unexplained-arc feature. On 2026-10-21 (13 batches) none beat today's weights held
+out (#68), so nothing changed in the engine; rerun it when new evidence (a feature or more
+traces) arrives.

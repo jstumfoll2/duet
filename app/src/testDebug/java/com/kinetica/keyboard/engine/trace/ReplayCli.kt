@@ -183,6 +183,46 @@ object ReplayCli {
                     println("%-12s %8d  %.3f".format(t.key, c, d))
                 }
             }
+            "deepfeatures" -> {
+                // deepfeatures FILE...: one JSON object per scored line with the deep list (--k
+                // deep), each candidate's score terms in ScoreTerms.Term order, its fit d, source,
+                // and the centre-to-centre length of its letters, for refitting the score (#68).
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
+                    val label = w.label?.lowercase() ?: continue
+                    val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
+                    val g = w.geometry.build()
+                    val alphabet = h.predictorFor(w).alphabet
+                    val swipes = r.tokens.filterIsInstance<com.kinetica.keyboard.engine.models.SwipeToken>()
+                    fun ideal(word: String): Float {
+                        val codes = alphabet.encode(com.kinetica.keyboard.engine.AccentFolder.fold(word.lowercase()).replace("'", "")) ?: return -1f
+                        var len = 0f
+                        for (i in 1 until codes.size) {
+                            if (!g.hasKey(codes[i - 1]) || !g.hasKey(codes[i])) return -1f
+                            len += g.keyDist(codes[i - 1], codes[i])
+                        }
+                        return len
+                    }
+                    val sb = StringBuilder()
+                    sb.append("{\"f\":\"").append(f.name).append("\",\"n\":").append(n)
+                        .append(",\"label\":\"").append(label.replace("\"", "")).append("\",\"asis\":").append(r.typedAsIs)
+                        .append(",\"rank\":").append(r.rank)
+                        .append(",\"b\":\"").append(r.buckets.joinToString(",")).append("\"")
+                        .append(",\"taps\":").append(r.tokens.size - swipes.size)
+                        .append(",\"arcs\":[").append(swipes.joinToString(",") { it.arcLen.toString() }).append("]")
+                        .append(",\"c\":[")
+                    r.deep.forEachIndexed { i, c ->
+                        if (i > 0) sb.append(',')
+                        sb.append("[\"").append(c.word.replace("\"", "")).append("\",").append(c.score).append(',')
+                            .append(c.dtwDistance).append(",\"").append(c.source.name).append("\",").append(ideal(c.word)).append(",[")
+                            .append(ScoreTerms.Term.entries.joinToString(",") { c.terms[it].toString() }).append("]]")
+                    }
+                    sb.append("]}")
+                    println(sb)
+                }
+            }
             "features" -> {
                 // features FILE...: one JSON object per scored line, the shipping list with each
                 // candidate's score factors, for fitting score weights offline.
