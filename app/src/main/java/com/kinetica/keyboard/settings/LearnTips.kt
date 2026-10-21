@@ -20,7 +20,7 @@ object LearnTips {
         "tip_retype" to Target("pref_group_bar", "pref_retype_button"),
         "tip_autospace" to Target("pref_group_spacing", "pref_autospace"),
         "tip_double_space" to Target("pref_group_spacing", "pref_double_space_period"),
-        "tip_enter" to Target("pref_group_typing", "pref_enter_action"),
+        "tip_enter" to Target("pref_group_keys", "pref_enter_action"),
         "tip_languages" to Target("pref_group_languages", "pref_enabled_languages"),
         "tip_follow_language" to Target("pref_group_languages_more", "pref_no_primary"),
         "tip_peck" to Target("pref_group_typing", "pref_peck_mode"),
@@ -32,8 +32,8 @@ object LearnTips {
         "tip_shortcut_row" to Target("pref_group_bar", "pref_bar_actions"),
         "tip_ctrl" to Target("pref_group_gestures", "pref_chords"),
         "tip_backup" to Target(null, "pref_backup_screen"),
-        "tip_learned" to Target(null, "pref_dictionary_screen"),
-        "tip_bigger_dictionary" to Target(null, "pref_dictionary_screen"),
+        "tip_learned" to Target("pref_group_learning", "pref_dictionary_screen"),
+        "tip_bigger_dictionary" to Target("pref_group_learning", "pref_dictionary_screen"),
         "tip_layouts" to Target("pref_group_size", "pref_layout_mode"),
     )
 }

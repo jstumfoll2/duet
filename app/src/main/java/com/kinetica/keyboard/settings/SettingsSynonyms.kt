@@ -163,6 +163,8 @@ object SettingsSynonyms {
         "pref_contribute_screen" to listOf("donate", "donation", "coffee", "ko-fi", "kofi", "tip", "support"),
         "pref_group_learn" to listOf("help", "tutorial", "how to", "practice", "practise", "tips"),
         "pref_group_bar" to listOf("topbar", "toolbar", "candidates", "strip", "bar"),
+        "pref_group_about" to listOf("info", "version", "credits", "legal", "donate"),
+        "pref_group_learning" to listOf("learn", "privacy", "dictionary", "words"),
 
         // The two that have no row of their own
         Prefs.CHORD_ARM_MS to listOf("chord", "lead in", "timing", "delay", "shortcut"),

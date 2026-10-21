@@ -118,7 +118,7 @@ F-Droid.
 - **Menu button on the bar** (on by default). A ☰ at the bar's left end brings up the shortcut
   row (paste, undo, clipboard and the rest) in the middle of a sentence, over the last word's
   alternatives. A shortcut, a second tap or the next word puts the suggestions back. Turn it off in
-  Settings under the suggestion bar.
+  Settings > Suggestion bar.
 - **Voice typing key.** An action that hands the field to the phone's voice input; bind it to a
   chord, an edge swipe or a bar shortcut.
 - **Autofill chips.** On Android 11 and later, the password manager's saved logins, addresses and
@@ -140,7 +140,13 @@ F-Droid.
   `word| next`) holds its space so nothing doubles, and the next word you start there gets it
   instead.
 - **Colour swatches.** The accent and trail hue sliders show the picked colour as a dot, a tinted
-  thumb and a rainbow track, and the trail colour row shows its colour too.
+  thumb and a rainbow track, and the trail colour row shows its colour too. Each slider is grayed
+  out unless it does something: the accent hue needs the *Custom colour* theme, the trail hue needs
+  the *Custom hue* trail, and brightness is off for the fixed presets.
+- **Settings in three groups.** *Typing* (typing and correction, suggestion bar, languages, words
+  and learning), *Keyboard* (look, sound and vibration; size and layout; keys; shortcuts and
+  gestures) and *Help and backup* (Learn Duet, backup, about). Inside each screen, rows sit under
+  short headings, and settings search reaches every row.
 - **Word menu on the bar.** Hold a suggestion still for about a second: *Never*, *Less*, *More*,
   *Forget* and *Why?* replace the words. *Less* halves the word's score each time, so even a
   common word can drop below a rarer one (sliding only ever lowered what you had taught it);
@@ -205,11 +211,11 @@ Everything below comes from Kinetica and works the same in Duet.
 
 - Up to ten candidates; a page holds as many as fit, and the bar swipes sideways to the next one.
   Flick a word up to put it in at once.
-- Words sit side by side with a small gap (Typing > Suggestion bar > *Compact suggestions*, on),
+- Words sit side by side with a small gap (Suggestion bar > *Compact suggestions*, on),
   in a text size of your choice.
 - After a commit the bar becomes a correction strip: tap another word and it replaces the one just
   written, taking its learned weight with it.
-- Next-word suggestions while nothing is being typed (Typing, on).
+- Next-word suggestions while nothing is being typed (Typing and correction, on).
 - Recent words: the last two words stay on the bar, each with the words it beat; tap one to swap it
   in (off by default). They have their own text size and a swipe direction to choose.
 - A tapped word with one stray or one missing letter is offered on the bar, never changed for you.
@@ -230,12 +236,12 @@ Everything below comes from Kinetica and works the same in Duet.
 - Swipe shift up for `ABC`, right for `Abc`, down for `abc`, or hold it for the menu: on the word at
   the cursor or on selected text. The swipes are edge swipes like any other, so they can be changed.
 - Enter searches, sends or goes where the app asks for it, and its label says which; hold it for a
-  new line (Typing, on). In a chat box, *Hold enter to send* swaps the two (Typing, off).
+  new line (Keys > Enter and fields, on). In a chat box, *Hold enter to send* swaps the two (off).
 - Keys that fit the field: `@` on the comma in an email field, `/` in a web address, no capital at
-  their start (Typing, on). Number and phone fields can open on the number pad (Typing, off).
-- A new field opens on the letters, wherever the last one was left (Typing, on).
-- Tidy spaces: never two spaces in a row and none before a closing quote (Typing > Spacing, off).
-- The marks that take back an automatic space are a list you can edit (Typing > Spacing > *No space
+  their start (Keys > Enter and fields, on). Number and phone fields can open on the number pad (off).
+- A new field opens on the letters, wherever the last one was left (Keys > Enter and fields, on).
+- Tidy spaces: never two spaces in a row and none before a closing quote (Typing and correction > Spacing, off).
+- The marks that take back an automatic space are a list you can edit (Typing and correction > Spacing > *No space
   before*), and a band on the bar shows the wait before the space lands.
 
 ### Shortcuts
@@ -253,7 +259,7 @@ Everything below comes from Kinetica and works the same in Duet.
 - A chord, an edge swipe or an expansion can type text, run an action (paste, copy, undo, Tab, the
   arrows, Home, End, Esc, forward delete, the date) or press Ctrl and a key (Ctrl+A, Ctrl+Del).
 - Shortcuts on the bar when there is nothing to suggest, and in the `?123` hold menu; both sets are
-  chosen and ordered in Typing > Suggestion bar. While the chords show, the menu sits on the
+  chosen and ordered in Suggestion bar. While the chords show, the menu sits on the
   spacebar so it covers none of them.
 - Settings from the keyboard: hold `?123` and slide onto the gear.
 
@@ -312,19 +318,19 @@ Everything below comes from Kinetica and works the same in Duet.
 ### Worth a look in Settings
 
 - **Get rid of a word for good.** Hold it on the bar and slide past the lowest tier, or add it in
-  Settings > Dictionary > *Blocked words*. A blocked word is never offered again and never learned
-  back. With Typing > Learning > *Blocking a word deletes it*, the word you just wrote also leaves
+  Settings > Words and learning > Dictionary > *Blocked words*. A blocked word is never offered again and never learned
+  back. With Words and learning > *Blocking a word deletes it*, the word you just wrote also leaves
   the text.
 - **Peck-type mode** turns off swiping, suggestions and autocorrect, so every tap types exactly its
   letter. For slang, codes and anything the dictionary keeps fighting.
-- **Automatic spaces after tapped words too.** Typing > Spacing > *Autospace tapped words too*. A
+- **Automatic spaces after tapped words too.** Typing and correction > Spacing > *Autospace tapped words too*. A
   word the dictionary holds gets its space after a pause, and the next letter takes it back if the
   word was not over. Three sliders set the delays.
 - **A shorter keyboard.** *Keyboard height* goes down to 10% of the screen, *Suggestion bar height*
   shrinks the bar and its text, and *Resize handle height* at 0 removes the grip.
 - **Long-press without the accents.** *Hide accented letters on long-press* leaves digits, symbols
   and the letters of your enabled languages, so Polish keeps `ą` on the English keys.
-- **A much bigger dictionary.** Settings > Dictionary > *Import improved dictionary* takes an AOSP
+- **A much bigger dictionary.** Settings > Words and learning > Dictionary > *Import improved dictionary* takes an AOSP
   `wordlist.combined` and merges it with the bundled list, three to five times the words. Get the
   `main_<code>.combined` file for your language from
   [aosp-dictionaries](https://codeberg.org/Helium314/aosp-dictionaries) under `wordlists/`.
@@ -468,7 +474,7 @@ Considered as replacements for the OpenSubtitles word lists (July 2026):
 | [FlorisBoard](https://github.com/florisboard/florisboard) | Apache-2.0 | No frequency word lists | Nothing to import |
 
 `tools/generate_assets.py --merge-aosp <wordlist.combined>` merges an AOSP list into a primary word
-list; the same merge runs on the phone from Settings > Dictionary, written to app storage and loaded
+list; the same merge runs on the phone from Settings > Words and learning > Dictionary, written to app storage and loaded
 in place of the bundled list. Abbreviations, offensive entries and spellings that drop a bundled
 word's accents are left out. The bundled lists stay OpenSubtitles and Tatoeba: AOSP's Italian list,
 merged in, decoded worse in the project's tests. An AOSP merge is Apache-2.0; this section is its
@@ -496,7 +502,7 @@ later version. The full text is in [LICENSE](LICENSE); the SPDX identifier is `G
 Kinetica is Copyright (C) 2026 Elia Zanella. Duet's changes are listed in this repository's commit
 history. The bundled dictionary data carries its own licences (MIT for FrequencyWords, CC BY 2.0
 FR for Tatoeba, and the SCOWL and C4 terms); the attributions are in
-[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and in the app under Settings > Open-source licenses.
+[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and in the app under Settings > About Duet > Open-source licenses.
 Shipping that file meets them.
 
 If you redistribute Duet, the GPL asks you to keep the licence notice, state your changes and make
