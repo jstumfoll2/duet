@@ -104,10 +104,11 @@ F-Droid.
 - Word triples (`en_trigrams.txt`) for context, on top of Kinetica's word pairs.
 - A small grammar pass on the word before the one just written: `a`/`an`, `could of`, `he don't`,
   and confusion pairs such as `then`/`than` when the next word settles them (`GrammarCheck`).
-- Grammar suggestions from [Harper](https://github.com/Automattic/harper) (opt-in: Settings >
-  Typing > Grammar suggestions). After each word, the sentence is checked on the phone by the
-  bundled Harper library (Apache-2.0, rule-based, a few milliseconds per sentence), and a problem's
-  fixes appear on the idle bar as ✎ chips. Nothing changes unless you tap one. Spelling stays with
+- Grammar underlines from [Harper](https://github.com/Automattic/harper) (opt-in: Settings >
+  Typing > Grammar check, Android 12+). Duet's spell checker runs the bundled Harper library
+  (Apache-2.0, rule-based, a few milliseconds per sentence) on the device and reports its problems
+  as grammar errors, so the text field underlines them; tap an underlined word for the fix. Duet
+  must be the system spell checker (Languages and input > Spell checker). Spelling stays with
   Duet's own dictionaries.
 - Language-aware learning: a new word needs three commits before it is learned, and a word is
   learned in the language it belongs to, so English typed in Spanish mode does not fill the

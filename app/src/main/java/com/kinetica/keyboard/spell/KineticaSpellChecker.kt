@@ -1,17 +1,22 @@
 package com.kinetica.keyboard.spell
 
 import android.content.Context
+import android.os.Build
 import android.service.textservice.SpellCheckerService
 import android.util.Log
+import android.view.textservice.SentenceSuggestionsInfo
 import android.view.textservice.SuggestionsInfo
 import android.view.textservice.TextInfo
+import androidx.annotation.RequiresApi
 import androidx.preference.PreferenceManager
 import com.kinetica.keyboard.data.DictionaryStore
 import com.kinetica.keyboard.data.KineticaDb
 import com.kinetica.keyboard.engine.Alphabet
 import com.kinetica.keyboard.engine.DictionaryLoader
+import com.kinetica.keyboard.engine.HarperLints
 import com.kinetica.keyboard.engine.LoadedDictionary
 import com.kinetica.keyboard.engine.SpellLexicon
+import com.kinetica.keyboard.grammar.HarperGrammar
 import com.kinetica.keyboard.settings.KeyboardConfig
 
 /**
@@ -46,6 +51,59 @@ class KineticaSpellChecker : SpellCheckerService() {
             val attrs = SuggestionsInfo.RESULT_ATTR_LOOKS_LIKE_TYPO or
                 if (suggestions.isNotEmpty()) SuggestionsInfo.RESULT_ATTR_HAS_RECOMMENDED_SUGGESTIONS else 0
             return SuggestionsInfo(attrs, suggestions.toTypedArray())
+        }
+
+        /**
+         * Sentence checks: the words as the default splitter reports them, then, with Harper
+         * grammar on and English active (Android 12+), Harper's problems as grammar results, which
+         * the text field underlines and offers fixes for on a tap. The grammar results go last:
+         * a field drops error underlines under a word reported as correct, and the words are
+         * reported first.
+         */
+        override fun onGetSentenceSuggestionsMultiple(
+            textInfos: Array<TextInfo>,
+            suggestionsLimit: Int,
+        ): Array<SentenceSuggestionsInfo?> {
+            val words: Array<SentenceSuggestionsInfo?> = super.onGetSentenceSuggestionsMultiple(textInfos, suggestionsLimit)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return words
+            val config = KeyboardConfig.from(PreferenceManager.getDefaultSharedPreferences(context))
+            if (!config.harperGrammar || config.language != "en") return words
+            val dialect = if (config.britishSpelling) 1 else 0
+            return Array(textInfos.size) { i ->
+                withGrammar(words.getOrNull(i), textInfos[i], dialect, suggestionsLimit.coerceIn(0, MAX_SUGGESTIONS))
+            }
+        }
+
+        @RequiresApi(Build.VERSION_CODES.S)
+        private fun withGrammar(
+            words: SentenceSuggestionsInfo?,
+            textInfo: TextInfo,
+            dialect: Int,
+            limit: Int,
+        ): SentenceSuggestionsInfo? {
+            val text = textInfo.text
+            if (text.isBlank()) return words
+            val encoded = HarperGrammar.lint(text, dialect) ?: return words
+            val marks = HarperLints.marks(HarperLints.parse(encoded), text, limit)
+            if (marks.isEmpty()) return words
+            val infos = ArrayList<SuggestionsInfo>()
+            val offsets = ArrayList<Int>()
+            val lengths = ArrayList<Int>()
+            if (words != null) {
+                for (k in 0 until words.suggestionsCount) {
+                    infos.add(words.getSuggestionsInfoAt(k))
+                    offsets.add(words.getOffsetAt(k))
+                    lengths.add(words.getLengthAt(k))
+                }
+            }
+            for (m in marks) {
+                val attrs = SuggestionsInfo.RESULT_ATTR_LOOKS_LIKE_GRAMMAR_ERROR or
+                    if (m.suggestions.isNotEmpty()) SuggestionsInfo.RESULT_ATTR_HAS_RECOMMENDED_SUGGESTIONS else 0
+                infos.add(SuggestionsInfo(attrs, m.suggestions.toTypedArray(), textInfo.cookie, textInfo.sequence))
+                offsets.add(m.start)
+                lengths.add(m.length)
+            }
+            return SentenceSuggestionsInfo(infos.toTypedArray(), offsets.toIntArray(), lengths.toIntArray())
         }
     }
 

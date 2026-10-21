@@ -2,7 +2,7 @@ package com.kinetica.keyboard.grammar
 
 /**
  * The native Harper bridge, libduet_harper.so, built from native/harper-jni. Nothing here
- * loads the library: [HarperChecker] does, on its worker, and a JVM test loads a host build
+ * loads the library: [HarperGrammar] does on first use, and a JVM test loads a host build
  * by path. Every call but [version] must come from one thread at a time.
  */
 object HarperNative {

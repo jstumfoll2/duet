@@ -201,7 +201,7 @@ data class KeyboardConfig(
     val incognito: Boolean = false,
     /** The system key click on each key press. */
     val keySound: Boolean = false,
-    /** Harper's grammar fixes as chips on the idle bar (English only). */
+    /** Harper's grammar problems underlined through Duet's spell checker (English only). */
     val harperGrammar: Boolean = false,
     /** Emoji for the word before the cursor in the suggestion bar. */
     val emojiSuggestions: Boolean = false,

@@ -515,8 +515,8 @@ object Prefs {
     const val KEY_SOUND = "pref_key_sound"
 
     /**
-     * Harper grammar suggestions: after each word, the sentence is checked on the device by the
-     * bundled Harper library and a problem's fixes are offered as chips on the idle bar.
+     * Harper grammar suggestions: Duet's spell checker reports Harper's grammar problems with the
+     * spelling, so text fields underline them and offer the fixes on a tap (Android 12+).
      */
     const val HARPER_GRAMMAR = "pref_harper_grammar"
 
