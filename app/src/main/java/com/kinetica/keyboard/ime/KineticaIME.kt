@@ -621,6 +621,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 config.apostropheWidthPct != previous.apostropheWidthPct ||
                 config.numberRowGapPct != previous.numberRowGapPct ||
                 config.spaceRowGapPct != previous.spaceRowGapPct ||
+                config.numberRowSizePct != previous.numberRowSizePct ||
+                config.bottomRowSizePct != previous.bottomRowSizePct ||
                 config.letterAlternates != previous.letterAlternates ||
                 config.emojiKey != previous.emojiKey ||
                 config.numberPriority != previous.numberPriority ||
@@ -1042,13 +1044,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         numberRowPx(KeyboardHeights.maxPx(resources.displayMetrics.heightPixels))
 
     /**
-     * The board's height for a letter area of [letterPx]: a row taller with the numbers row, so
-     * the height setting and its bounds keep meaning the letters.
+     * The board's height for a letter area of [letterPx]: grown for the numbers row and the
+     * outer rows' gaps and sizes, so the height setting and its bounds keep meaning the letters.
      */
-    private fun numberRowPx(letterPx: Int): Int = KeyboardHeights.boardPx(letterPx, config.numberRow)
+    private fun numberRowPx(letterPx: Int): Int = KeyboardHeights.boardPx(letterPx, KeyboardHeights.growth(config))
 
     private fun persistHeightPct(px: Int) {
-        val letterPx = KeyboardHeights.letterPx(px, config.numberRow)
+        val letterPx = KeyboardHeights.letterPx(px, KeyboardHeights.growth(config))
         val pct = KeyboardHeights.pctFor(letterPx, resources.displayMetrics.heightPixels)
         val key = if (isLandscape()) Prefs.KEYBOARD_HEIGHT_PCT_LANDSCAPE else Prefs.KEYBOARD_HEIGHT_PCT
         PreferenceManager.getDefaultSharedPreferences(this)

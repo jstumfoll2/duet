@@ -84,10 +84,10 @@ object AlphaLayouts {
         // alternate to the period, which has nowhere left to pass it.
         l = LayoutMutations.withPeriodKey(l, config.periodMode, config.periodCustom)
         // After the comma and period, which it moves down with the rest of the bottom row.
-        l = LayoutMutations.withSpaceRowGap(l, config.spaceRowGapPct / 100f)
+        l = LayoutMutations.withSpaceRowGap(l, config.spaceRowGapPct / 100f, config.bottomRowSizePct / 100f)
         // Last: it moves every key, and the mutations above find keys by row.
         if (config.numberRow) {
-            l = LayoutMutations.withNumberRow(l, config.numberRowGapPct / 100f)
+            l = LayoutMutations.withNumberRow(l, config.numberRowGapPct / 100f, config.numberRowSizePct / 100f)
             l = LayoutMutations.withNumberRowLists(l, lists)
         }
         return l

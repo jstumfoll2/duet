@@ -75,13 +75,23 @@ object KeyboardHeights {
     /** How much taller the bar is while recent words share it: a column of three at half size. */
     const val RECENT_BAR_TALL = 1.5f
 
-    /** The board for a letter area of [letterPx]: a row taller with the numbers row. */
-    fun boardPx(letterPx: Int, numberRow: Boolean): Int =
-        if (numberRow) (letterPx * LayoutMutations.NUMBER_ROW_GROWTH).toInt() else letterPx
+    /**
+     * How much taller than the letter area the board is for [config]: the numbers row, and the
+     * gaps and sizes of the numbers and bottom rows ([LayoutMutations.boardGrowth]).
+     */
+    fun growth(config: KeyboardConfig): Float = LayoutMutations.boardGrowth(
+        numberRow = config.numberRow,
+        numberGap = config.numberRowGapPct / 100f,
+        numberSize = config.numberRowSizePct / 100f,
+        spaceGap = config.spaceRowGapPct / 100f,
+        spaceSize = config.bottomRowSizePct / 100f,
+    )
+
+    /** The board for a letter area of [letterPx], [growth] times taller. */
+    fun boardPx(letterPx: Int, growth: Float): Int = Math.round(letterPx * growth)
 
     /** The letter area a dragged board of [boardPx] stands for; the setting stores this. */
-    fun letterPx(boardPx: Int, numberRow: Boolean): Int =
-        if (numberRow) (boardPx / LayoutMutations.NUMBER_ROW_GROWTH).toInt() else boardPx
+    fun letterPx(boardPx: Int, growth: Float): Int = Math.round(boardPx / growth)
 
     /** The suggestion bar's height in dp: one row, or taller with recent words on. */
     fun barDp(settingDp: Int, recentWords: Boolean): Float =

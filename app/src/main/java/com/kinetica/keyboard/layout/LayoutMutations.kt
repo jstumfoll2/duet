@@ -470,58 +470,90 @@ object LayoutMutations {
      */
     const val NUMBER_ROW_H = 0.25f
 
-    /** How much taller the board is with the numbers row, so no letter key changes size. */
+    /** How much taller the board is with a plain numbers row (no gap, full size). */
     const val NUMBER_ROW_GROWTH = 1f + NUMBER_ROW_H
 
     /**
-     * A row of digits above the letters. The rows below keep their share of a board one
-     * row taller, which the service grows by [NUMBER_ROW_GROWTH], so a letter key keeps its size
-     * and every distance in key widths is unchanged. A digit is not a letter key, so
-     * no gesture starts on it: taps only.
+     * How much taller than its layout the board is drawn, so every letter key keeps its size
+     * whatever the two outer rows do: the numbers row adds its gap and its keys, and the bottom
+     * row's gap and size change its own height. Fractions of a letter row, as the settings give
+     * them; [withSpaceRowGap] and [withNumberRow] shape the keys to match.
      */
-    fun withNumberRow(layout: KeyboardLayout, gap: Float = 0f): KeyboardLayout {
-        val scale = 1f / NUMBER_ROW_GROWTH
-        val moved = layout.keys.map { it.copy(y = (it.y + NUMBER_ROW_H) * scale, h = it.h * scale) }
-        val h = NUMBER_ROW_H * scale * (1f - gap.coerceIn(0f, MAX_NUMBER_ROW_GAP))
+    fun boardGrowth(
+        numberRow: Boolean,
+        numberGap: Float = 0f,
+        numberSize: Float = 1f,
+        spaceGap: Float = 0f,
+        spaceSize: Float = 1f,
+    ): Float {
+        val bottom = NUMBER_ROW_H * (spaceGap.coerceIn(0f, MAX_SPACE_ROW_GAP) + rowSize(spaceSize) - 1f)
+        val top = if (numberRow) NUMBER_ROW_H * (numberGap.coerceIn(0f, MAX_NUMBER_ROW_GAP) + rowSize(numberSize)) else 0f
+        return 1f + bottom + top
+    }
+
+    /**
+     * A row of digits above the letters, [size] of a letter row tall, over a [gap] (also in letter
+     * rows) that types the letter below. The rows below keep their share of a board grown by
+     * [boardGrowth], so a letter key keeps its size and every distance in key widths is
+     * unchanged. A digit is not a letter key, so no gesture starts on it: taps only.
+     */
+    fun withNumberRow(layout: KeyboardLayout, gap: Float = 0f, size: Float = 1f): KeyboardLayout {
+        // A letter row in this layout's units, which the bottom row's mutation may have rescaled.
+        val rowH = layout.keys.filter { it.isLetter }.minOfOrNull { it.h } ?: NUMBER_ROW_H
+        val digitH = rowH * rowSize(size)
+        val band = rowH * gap.coerceIn(0f, MAX_NUMBER_ROW_GAP) + digitH
+        val scale = 1f / (1f + band)
+        val moved = layout.keys.map { it.copy(y = (it.y + band) * scale, h = it.h * scale) }
         val digits = "1234567890".mapIndexed { i, c ->
             Key(
                 id = NUMBER_ROW_ID_PREFIX + c, type = KeyType.CHAR, label = c.toString(), output = c.toString(),
-                x = i * 0.1f, y = 0f, w = 0.1f, h = h,
+                x = i * 0.1f, y = 0f, w = 0.1f, h = digitH * scale,
             )
         }
         return layout.copy(keys = digits + moved)
     }
 
     /**
-     * The most of the digits' height [withNumberRow]'s gap may take. The gap is the bottom of the
-     * digits' row: a touch there is no digit, and the keyboard view gives it to the letter
+     * The most a gap by the numbers row may take, in letter rows. The gap sits between the digits
+     * and the top letters: a touch there is no digit, and the keyboard view gives it to the letter
      * below (`KeyboardView.letterUnderGap`), so a thumb reaching high for `o` types `o`, not `9`.
      * The letter keys and the decoder's geometry do not move.
      */
     const val MAX_NUMBER_ROW_GAP = 0.5f
 
     /**
-     * A gap between the bottom letter row and the row under it (space, comma, enter): the
-     * top [gap] of each key under the letters is taken off, so a thumb aiming low for `b` no
-     * longer lands on space. The view gives a touch in the gap to the letter above
-     * (`KeyboardView.letterUnderGap`); the letter keys and the decoder's geometry do not move.
+     * A gap between the bottom letter row and the row under it (space, comma, enter), [gap] of
+     * that row's height, and the row's keys [size] of their own height under it. The board
+     * grows or shrinks to fit ([boardGrowth]), so a thumb aiming low for `b` no longer lands on
+     * space and the space bar keeps a letter key's height. The view gives a touch in the gap to
+     * the letter above (`KeyboardView.letterUnderGap`); the letter keys keep their size and the
+     * decoder's geometry does not change.
      */
-    fun withSpaceRowGap(layout: KeyboardLayout, gap: Float): KeyboardLayout {
+    fun withSpaceRowGap(layout: KeyboardLayout, gap: Float, size: Float = 1f): KeyboardLayout {
         val g = gap.coerceIn(0f, MAX_SPACE_ROW_GAP)
-        if (g <= 0f) return layout
+        val s = rowSize(size)
+        if (g <= 0f && s == 1f) return layout
         val lettersBottom = layout.keys.filter { it.isLetter }.maxOfOrNull { it.y + it.h } ?: return layout
         var changed = false
-        val keys = layout.keys.map { k ->
+        val shaped = layout.keys.map { k ->
             if (k.isLetter || k.y < lettersBottom - 0.01f) return@map k
             changed = true
-            val cut = k.h * g
-            k.copy(y = k.y + cut, h = k.h - cut)
+            k.copy(y = k.y + k.h * g, h = k.h * s)
         }
-        return if (changed) layout.copy(keys = keys) else layout
+        if (!changed) return layout
+        val bottom = shaped.maxOf { it.y + it.h }
+        val keys = shaped.map { it.copy(y = it.y / bottom, h = it.h / bottom) }
+        return layout.copy(keys = keys)
     }
 
     /** The most of the bottom row's height [withSpaceRowGap] may take. */
     const val MAX_SPACE_ROW_GAP = 0.5f
+
+    /** The smallest and largest the numbers and bottom rows' keys may be, in letter rows. */
+    const val MIN_ROW_SIZE = 0.5f
+    const val MAX_ROW_SIZE = 1.5f
+
+    private fun rowSize(size: Float): Float = size.coerceIn(MIN_ROW_SIZE, MAX_ROW_SIZE)
 
     /**
      * Each numbers-row digit and the letter under its middle in the top letter row: `9` over
