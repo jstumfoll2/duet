@@ -12,7 +12,7 @@ import androidx.core.content.ContextCompat
 import com.kinetica.keyboard.R
 
 /**
- * Vertical stack: drag handle, suggestion bar, keyboard, bottom gap. The handle resizes the
+ * Vertical stack: drag handle, proofread strip, suggestion bar, keyboard, bottom gap. The handle resizes the
  * keyboard live during the drag and reports the final height on release for persistence.
  */
 class InputContainerView(
@@ -46,6 +46,9 @@ class InputContainerView(
     }
 
     private val handle = HandleView(context)
+
+    /** The grammar row above the bar ([ProofreadStripView]); zero height while it is off. */
+    val proofStrip = ProofreadStripView(context)
     // Empty space below the keys, not chrome. Painted the keyboard's background in applyTheme:
     // left plain it would show the window's own colour, a band unlike the keys above it.
     private val bottomGap = View(context)
@@ -72,6 +75,8 @@ class InputContainerView(
             handle,
             LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, handleHeightPx.coerceAtLeast(0)),
         )
+        addView(proofStrip, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0))
+        proofStrip.visibility = GONE
         addView(suggestionBar, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, barHeightPx))
         addView(
             keyboardView,
@@ -88,6 +93,7 @@ class InputContainerView(
     /** The handle strip and the gap below the keys follow the active theme. */
     fun applyTheme(theme: KeyboardTheme) {
         handle.setColors(theme.suggestionBg, theme.keyHint)
+        proofStrip.setColors(theme.suggestionBg, theme.suggestionText, theme.chip)
         bottomGap.setBackgroundColor(theme.background)
     }
 
@@ -114,6 +120,16 @@ class InputContainerView(
             lp.height = h
             handle.requestLayout()
         }
+    }
+
+    /** Live resize of the proofread strip; zero hides it. */
+    fun setProofreadHeight(px: Int) {
+        val lp = proofStrip.layoutParams ?: return
+        val h = px.coerceAtLeast(0)
+        if (lp.height == h) return
+        lp.height = h
+        proofStrip.visibility = if (h == 0) GONE else VISIBLE
+        proofStrip.requestLayout()
     }
 
     /** Live resize of the suggestion strip, mirroring the keyboard's own path. */

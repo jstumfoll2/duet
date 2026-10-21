@@ -44,6 +44,7 @@ import com.kinetica.keyboard.engine.DictionaryLoader
 import com.kinetica.keyboard.engine.DigitSlips
 import com.kinetica.keyboard.engine.GestureEngine
 import com.kinetica.keyboard.engine.GrammarCheck
+import com.kinetica.keyboard.engine.HarperLints
 import com.kinetica.keyboard.engine.KeyboardGeometry
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.LanguageMomentum
@@ -59,6 +60,7 @@ import com.kinetica.keyboard.engine.models.StreamId
 import com.kinetica.keyboard.engine.models.SwipeToken
 import com.kinetica.keyboard.engine.models.TapToken
 import com.kinetica.keyboard.engine.models.WordCandidate
+import com.kinetica.keyboard.grammar.HarperGrammar
 import com.kinetica.keyboard.keys.ActionRow
 import com.kinetica.keyboard.keys.AutoCapitalization
 import com.kinetica.keyboard.keys.ChordKey
@@ -95,6 +97,7 @@ import com.kinetica.keyboard.ui.InputContainerView
 import com.kinetica.keyboard.ui.Hsv
 import com.kinetica.keyboard.ui.KeyboardTheme
 import com.kinetica.keyboard.ui.KeyboardView
+import com.kinetica.keyboard.ui.ProofreadStripView
 import com.kinetica.keyboard.ui.SuggestionBarView
 import java.io.IOException
 import kotlin.math.roundToInt
@@ -145,6 +148,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private val dbExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "kinetica-db")
     }
+    // Harper's grammar check for the proofread strip, off the main thread.
+    private val proofExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "duet-proofread")
+    }
+
+    /** The text the proofread strip's result was read from, and the editor offset it ended at. */
+    private class ProofState(val text: String, val cursorAt: Int, val proof: HarperLints.Proof)
+    private var proofState: ProofState? = null
+    private var proofGeneration = 0
+    private val proofRunnable = Runnable { runProofread() }
 
     /** Resident emoji pick counts, so the picker fills without touching Room. */
     private val emojiStore by lazy { EmojiStore(this, dbExecutor, mainHandler) }
@@ -670,6 +683,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         alternateDecodeExecutor.shutdown()
         extraDecodeExecutor.shutdown()
         dbExecutor.shutdown()
+        proofExecutor.shutdown()
         super.onDestroy()
     }
 
@@ -977,6 +991,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             bottomGapPx = dpToPx(config.bottomPadDp.toFloat()),
         )
         containerView = container
+        container.proofStrip.listener = proofListener
         val frame = FloatingFrame(this, container)
         floating.frame = frame
         applyViewConfig()
@@ -1140,6 +1155,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         keyboardView?.sidePadDp = config.sidePadDp
         containerView?.setBottomGap(dpToPx(config.bottomPadDp.toFloat()))
         containerView?.setBarHeight(dpToPx(barHeightDp()))
+        containerView?.setProofreadHeight(if (proofreadOn()) dpToPx(PROOF_STRIP_DP) else 0)
         containerView?.setHeightBounds(minKeyboardPx(), maxKeyboardPx())
         suggestionBar?.tallFactor = if (config.recentWords) KeyboardHeights.RECENT_BAR_TALL else 1f
         applyFloating()
@@ -1308,12 +1324,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         applyViewConfig()
         watchCodes(editorInfo)
+        scheduleProofread()
     }
 
     override fun onFinishInput() {
         codeFieldGeneration++
         smsCodes.unwatch()
         containerView?.hideInlineStrip()
+        mainHandler.removeCallbacks(proofRunnable)
+        proofGeneration++
+        proofState = null
+        containerView?.proofStrip?.show(null)
         abandonWord()
         composer?.reset()
         saveTouchModel()
@@ -1337,6 +1358,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // its own edit the cursor is where the editor says it is, and the delete
         // paths read these offsets.
         setSelectionCache(newSelStart, newSelEnd)
+        scheduleProofread()
         // A report is the keyboard's own only when it lands where one of its edits put the
         // cursor; counting reports drifted and swallowed the user's moves.
         val verdict = selectionLedger.judge(newSelStart, newSelEnd, SystemClock.uptimeMillis())
@@ -5052,6 +5074,85 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         DecodeTrace.log { "  grammar word=$prev fixed=$fixed next=${word.lowercase()}" }
     }
 
+    /** The proofread strip is up: Harper grammar on and English typed. */
+    private fun proofreadOn(): Boolean = config.harperGrammar && config.language == "en"
+
+    /** Checks the sentence again once the editor has been still for [PROOF_DELAY_MS]. */
+    private fun scheduleProofread() {
+        if (!proofreadOn()) return
+        mainHandler.removeCallbacks(proofRunnable)
+        mainHandler.postDelayed(proofRunnable, PROOF_DELAY_MS)
+    }
+
+    /**
+     * Hands the text before the cursor to Harper on [proofExecutor] and puts the sentence being
+     * written on the proofread strip with its problems underlined. Private fields show nothing.
+     */
+    private fun runProofread() {
+        val strip = containerView?.proofStrip ?: return
+        if (!proofreadOn()) return
+        if (editorState.privateMode || !editorState.offersCorrections || selectionLength() != 0) {
+            proofState = null
+            strip.show(null)
+            return
+        }
+        val tail = ich.textBeforeCursor(PROOF_TAIL_CHARS)?.toString() ?: return
+        val text = tail.substring(HarperLints.windowStart(tail, tail.length >= PROOF_TAIL_CHARS))
+        val at = cursorExpected()
+        val gen = ++proofGeneration
+        val dialect = if (config.britishSpelling) 1 else 0
+        proofExecutor.execute {
+            val started = System.nanoTime()
+            val encoded = if (text.isBlank()) "" else HarperGrammar.lint(text, dialect)
+            val marks = if (encoded == null) {
+                emptyList()
+            } else {
+                HarperLints.marks(HarperLints.parse(encoded), text, PROOF_FIXES)
+            }
+            val proof = HarperLints.proof(text, marks)
+            val ms = (System.nanoTime() - started) / 1_000_000
+            mainHandler.post {
+                if (gen != proofGeneration) return@post
+                DecodeTrace.log {
+                    "  proofread chars=${text.length} ms=$ms lib=${encoded != null} marks=${proof.marks.size}"
+                }
+                proofState = ProofState(text, at, proof)
+                containerView?.proofStrip?.show(proof)
+            }
+        }
+    }
+
+    private val proofListener = object : ProofreadStripView.Listener {
+        override fun onProofFix(proof: HarperLints.Proof, mark: HarperLints.Mark, fix: String) {
+            applyProofFix(proof, mark, fix)
+        }
+    }
+
+    /**
+     * Writes [fix] over [mark], where the text the check read still stands: the problem is
+     * rewritten together with everything after it up to the cursor, as a recent-word swap is.
+     */
+    private fun applyProofFix(proof: HarperLints.Proof, mark: HarperLints.Mark, fix: String) {
+        val state = proofState?.takeIf { it.proof == proof } ?: return
+        if (selectionLength() != 0) return
+        if (tentativeLength > 0 || composer?.hasPendingWord == true) abandonWord()
+        val problem = proof.sentence.substring(mark.start, mark.start + mark.length)
+        val start = state.cursorAt - state.text.length + proof.start + mark.start
+        val back = cursorExpected() - start
+        val before = if (back > 0) ich.textBeforeCursor(back)?.toString() else null
+        if (before == null || before.length != back || !before.startsWith(problem)) {
+            DecodeTrace.log { "  proofread fix refused" }
+            scheduleProofread()
+            return
+        }
+        val rewritten = fix + before.substring(problem.length)
+        ich.replaceBeforeCursor(back, rewritten)
+        expectAfter(back, rewritten.length)
+        DecodeTrace.log { "  proofread fix len=${problem.length}->${fix.length}" }
+        updateAutoShift()
+        scheduleProofread()
+    }
+
     private fun abandonWord() {
         keptBar = null
         midWordOffer = null
@@ -5230,6 +5331,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
         /** Editor text read for the grammar pass: two words back from the word just committed. */
         const val GRAMMAR_TAIL_CHARS = 64
+
+        /** The proofread strip's height; slim, as it holds one line of the sentence. */
+        const val PROOF_STRIP_DP = 28f
+
+        /** Editor text handed to Harper for the strip: the sentence and some context before it. */
+        const val PROOF_TAIL_CHARS = 300
+
+        /** Quiet time before the sentence is checked again; one check per pause, not per key. */
+        const val PROOF_DELAY_MS = 250L
+
+        /** Fixes offered for one problem. */
+        const val PROOF_FIXES = 3
 
         /** Spaces read back for a backspace to collapse; a longer run collapses in steps. */
         const val SPACE_RUN_READ_CHARS = 32

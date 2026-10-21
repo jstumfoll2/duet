@@ -163,7 +163,7 @@
     <string name="pref_enabled_languages_summary">Languages the language switch cycles through (order: English, Italiano, Español, Polski, Čeština, Nederlands, Deutsch, Français, Norsk, then the experimental Русский, עברית, العربية, Українська)</string>
     <string name="pref_peck_mode_title">Peck-type mode</string>
     <string name="pref_harper_grammar_title">Grammar check (Harper)</string>
-    <string name="pref_harper_grammar_summary">English, Android 12 and later. Grammar mistakes are underlined in the text, checked on this phone by Harper; tap an underlined word for the fix. Needs Duet chosen as the spell checker in the system settings (Languages and input, Spell checker)</string>
+    <string name="pref_harper_grammar_summary">English. A slim row above the suggestions shows the sentence you are writing, with grammar mistakes underlined in red, checked on this phone by Harper; tap an underlined word for the fix. With Duet chosen as the system spell checker (Android 12+), apps that support it underline the mistakes in the text too</string>
     <string name="pref_incognito_title">Incognito</string>
     <string name="pref_incognito_summary">Learn nothing in any field: no new words, no word pairs, no recent emoji and no clipboard history. Suggestions and autocorrect keep working. The spacebar shows 🕶 while it is on</string>
     <!-- TAP is the spacebar's own label and stays in English. -->
