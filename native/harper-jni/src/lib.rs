@@ -137,7 +137,7 @@ pub extern "system" fn Java_com_kinetica_keyboard_grammar_HarperNative_lint(
             Ok(text) => {
                 let text: String = text.into();
                 // SAFETY: handle came from create() and is used from one thread at a time
-                // (HarperChecker runs every call on its single worker).
+                // (HarperGrammar serializes every call).
                 let checker = unsafe { &mut *(handle as *mut Checker) };
                 encode(&text, &checker.lint(&text))
             }

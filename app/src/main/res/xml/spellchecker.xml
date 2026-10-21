@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The keyboard's own spell checker (KineticaSpellChecker). It answers in the languages
-     enabled on the keyboard whatever locale is asked; the subtypes only let the system list it. -->
+     enabled on the keyboard whatever locale is asked; the subtypes only let the system list it.
+     Sentence checks carry Harper's grammar results (Android 12+), which fields underline. -->
 <spell-checker xmlns:android="http://schemas.android.com/apk/res/android"
     android:label="@string/spell_checker_name"
     android:settingsActivity="com.kinetica.keyboard.settings.SettingsActivity">

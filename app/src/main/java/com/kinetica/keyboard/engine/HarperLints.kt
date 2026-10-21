@@ -1,8 +1,8 @@
 package com.kinetica.keyboard.engine
 
 /**
- * The pure half of the Harper grammar check (grammar/HarperChecker.kt runs the native
- * library): which text to hand it, how to read what comes back, and which problem to offer.
+ * The pure half of the Harper grammar check (spell/KineticaSpellChecker.kt runs the native
+ * library through grammar/HarperNative.kt): how to read what comes back.
  *
  * Harper (Apache-2.0, https://github.com/Automattic/harper) is a rule-based English checker.
  * The native side returns one record per problem, tab-separated:
@@ -10,8 +10,9 @@ package com.kinetica.keyboard.engine
  * suggestions split by 0x1F and each `R<text>` (replace), `D` (delete) or `I<text>` (insert
  * after). Spelling is never reported: Duet's own dictionaries decide spelling.
  *
- * Unlike [GrammarCheck], nothing here rewrites text by itself. A problem is offered on the idle
- * bar as one chip per fix, and only a tap applies it.
+ * Unlike [GrammarCheck], nothing here rewrites text by itself. The problems reach the app as
+ * grammar results of Duet's spell checker, so the text field underlines them and offers the
+ * fixes when the underlined words are tapped.
  */
 object HarperLints {
 
@@ -50,56 +51,6 @@ object HarperLints {
         }
     }
 
-    /**
-     * Where the text to check starts in [tail], the editor text before the cursor. A tail cut
-     * at the read limit starts mid-word, so it is checked from the first space on.
-     */
-    fun windowStart(tail: CharSequence, truncated: Boolean): Int {
-        if (!truncated) return 0
-        val space = tail.indexOfFirst { it.isWhitespace() }
-        return if (space < 0) tail.length else space + 1
-    }
-
-    /**
-     * Where the sentence being written starts in [text]: after the last `.`, `!`, `?` or line
-     * break that is followed by a space, not counting the marks at the very end, so a sentence
-     * just closed with `. ` is still the one checked.
-     */
-    fun currentSentenceStart(text: CharSequence): Int {
-        var end = text.length
-        while (end > 0 && (text[end - 1].isWhitespace() || text[end - 1] in TERMINATORS)) end--
-        for (i in end - 1 downTo 0) {
-            val c = text[i]
-            if (c == '\n') return i + 1
-            if (c in TERMINATORS && i + 1 < text.length && text[i + 1].isWhitespace()) return i + 1
-        }
-        return 0
-    }
-
-    /**
-     * The problem to offer: the last one in the sentence being written whose [key] is not in
-     * [offered], or null. Problems in earlier sentences had their chance when they were typed.
-     */
-    fun pick(lints: List<Lint>, text: CharSequence, offered: Set<String>, keyBase: Int): Lint? {
-        val from = currentSentenceStart(text)
-        return lints.filter { it.start >= from && it.end <= text.length && key(it, text, keyBase) !in offered }
-            .maxWithOrNull(compareBy<Lint> { it.start }.thenByDescending { it.priority })
-    }
-
-    /**
-     * Identifies a problem across checks: where it sits in the editor ([keyBase] is the
-     * editor offset of [text]'s start), what it covers and its first fix.
-     */
-    fun key(lint: Lint, text: CharSequence, keyBase: Int): String =
-        "${keyBase + lint.start}:${text.subSequence(lint.start, lint.end)}:${lint.edits.firstOrNull()}"
-
-    /** What a chip shows for [edit] on [problem]: the fixed words, or what goes away. */
-    fun label(edit: Edit, problem: String): String = when (edit.kind) {
-        EditKind.REPLACE -> "$CHIP ${edit.text.ifEmpty { "∅" }}"
-        EditKind.DELETE -> "$CHIP −${problem.trim()}"
-        EditKind.INSERT_AFTER -> "$CHIP ${problem.trim()}${edit.text}"
-    }
-
     /** What replaces [problem] when [edit] is applied. */
     fun applied(edit: Edit, problem: String): String = when (edit.kind) {
         EditKind.REPLACE -> edit.text
@@ -107,11 +58,28 @@ object HarperLints {
         EditKind.INSERT_AFTER -> problem + edit.text
     }
 
-    /** Most chips one problem puts on the bar. */
-    const val MAX_FIXES = 3
+    /** One underline: [length] UTF-16 units from [start], and what a tap offers in its place. */
+    data class Mark(val start: Int, val length: Int, val suggestions: List<String>)
 
-    /** Marks a grammar fix on the bar, apart from the words around it. */
-    const val CHIP = "✎"
-
-    private const val TERMINATORS = ".!?"
+    /**
+     * The underlines for [lints] found in [text], in text order, at most [limit] suggestions
+     * each. A deletion is not offered (an empty suggestion reads as a blank row in the popup),
+     * so a problem whose only fix is one is underlined without suggestions. Spans outside the
+     * text, empty spans and a second problem on the same span are dropped.
+     */
+    fun marks(lints: List<Lint>, text: String, limit: Int): List<Mark> {
+        val seen = HashSet<Pair<Int, Int>>()
+        return lints.sortedBy { it.start }.mapNotNull { l ->
+            if (l.start < 0 || l.end > text.length || l.end <= l.start || !seen.add(l.start to l.end)) {
+                return@mapNotNull null
+            }
+            val problem = text.substring(l.start, l.end)
+            val offered = l.edits.filter { it.kind != EditKind.DELETE }
+                .map { applied(it, problem) }
+                .filter { it.isNotEmpty() && it != problem }
+                .distinct()
+                .take(limit)
+            Mark(l.start, l.end - l.start, offered)
+        }
+    }
 }

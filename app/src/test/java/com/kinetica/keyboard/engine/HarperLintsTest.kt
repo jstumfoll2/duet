@@ -3,7 +3,6 @@ package com.kinetica.keyboard.engine
 import com.kinetica.keyboard.engine.HarperLints.Edit
 import com.kinetica.keyboard.engine.HarperLints.EditKind
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,41 +32,28 @@ class HarperLintsTest {
     }
 
     @Test
-    fun aTruncatedTailStartsAtTheFirstWholeWord() {
-        assertEquals(0, HarperLints.windowStart("ing words here", truncated = false))
-        assertEquals(4, HarperLints.windowStart("ing words here", truncated = true))
+    fun marksOfferTheFixesInTextOrder() {
+        val text = "He don't know a apple"
+        val marks = HarperLints.marks(listOf(lint(14, 15, "Ran"), lint(3, 8, "Rdoesn't\u001FRdon't")), text, 5)
+        assertEquals(
+            listOf(HarperLints.Mark(3, 5, listOf("doesn't")), HarperLints.Mark(14, 1, listOf("an"))),
+            marks,
+        )
     }
 
     @Test
-    fun theSentenceJustClosedIsStillTheCurrentOne() {
-        assertEquals(10, HarperLints.currentSentenceStart("It rained. He don't know"))
-        assertEquals(10, HarperLints.currentSentenceStart("It rained. He don't know. "))
-        assertEquals(0, HarperLints.currentSentenceStart("He don't know."))
-        assertEquals(6, HarperLints.currentSentenceStart("Hello\nhe don't"))
-        // A decimal point is not a sentence end.
-        assertEquals(0, HarperLints.currentSentenceStart("It costs 3.50 now"))
-    }
-
-    @Test
-    fun offersTheLastUnofferedProblemInTheCurrentSentence() {
-        val text = "Their is it. He don't know a apple"
-        val earlier = lint(0, 5, "RThere")
-        val dont = lint(16, 21, "Rdoesn't")
-        val article = lint(27, 28, "Ran")
-        val lints = listOf(earlier, dont, article)
-        assertEquals(article, HarperLints.pick(lints, text, emptySet(), 0))
-        val seen = setOf(HarperLints.key(article, text, 0))
-        assertEquals(dont, HarperLints.pick(lints, text, seen, 0))
-        assertNull(HarperLints.pick(lints, text, seen + HarperLints.key(dont, text, 0), 0))
-    }
-
-    @Test
-    fun labelsAndRewrites() {
-        assertEquals("✎ doesn't", HarperLints.label(Edit(EditKind.REPLACE, "doesn't"), "don't"))
-        assertEquals("✎ −the", HarperLints.label(Edit(EditKind.DELETE, ""), " the"))
-        assertEquals("✎ however,", HarperLints.label(Edit(EditKind.INSERT_AFTER, ","), "however"))
+    fun aDeletionIsUnderlinedWithoutASuggestion() {
+        val text = "the the cat"
+        assertEquals(listOf(HarperLints.Mark(3, 4, emptyList())), HarperLints.marks(listOf(lint(3, 7, "D")), text, 5))
         assertEquals("however,", HarperLints.applied(Edit(EditKind.INSERT_AFTER, ","), "however"))
-        assertEquals("", HarperLints.applied(Edit(EditKind.DELETE, ""), " the"))
+    }
+
+    @Test
+    fun marksOutsideTheTextOrOnTheSameSpanAreDropped() {
+        val text = "short"
+        val marks = HarperLints.marks(listOf(lint(0, 9, "Rx"), lint(0, 5, "Ra"), lint(0, 5, "Rb")), text, 5)
+        assertEquals(listOf(HarperLints.Mark(0, 5, listOf("a"))), marks)
+        assertEquals(1, HarperLints.marks(listOf(lint(0, 5, "Ra\u001FRb\u001FRc")), text, 1).single().suggestions.size)
     }
 
     private fun lint(start: Int, end: Int, edit: String) =
