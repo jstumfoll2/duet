@@ -2661,16 +2661,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         val action = EditorAction.of(text)
         if (action == null) return EditorAction.isUnknownAction(text)
-        // Undo and redo are context-menu commands, so the app does the work and the keyboard
-        // keeps no history. performContextMenuAction reports delivery, not effect, so an editor
-        // without an undo stack is a silent no-op, the same contract as paste.
+        // performContextMenuAction reports delivery, not effect, so an editor that ignores the
+        // command is a silent no-op.
         val menuId = when (action) {
             EditorAction.PASTE -> android.R.id.paste
             EditorAction.COPY -> android.R.id.copy
             EditorAction.CUT -> android.R.id.cut
             EditorAction.SELECT_ALL -> android.R.id.selectAll
-            EditorAction.UNDO -> android.R.id.undo
-            EditorAction.REDO -> android.R.id.redo
+            EditorAction.UNDO, EditorAction.REDO,
             EditorAction.RETYPE, EditorAction.EXPANDIFY, EditorAction.SETTINGS,
             EditorAction.NEXT_LANGUAGE, EditorAction.TOGGLE_AUTOSPACE,
             EditorAction.ONE_HANDED, EditorAction.DATE, EditorAction.TIME,
@@ -2728,6 +2726,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
             -> sendSpecialKey(action)
             EditorAction.BACKSPACE -> onBackspace()
+            EditorAction.UNDO, EditorAction.REDO -> sendUndoKey(action)
             EditorAction.CLIPBOARD -> offerClipboard()
             EditorAction.VOICE -> switchToVoice()
             EditorAction.CTRL_NEXT -> {
@@ -2741,6 +2740,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             // Every context-menu action is handled by the caller.
             else -> Unit
         }
+    }
+
+    /**
+     * Undo and redo as Ctrl+Z and Ctrl+Shift+Z: the app does the work and the keyboard keeps no
+     * history. Not the undo context-menu command, which Compose and Chrome/WebView fields
+     * ignore (2026-10-21: both buttons did nothing); the key shortcut reaches TextView, Compose
+     * and web editors alike. Where the cursor lands is the editor's call.
+     */
+    private fun sendUndoKey(action: EditorAction) {
+        val combo = SpecialKeys.comboFor(action) ?: return
+        sendKeyCombo(combo)
+        selectionLedger.expectAny(SystemClock.uptimeMillis())
     }
 
     /** A key with modifiers, as a hardware keyboard sends it, once the word is settled. */
