@@ -1007,6 +1007,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 onEmoji = { recordEmojiUse(it); commitTracked(it) },
                 onBackspace = { onBackspace() },
                 onClose = { closeEmojiPicker() },
+                onTones = { emojiStore.setTones(it) },
             ).also { emojiPicker = it }
         } catch (e: RuntimeException) {
             Log.w(TAG, "emoji picker unavailable", e)
@@ -1019,6 +1020,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // On open, not on every pick: the panel stays up while the user taps, and
         // re-ordering the first tab under a moving finger would shift the next cell.
         picker.recents = emojiStore.recents()
+        picker.tones = emojiStore.tones
+        picker.reset()
         container.showEmojiPicker(picker)
     }
 
