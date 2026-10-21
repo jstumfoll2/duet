@@ -34,7 +34,8 @@ To compare two builds, run both on the same files back to back; JVM times are re
 phone timings. A DEV build's decode log has the phone's own: each `decode time` line gives the
 total, then the stages that took 0.01 ms or more.
 
-Options: `--k N` sets the deep list for recall (default 50); `--edge G` sets the
+Options: `--keepdups` scores a word line again when an earlier file already had it (by default
+repeats are skipped and counted: a later export can contain an earlier one); `--k N` sets the deep list for recall (default 50); `--edge G` sets the
 near-edge tap gap in kw (0 turns that pass off); `--nosplit` keeps a tapped word followed by a
 swipe one word, as with automatic spaces off (a split loses the line's word); `--assets DIR`
 points at `app/src/main/assets` when run from elsewhere. `replay` exits 1 if any

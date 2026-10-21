@@ -50,6 +50,13 @@ class ReplayReport(private val deepK: Int) {
     /** Commits relabelled as the close word the user retyped, and stray mid-word commits dropped. */
     var retyped = 0
     var extended = 0
+    /**
+     * Digests of the word lines read so far, across files, and how many repeats were skipped.
+     * An export can contain an earlier one: 2026-10-20 starts with all of 19c and 19d_new, so
+     * replaying every file counted 1,370 lines twice.
+     */
+    val seenLines = HashSet<String>()
+    var duplicates = 0
     var comparable = 0
     var exact = 0
     var failed = 0
@@ -103,6 +110,7 @@ class ReplayReport(private val deepK: Int) {
     fun format(): String = buildString {
         appendLine("lines=$lines scored=${all.n} abandoned=$unlabelled unreadable=$failed")
         appendLine("exact replay: $exact/$comparable comparable lines (identical list, scores bit for bit)")
+        if (duplicates > 0) appendLine("duplicates: $duplicates word lines already read from an earlier file skipped (--keepdups keeps them)")
         if (retyped + extended > 0) appendLine("retyped: $retyped commits relabelled as the word retyped, $extended mid-word commits unlabelled (--plain keeps them)")
         appendLine()
         appendLine(
