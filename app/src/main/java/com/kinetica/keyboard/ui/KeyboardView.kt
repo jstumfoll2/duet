@@ -68,7 +68,8 @@ class KeyboardView @JvmOverloads constructor(
         /** Spacebar slide: one cursor step left (-1) or right (+1), a whole word when [byWord]. */
         fun onCursorMove(direction: Int, byWord: Boolean)
 
-        fun onDeleteChar()
+        /** Backspace deletes; [repeat] for a hold-repeat step, false for a tap. */
+        fun onDeleteChar(repeat: Boolean)
 
         /**
          * Backspace slide staged [units] units for deletion (0 = retracted to
@@ -389,7 +390,7 @@ class KeyboardView @JvmOverloads constructor(
     private val backspaceController = BackspaceController(
         density,
         Handler(Looper.getMainLooper()),
-        onDeleteChar = { listener?.onDeleteChar() },
+        onDeleteChar = { repeat -> listener?.onDeleteChar(repeat) },
         onStageUnits = { units, chars -> listener?.onStageDelete(units, chars) },
         onCommitStaged = { listener?.onCommitStagedDelete() },
     )

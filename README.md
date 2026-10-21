@@ -78,6 +78,10 @@ F-Droid.
   and `a` tapped with `llow` swiped makes "allow". When the two do end up as one word, one
   backspace right after it puts the two words back (`toddle` becomes "to feel"), and a backspace
   slide stops at the join first and leaves "to " for the second word again.
+- **Whole-word backspace (optional).** With "Backspace deletes a swiped word" on (Settings >
+  Shortcuts and gestures > Swipes and slides), one backspace tap right after a swiped word deletes
+  the whole word and its space, and the bar offers the swipe's other readings. Holding backspace,
+  tapped words and anything typed after the word still delete letter by letter. Off by default.
 - **A left-out space.** Tapped letters that are no word but a common pair with the space left out
   (`tofeel`) become the two words; backspace right after puts back what you typed.
 - **Words started from the spacebar.** A thumb that lands on the spacebar and rises onto the

@@ -19,7 +19,8 @@ import android.os.Handler
 class BackspaceController(
     private val density: Float,
     private val handler: Handler,
-    private val onDeleteChar: () -> Unit,
+    /** Delete one character; true for a hold-repeat step, false for a tap. */
+    private val onDeleteChar: (repeat: Boolean) -> Unit,
     /**
      * Staged unit count changed; 0 clears the preview without deleting. The boolean is
      * [charMode] at the time of the event, so the receiver needs no second copy of the setting
@@ -46,7 +47,7 @@ class BackspaceController(
     private val repeatRunnable = object : Runnable {
         override fun run() {
             repeating = true
-            onDeleteChar()
+            onDeleteChar(true)
             handler.postDelayed(this, REPEAT_MS)
         }
     }
@@ -82,7 +83,7 @@ class BackspaceController(
             // Slid out and back to zero: an explicit cancel, not a tap. A
             // finished hold-repeat run also must not add a tap delete.
             everStaged || repeating -> Unit
-            else -> onDeleteChar()
+            else -> onDeleteChar(false)
         }
         slide.reset(t)
         everStaged = false

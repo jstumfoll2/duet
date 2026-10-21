@@ -91,6 +91,24 @@ internal fun commitSpan(before: CharSequence, word: String, maxTrailing: Int): I
 }
 
 /**
+ * How many characters one backspace tap takes under whole-word backspace: the committed swiped
+ * [word] and the spaces after it, or -1 to delete a letter as usual.
+ *
+ * [armedStart] is where the word started when it was written (-1 when disarmed), and [cursor]
+ * where the cursor is now, so the word has to be the one the keyboard wrote there and not the
+ * same letters met again. Anything but spaces after it (`word.`) is the user's own and is
+ * deleted a letter at a time. [maxTrailing] bounds the spaces, as [commitSpan]'s marks.
+ */
+internal fun wholeWordBackspaceSpan(before: CharSequence, word: String, cursor: Int, armedStart: Int, maxTrailing: Int): Int {
+    if (armedStart < 0) return -1
+    val span = commitSpan(before, word, maxTrailing)
+    if (span < word.length) return -1
+    if (!before.subSequence(before.length - span + word.length, before.length).all { it == ' ' }) return -1
+    if (cursor - span != armedStart) return -1
+    return span
+}
+
+/**
  * How much text a pick from a kept bar replaces, or -1 to refuse.
  *
  * The stale timeout closed the buffer and left its candidates up, so the pick arrives after

@@ -299,6 +299,13 @@ object Prefs {
     const val BACKSPACE_STEP_DP = "pref_backspace_step_dp"
 
     /**
+     * One backspace tap right after a swiped word deletes the whole word and its space, as the
+     * retype button does. Off by default. Hold-repeat, tapped words and anything typed after the
+     * word still delete a letter at a time.
+     */
+    const val BACKSPACE_WHOLE_WORD = "pref_backspace_whole_word"
+
+    /**
      * Reserve the suggestion bar's right edge for a retype button: one tap throws the
      * current word away so it can be gestured again in place.
      *
@@ -618,6 +625,7 @@ object Prefs {
     const val DEFAULT_POPUP_SHAPE = "row"
     const val DEFAULT_ALTERNATE_SWIPES = true
     const val DEFAULT_BACKSPACE_CHAR_SLIDE = false
+    const val DEFAULT_BACKSPACE_WHOLE_WORD = false
     /** Must match DeleteSpan.DEFAULT_WORD_STEP_DP and keyboard_prefs.xml. */
     const val DEFAULT_BACKSPACE_STEP_DP = 56
     const val DEFAULT_RETYPE_BUTTON = false

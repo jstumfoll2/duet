@@ -393,6 +393,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // and a retype aimed at a space must still reach the word it had.
     private var retypeRejected: String? = null
 
+    // Where the last swiped word starts in the editor, while one backspace tap may still take
+    // the whole of it (Prefs.BACKSPACE_WHOLE_WORD); -1 when disarmed. A start, not an end, so
+    // a correction pick that rewrites the word keeps the arm. Spent by the next backspace press
+    // whatever it deletes, and dropped when the user moves the cursor.
+    private var wholeWordArmStart = -1
+
     // A word learned this session is not in the trie until a dictionary load merges it,
     // and nothing else triggers one mid-session.
     private var userDictReloadPending = false
@@ -1329,7 +1335,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // A report is the keyboard's own only when it lands where one of its edits put the
         // cursor; counting reports drifted and swallowed the user's moves.
         val verdict = selectionLedger.judge(newSelStart, newSelEnd, SystemClock.uptimeMillis())
-        if (verdict == SelectionLedger.Verdict.USER) autocorrectUndo = null
+        if (verdict == SelectionLedger.Verdict.USER) {
+            autocorrectUndo = null
+            wholeWordArmStart = -1
+        }
         if (verdict != SelectionLedger.Verdict.USER) {
             DecodeTrace.log {
                 val kind = if (verdict == SelectionLedger.Verdict.OWN) "own" else "mismatch"
@@ -1816,9 +1825,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             )
         }
 
-        override fun onDeleteChar() {
+        override fun onDeleteChar(repeat: Boolean) {
             TraceRecorder.key("backspace", android.os.SystemClock.uptimeMillis())
-            onBackspace()
+            onBackspace(tap = !repeat)
         }
 
         override fun onStageDelete(units: Int, chars: Boolean) = stageDeletion(units, chars)
@@ -3937,11 +3946,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         updateAutoShift()
     }
 
-    private fun onBackspace() {
+    /**
+     * [tap] is a lone press of the backspace key itself, the one press whole-word backspace
+     * acts on; hold-repeat and the other routes here (emoji panel, shortcuts) delete letters.
+     */
+    private fun onBackspace(tap: Boolean = false) {
         if (consumeCtrl("backspace")) return
+        val armedStart = wholeWordArmStart
+        wholeWordArmStart = -1
         cancelAutospace()
         if (undoAutocorrect()) return
         if (splitJoinedCommit()) return
+        if (tap && config.backspaceWholeWord && deleteSwipedWord(armedStart)) return
         val eating = lastCommit.retypeWord ?: backspaceTarget
         // Whether this delete is aimed at the keyboard's own space, decided before the
         // deletion because afterwards the evidence is gone. Deleting the space itself makes
@@ -3975,6 +3991,31 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             DecodeTrace.log { "  autospace refuse src=backspace" }
         }
         reloadWordUnderCursor()
+    }
+
+    /**
+     * Whole-word backspace: one tap takes the swiped word in hand, or the swiped word just
+     * committed with the spaces after it, as Gboard does. It is the retype, so the word's +1
+     * comes back out and the bar offers the gesture's other readings, which is what a delete
+     * aimed at a misdecode wants next. False leaves the press to delete a letter: a tapped
+     * word, punctuation typed after the word, or a cursor moved away from it.
+     */
+    private fun deleteSwipedWord(armedStart: Int): Boolean {
+        if (selectionLength() != 0) return false
+        val after = ich.textAfterCursor(1)
+        if (after != null && after.isNotEmpty() && after[0].isLetter()) return false
+        val src = if (tentativeLength > 0) {
+            if (composer?.hasSwipeToken() != true) return false
+            "tentative"
+        } else {
+            val committed = lastCommit.retypeWord ?: return false
+            val before = ich.textBeforeCursor(committed.length + COMMIT_TAIL_CHARS) ?: return false
+            if (wholeWordBackspaceSpan(before, committed, cursorExpected(), armedStart, COMMIT_TAIL_CHARS) < 0) return false
+            "commit"
+        }
+        DecodeTrace.log { "  backspace whole word src=$src" }
+        retypeCurrentWord()
+        return true
     }
 
     /**
@@ -4860,6 +4901,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private fun commitWordInternal(word: String) {
         joinedCommit = null
+        // Read before composer.commitWord empties the tokens.
+        wholeWordArmStart = if (word.isNotEmpty() && composer?.hasSwipeToken() == true) cursorExpected() - word.length else -1
         val previousDeliberate = lastCommitDeliberate
         lastCommitDeliberate = nextCommitDeliberate
         nextCommitDeliberate = false
