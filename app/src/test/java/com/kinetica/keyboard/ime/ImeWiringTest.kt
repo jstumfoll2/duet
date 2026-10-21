@@ -1,7 +1,10 @@
 package com.kinetica.keyboard.ime
 
 import android.os.Looper
+import android.os.SystemClock
 import android.text.InputType
+import android.view.MotionEvent
+import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputBinding
 import android.view.inputmethod.InputConnection
@@ -129,6 +132,42 @@ class ImeWiringTest {
         ime.onUpdateSelection(0, 0, 13, 13, -1, -1)
         idle()
         assertEquals(emptyList<String>(), bar.emoji)
+    }
+
+    /** A tap at [x], [y], lifted plainly (flags 0) or as the system lifts a touch it rejected. */
+    private fun tap(view: View, x: Float, y: Float, flags: Int) {
+        val t = SystemClock.uptimeMillis()
+        view.onTouchEvent(MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0))
+        val props = arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER })
+        val coords = arrayOf(MotionEvent.PointerCoords().apply { this.x = x; this.y = y; pressure = 1f; size = 1f })
+        view.onTouchEvent(
+            MotionEvent.obtain(t, t + 60, MotionEvent.ACTION_UP, 1, props, coords, 0, 0, 1f, 1f, 0, 0, 0, flags),
+        )
+    }
+
+    @Test
+    fun aTouchTheSystemCancelsAsAccidentalTypesNothing() {
+        val ime = service()
+        val frame = ime.onCreateInputView() as FloatingFrame
+        val kv = (frame.content as InputContainerView).keyboardView
+        val edit = bindEditor(ime, "")
+        val info = textField()
+        ime.onStartInput(info, false)
+        ime.onStartInputView(info, false)
+        kv.measure(
+            View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY),
+        )
+        kv.layout(0, 0, 1080, 800)
+        idle()
+        val h = kv.keyCenter("h")!!
+        tap(kv, h.x, h.y, MotionEvent.FLAG_CANCELED)
+        idle()
+        assertEquals("", edit.text.toString())
+        // The same tap lifted plainly types its letter.
+        tap(kv, h.x, h.y, 0)
+        idle()
+        assertTrue(edit.text.toString(), edit.text.toString().startsWith("h"))
     }
 
     @Test

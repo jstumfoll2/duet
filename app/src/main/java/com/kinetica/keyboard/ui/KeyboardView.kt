@@ -1138,7 +1138,14 @@ class KeyboardView @JvmOverloads constructor(
                 val idx = ev.actionIndex
                 val pid = ev.getPointerId(idx)
                 if (pid in 0 until MAX_POINTERS) {
-                    handleUp(pid, ev.getX(idx), ev.getY(idx), ev.eventTime)
+                    // Android 13+ lifts a touch it has judged accidental (a palm, the edge of the
+                    // other thumb) with FLAG_CANCELED: its whole stroke must be undone, not typed.
+                    // Older releases never set the flag.
+                    if ((ev.flags and MotionEvent.FLAG_CANCELED) != 0) {
+                        cancelPointer(pid, ev.eventTime)
+                    } else {
+                        handleUp(pid, ev.getX(idx), ev.getY(idx), ev.eventTime)
+                    }
                 }
             }
             MotionEvent.ACTION_CANCEL -> cancelActivePointers()
@@ -2040,6 +2047,58 @@ class KeyboardView @JvmOverloads constructor(
         val key = keyAtDown(pid) ?: return
         if (key.type == KeyType.SPACE) lastSpaceTime = upTime
         listener?.onKeyTap(key)
+    }
+
+    /**
+     * One touch the system cancelled while others may carry on: whatever it started ends as
+     * nothing, as [cancelActivePointers] does for all of them.
+     */
+    private fun cancelPointer(pid: Int, t: Long) {
+        if (pid == pendingHoldPid) cancelHold()
+        DecodeTrace.log { "  touch ignored reason=system-cancelled route=${routeByPointer[pid]} key=${keyAtDown(pid)?.output}" }
+        when (routeByPointer[pid]) {
+            ROUTE_ENGINE -> {
+                engine?.cancelPointer(pid)
+                listener?.onRestingFingerDropped()
+                lastEngineUpTime = t
+            }
+            ROUTE_SPACE -> {
+                spaceController.consume()
+                spacePointer = -1
+                spaceHoldMoved = false
+                spaceChordFired = false
+                spaceRolled = false
+                spaceSlideLocked = false
+                dropChordLabels(ChordTrigger.SPACE)
+            }
+            ROUTE_BACKSPACE -> {
+                backspaceController.cancel()
+                backspacePointer = -1
+            }
+            ROUTE_MODE_HOLD, ROUTE_ALT_POPUP -> dismissPopup()
+        }
+        val keyIdx = downKeyByPointer[pid]
+        if (keyIdx != -1) {
+            pressedKeys.remove(keyIdx)
+            invalidate()
+        }
+        if (pid == modeHoldPointer) {
+            modeHoldPointer = -1
+            modeHoldMoved = false
+            modeChordFired = false
+            dropChordLabels(ChordTrigger.MODE)
+        }
+        routeByPointer[pid] = ROUTE_NONE
+        chordTriggerByPointer[pid] = null
+        downKeyByPointer[pid] = -1
+    }
+
+    /** The centre of the key that types [output], or null when none is laid out; for tests that drive touches. */
+    internal fun keyCenter(output: String): android.graphics.PointF? {
+        val l = layout ?: return null
+        val i = l.keys.indexOfFirst { it.output == output }
+        if (i !in keyRects.indices) return null
+        return android.graphics.PointF(keyRects[i].centerX(), keyRects[i].centerY())
     }
 
     private fun cancelActivePointers() {
