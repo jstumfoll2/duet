@@ -3,6 +3,7 @@ package com.kinetica.keyboard.engine.trace
 import com.kinetica.keyboard.engine.CtcScorer
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.WordPredictor
+import com.kinetica.keyboard.engine.models.ScoreTerms
 import java.io.File
 
 /**
@@ -39,6 +40,9 @@ import java.io.File
  *       One row per buffer of a word an automatic space ended, reopened, and typed on: a word
  *       and the next word's tokens after its seeded taps (split), and a tapped word cut where its
  *       head is a word (join), with the head, rest and joined readings (PeckSplit.readRejoin).
+ *   terms [--lines] TRACE.jsonl...
+ *       For each line whose label is listed but not first: the score term it lost most on
+ *       against the winner (ScoreTerms), tallied over all such lines.
  *   synth [--assets DIR] [--words N] [--alt LANG] [--noise X] [--seed S] OUT.jsonl
  *       Records a synthetic English session to OUT (default 300 words).
  */
@@ -134,6 +138,48 @@ object ReplayCli {
                     println("${f.name}\t$n\t${r.word.label}\t${r.rank}\t${r.buckets.joinToString(",")}\t${r.shipping.firstOrNull()?.word ?: ""}\t${r.micros}")
                 }
             }
+            "terms" -> {
+                // terms [--lines] FILE...: for each line whose label is listed but not first, the
+                // score term (ScoreTerms) it lost most on against the winner, tallied. --lines
+                // also prints each such line.
+                val lines = a.remove("--lines")
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                val decided = java.util.EnumMap<ScoreTerms.Term, Int>(ScoreTerms.Term::class.java)
+                val deficit = java.util.EnumMap<ScoreTerms.Term, Double>(ScoreTerms.Term::class.java)
+                var top = 0
+                var lost = 0
+                var unlisted = 0
+                for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
+                    val label = w.label?.lowercase() ?: continue
+                    val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
+                    when {
+                        r.rank == 1 || r.typedAsIs -> { top++; continue }
+                        r.rank == 0 -> { unlisted++; continue }
+                    }
+                    val win = r.shipping[0]
+                    val mine = r.shipping[r.rank - 1]
+                    lost++
+                    var worst = ScoreTerms.Term.FREQ
+                    var worstD = Float.MAX_VALUE
+                    for (t in ScoreTerms.Term.entries) {
+                        val d = mine.terms[t] - win.terms[t]
+                        if (d < 0f) deficit[t] = (deficit[t] ?: 0.0) - d
+                        if (d < worstD) { worstD = d; worst = t }
+                    }
+                    decided[worst] = (decided[worst] ?: 0) + 1
+                    if (lines) println("${f.name}\t$n\t$label\t${r.rank}\t${win.word}\t${worst.key}\t${"%.3f".format(worstD)}\t${mine.terms} || ${win.terms}")
+                }
+                println("top=$top lost-in-list=$lost unlisted=$unlisted")
+                println("term          decided  mean deficit (ln, over lost lines)")
+                for (t in ScoreTerms.Term.entries) {
+                    val c = decided[t] ?: 0
+                    val d = (deficit[t] ?: 0.0) / maxOf(lost, 1)
+                    if (c == 0 && d == 0.0) continue
+                    println("%-12s %8d  %.3f".format(t.key, c, d))
+                }
+            }
             "features" -> {
                 // features FILE...: one JSON object per scored line, the shipping list with each
                 // candidate's score factors, for fitting score weights offline.
@@ -156,7 +202,7 @@ object ReplayCli {
                             .append(c.dtwDistance).append(',').append(c.frequencyWeight).append(',').append(c.bigramMultiplier)
                             .append(',').append(c.personalBoost).append(',').append(c.contactKeep).append(',')
                             .append(c.personalBigram).append(",\"").append(c.source.name).append("\",\"")
-                            .append(c.language).append("\"]")
+                            .append(c.language).append("\",\"").append(c.terms).append("\"]")
                     }
                     sb.append("]}")
                     println(sb)

@@ -1,6 +1,7 @@
 package com.kinetica.keyboard.engine
 
 import com.kinetica.keyboard.engine.models.InputToken
+import com.kinetica.keyboard.engine.models.ScoreTerms
 import com.kinetica.keyboard.engine.models.SwipeToken
 import com.kinetica.keyboard.engine.models.WordCandidate
 import java.io.DataInputStream
@@ -236,7 +237,7 @@ class CtcReranker(
         val cache = IdentityHashMap<FloatArray, FloatArray>()
         val rescored = candidates.map { c ->
             val cost = cost(c, g, cache)
-            if (cost == null) c else c.copy(score = c.score * exp(-beta * cost))
+            if (cost == null) c else c.copy(score = c.score * exp(-beta * cost), terms = c.terms.plusLog(ScoreTerms.Term.CTC, -beta * cost))
         }
         return rescored.sortedByDescending { it.score }
     }
@@ -269,7 +270,7 @@ class CtcReranker(
         val strokes = tokens.sortedBy { it.tStart }
         val costs = candidates.map { c -> interleavedCost(il, strokes, c.word, g) }
         val worst = costs.filterNotNull().maxOrNull() ?: return candidates
-        return candidates.mapIndexed { i, c -> c.copy(score = c.score * exp(-beta * (costs[i] ?: worst))) }
+        return candidates.mapIndexed { i, c -> c.copy(score = c.score * exp(-beta * (costs[i] ?: worst)), terms = c.terms.plusLog(ScoreTerms.Term.CTC, -beta * (costs[i] ?: worst))) }
             .sortedByDescending { it.score }
     }
 
