@@ -861,6 +861,12 @@
                     app:singleLineTitle="false"
                     android:summary="@string/pref_backspace_char_slide_summary"
                     android:defaultValue="false" />
+                <SwitchPreferenceCompat
+                    android:key="pref_backspace_whole_word"
+                    android:title="@string/pref_backspace_whole_word_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_backspace_whole_word_summary"
+                    android:defaultValue="false" />
                 <SeekBarPreference
                     android:key="pref_backspace_step_dp"
                     android:title="@string/pref_backspace_step_title"

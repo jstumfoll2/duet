@@ -3,10 +3,13 @@ package com.kinetica.keyboard.ime
 import android.content.Context
 import android.os.Handler
 import android.util.Log
+import androidx.preference.PreferenceManager
+import com.kinetica.keyboard.settings.Prefs
 import com.kinetica.keyboard.data.KineticaDb
 import com.kinetica.keyboard.ui.EmojiRecents
 import com.kinetica.keyboard.ui.EmojiSuggest
 import com.kinetica.keyboard.ui.EmojiSuggestAsset
+import com.kinetica.keyboard.ui.EmojiTone
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
@@ -29,6 +32,29 @@ internal class EmojiStore(
     @Volatile private var index: EmojiSuggest.Index? = null
     private var indexRequested = false
 
+    /**
+     * The user's skin tones, read once from prefs and kept here so the picker and the bar
+     * agree. Only the picker changes them, through [setTones].
+     */
+    var tones: EmojiTone.Choices = loadTones()
+        private set
+
+    private fun loadTones(): EmojiTone.Choices {
+        val p = PreferenceManager.getDefaultSharedPreferences(context)
+        return EmojiTone.decode(
+            p.getInt(Prefs.EMOJI_TONE, Prefs.DEFAULT_EMOJI_TONE),
+            p.getString(Prefs.EMOJI_TONES, ""),
+        )
+    }
+
+    fun setTones(choices: EmojiTone.Choices) {
+        tones = choices
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putInt(Prefs.EMOJI_TONE, choices.default)
+            .putString(Prefs.EMOJI_TONES, choices.encodePerEmoji())
+            .apply()
+    }
+
     /** The picker's frequently used tab, best first. */
     fun recents(): List<String> = EmojiRecents.ordered(uses.values)
 
@@ -37,7 +63,9 @@ internal class EmojiStore(
      * map is updated synchronously so the panel is right the next time it opens, and Room is
      * written on [dbExecutor].
      */
-    fun record(emoji: String) {
+    fun record(toned: String) {
+        // Counted plain, so a tone change keeps the emoji's place in the tab.
+        val emoji = EmojiTone.strip(toned)
         val now = System.currentTimeMillis()
         uses.compute(emoji) { _, v -> EmojiRecents.Use(emoji, (v?.count ?: 0) + 1, now) }
         dbExecutor.execute {
@@ -71,9 +99,9 @@ internal class EmojiStore(
         return null
     }
 
-    /** Emoji for [word], the user's most picked first. */
+    /** Emoji for [word], the user's most picked first, each in the user's tone. */
     fun lookup(index: EmojiSuggest.Index, word: String): List<String> =
-        index.lookup(word, uses.mapValues { it.value.count })
+        index.lookup(word, uses.mapValues { it.value.count }).map { tones.render(it) }
 
     private fun load(onLoaded: () -> Unit) {
         if (indexRequested) return

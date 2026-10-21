@@ -544,6 +544,8 @@
     <string name="dict_import_note">Takes an AOSP wordlist.combined file, such as main_it from the Helium314/aosp-dictionaries mirror (Apache-2.0). It is merged with the bundled list on the phone; abbreviations, offensive entries and spellings missing a bundled word\'s accents are dropped. Word pairs stay the bundled ones.</string>
 
     <string name="pref_backspace_char_slide_title">Backspace slide deletes letters</string>
+    <string name="pref_backspace_whole_word_title">Backspace deletes a swiped word</string>
+    <string name="pref_backspace_whole_word_summary">Right after a swiped word, one tap on backspace deletes the whole word and its space, and the bar offers the other readings. Holding backspace still deletes letters</string>
     <string name="pref_backspace_step_title">Backspace slide distance</string>
     <string name="pref_backspace_step_summary">How far you slide left from backspace to mark one more word (a letter takes about half). Higher is calmer</string>
     <string name="pref_backspace_char_slide_summary">Sliding left from backspace marks one letter at a time instead of a word. Nothing is deleted until you lift; sliding back undoes it</string>
@@ -644,6 +646,11 @@
     <string name="pref_comma_custom_summary">Used by the custom character and custom text options above</string>
     <string name="emoji_back_to_letters" translatable="false">ABC</string>
     <string name="emoji_recent">Frequently used</string>
+    <string name="emoji_search">Search emoji</string>
+    <string name="emoji_search_hint">Search emoji</string>
+    <string name="emoji_search_close">Back to emoji tabs</string>
+    <string name="emoji_search_none">No emoji found</string>
+    <string name="emoji_skin_tone">Skin tone</string>
 
     <string name="pref_theme_mode_title">Keyboard theme</string>
     <string name="pref_theme_brightness_title">Light or dark</string>

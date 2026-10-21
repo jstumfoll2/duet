@@ -78,6 +78,10 @@ F-Droid.
   and `a` tapped with `llow` swiped makes "allow". When the two do end up as one word, one
   backspace right after it puts the two words back (`toddle` becomes "to feel"), and a backspace
   slide stops at the join first and leaves "to " for the second word again.
+- **Whole-word backspace (optional).** With "Backspace deletes a swiped word" on (Settings >
+  Shortcuts and gestures > Swipes and slides), one backspace tap right after a swiped word deletes
+  the whole word and its space, and the bar offers the swipe's other readings. Holding backspace,
+  tapped words and anything typed after the word still delete letter by letter. Off by default.
 - **A left-out space.** Tapped letters that are no word but a common pair with the space left out
   (`tofeel`) become the two words; backspace right after puts back what you typed.
 - **Words started from the spacebar.** A thumb that lands on the spacebar and rises onto the
@@ -128,6 +132,10 @@ F-Droid.
 - **Incognito** (off by default): learns nothing in any field, no new words, word pairs, recent
   emoji or clipboard history, while suggestions keep working. The spacebar shows 🕶 while it is on.
 - **Sound on key press** (off by default).
+- **Emoji search and skin tones.** The 🔍 tab in the emoji panel searches names and keywords
+  ("pi" finds 🍕 and 🥧, "red heart" finds ❤️) from a small letter board inside the panel. The hand
+  in the panel's footer sets a default skin tone, and a long press on a hand or person picks a tone
+  for that emoji alone, which is remembered. The bar's emoji suggestions use the same tones.
 - **Theme presets.** Pure black (AMOLED), Ocean, Forest, Sunset, Paper, Lavender and High
   contrast, in Keyboard theme next to Duet dark, Material You and Custom colour. Duet dark stays
   the default.
@@ -277,7 +285,7 @@ Everything below comes from Kinetica and works the same in Duet.
 - Height by dragging the handle above the bar, side and bottom margins, a live size preview.
 - An optional apostrophe key right of `L`, for `don't` or `nell'immagine` without the symbols page.
 - Two symbol pages and a numpad; a configurable comma and period key; an emoji picker on the
-  comma's long-press, with a frequently used tab.
+  comma's long-press, with a frequently used tab (search and skin tones are Duet's).
 - Words per minute on the spacebar while you type (Keys, off).
 - Themes: dark, light, Material You, or a palette from one colour of your choice. Zen mode turns
   animations off.
@@ -461,7 +469,8 @@ en, it, es, pl, cs, nl, de, fr, no, ru, uk, he and ar.
   words and the English word triples. Both are listed in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
 - Emoji: a hand-curated `assets/emoji_data.json` (478 emoji with names and keywords, up to
   Unicode 15). No ZWJ sequences, because a phone that cannot render one draws its
-  parts; an emoji the phone's font cannot draw is left out.
+  parts; an emoji the phone's font cannot draw is left out. Skin tones are added when shown, not stored in the
+  asset, and a toned form the font cannot draw falls back to the plain emoji.
 
 ### Open keyboard dictionaries (from Kinetica)
 
