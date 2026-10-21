@@ -1053,12 +1053,19 @@ class WordPredictor(
      * lacks is never split, so `pasteor` stays too. Letters the user has committed as often as
      * [KineticaConstants.PERSONAL_MERGE_MIN_COUNT] asks of a word are theirs. [at] limits the
      * cut to one place, the end of a reopened word the letters were typed onto.
+     *
+     * [pausesMs], when the letters' tap times are known, holds the pause before each letter
+     * (from the previous tap's lift; index 0 unused). A cut where the user stopped for a clear
+     * pause ([pausedAt]) needs no bundled pair, only two words, the shorter ones common:
+     * `crooked|be`, `google|photos`, `or|swipe` are pairs the list lacks, typed with the pause a
+     * new word takes.
      */
-    fun spaceSplit(literal: String, at: Int = -1): Pair<String, String>? {
+    fun spaceSplit(literal: String, at: Int = -1, pausesMs: LongArray? = null): Pair<String, String>? {
         val w = literal.lowercase()
         if (w.length < 4 || isWordIgnoringCase(w) || !w.all { it.isLetter() }) return null
         if (personalCount(w) >= KineticaConstants.PERSONAL_MERGE_MIN_COUNT) return null
         var best: Pair<String, String>? = null
+        var paused: Pair<String, String>? = null
         var bestByte = KineticaConstants.SPACE_SPLIT_MIN_PAIR_BYTE - 1
         for (i in 2..w.length - 2) {
             if (at >= 0 && i != at) continue
@@ -1066,12 +1073,41 @@ class WordPredictor(
             val tail = w.substring(i)
             if (!isWordIgnoringCase(head) || !isWordIgnoringCase(tail)) continue
             val byte = pairByte(head, tail)
+            // A cut the pairs hold wins over a paused one; the first paused cut is kept in case.
+            if (paused == null && byte < KineticaConstants.SPACE_SPLIT_MIN_PAIR_BYTE && pausesMs != null &&
+                pausedAt(pausesMs, i) &&
+                commonEnoughToSplit(head) && commonEnoughToSplit(tail)
+            ) {
+                paused = literal.substring(0, i) to literal.substring(i)
+            }
             if (byte > bestByte) {
                 bestByte = byte
                 best = literal.substring(0, i) to literal.substring(i)
             }
         }
-        return best
+        return best ?: paused
+    }
+
+    // A short piece of a paused cut is a common word (`or`, `be`, `the`), not `ty` or `re`: a
+    // pause inside a word the user is unsure how to spell is common too.
+    private fun commonEnoughToSplit(piece: String): Boolean =
+        piece.length >= KineticaConstants.SPACE_SPLIT_PAUSE_SHORT_LEN ||
+            frequencyByte(piece) >= KineticaConstants.SPACE_SPLIT_PAUSE_SHORT_MIN_FREQ_BYTE
+
+    /**
+     * Whether the user paused before letter [i]: at least [KineticaConstants.SPACE_SPLIT_PAUSE_MS]
+     * and [KineticaConstants.SPACE_SPLIT_PAUSE_FACTOR] times the median of the word's other
+     * pauses. Seeded taps (a reopened word) are 1 ms apart and say nothing, so a word with any
+     * pause under [KineticaConstants.SPACE_SPLIT_SEEDED_MS] reads no pause at all.
+     */
+    internal fun pausedAt(pausesMs: LongArray, i: Int): Boolean {
+        if (i <= 0 || i >= pausesMs.size) return false
+        val others = (1 until pausesMs.size).filter { it != i }.map { pausesMs[it] }
+        if (others.isEmpty()) return false
+        if (pausesMs.drop(1).any { it in 0 until KineticaConstants.SPACE_SPLIT_SEEDED_MS }) return false
+        val median = others.sorted()[others.size / 2]
+        val gap = pausesMs[i]
+        return gap >= KineticaConstants.SPACE_SPLIT_PAUSE_MS && gap >= KineticaConstants.SPACE_SPLIT_PAUSE_FACTOR * median
     }
 
     private fun oneLetterApart(a: String, b: String): Boolean {

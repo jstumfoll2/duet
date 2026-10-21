@@ -57,4 +57,22 @@ class SpaceSplitTest {
         assertEquals("to" to "feel", p.spaceSplit("tofeel", at = 2))
         assertNull(p.spaceSplit("tofeel", at = 3))
     }
+
+    @Test
+    fun aClearPauseSplitsAPairTheListLacks() {
+        val p = english()
+        // crookedbe, batch 3: 850 ms before the b against a median of about 100.
+        val crooked = longArrayOf(0, 134, 68, 92, 108, 16, 126, 850, 67)
+        assertNull("no pair without the pause", p.spaceSplit("crookedbe"))
+        assertEquals("crooked" to "be", p.spaceSplit("crookedbe", pausesMs = crooked))
+        assertEquals("or" to "swipe", p.spaceSplit("orswipe", pausesMs = longArrayOf(0, 8, 1070, 134, 33, 242, 9)))
+    }
+
+    @Test
+    fun aPauseIsNotEnoughForRarePiecesOrEvenTyping() {
+        val p = english()
+        assertNull("ty and er are no common words", p.spaceSplit("tyer", pausesMs = longArrayOf(0, 141, 1155, 134)))
+        assertNull("no pause stands out", p.spaceSplit("orswipe", pausesMs = longArrayOf(0, 200, 250, 210, 190, 240, 220)))
+        assertNull("seeded taps of a reopened word say nothing", p.spaceSplit("orswipe", pausesMs = longArrayOf(0, 0, 900, 0, 0, 0, 0)))
+    }
 }

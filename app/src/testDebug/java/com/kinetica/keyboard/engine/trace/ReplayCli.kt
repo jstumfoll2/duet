@@ -36,6 +36,12 @@ import java.io.File
  *       word and the swiped word after it with the space left out (split), with the joined,
  *       tapped and swiped readings and whether PeckSplit splits it. Reads committed labels
  *       (no retype relabelling): it pairs each commit with the next word's context.
+ *   spacesplit TRACE.jsonl...
+ *       Tapped letters that are no word but cut into two words: today's split, the
+ *       pause-aware split, each letter's pause and the next commits, one row each (#64).
+ *   grammar TRACE.jsonl...
+ *       The grammar pass over each committed English word and the two before it: every
+ *       rewrite it would make, with the word pairs it read (#55).
  *   rejoindata TRACE.jsonl...
  *       One row per buffer of a word an automatic space ended, reopened, and typed on: a word
  *       and the next word's tokens after its seeded taps (split), and a tapped word cut where its
@@ -303,6 +309,68 @@ object ReplayCli {
                         println(splitRow(h, f.name, n, "split", w, tokens + nextTokens, w.context, label, nextLabel))
                     }
                 }
+            }
+            "spacesplit" -> {
+                // spacesplit FILE...: every tapped word of four letters or more that is no word but
+                // cuts into two, with today's split (pairs only), the pause-aware split, the pause
+                // before each letter and the next words committed, for judging by eye (#64).
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                for (f in a.map { File(it) }) {
+                    val words = read(f, sink)
+                    for ((i, pair) in words.withIndex()) {
+                        val (n, w) = pair
+                        val tokens = try { SwipeTrace.replayTokens(w) } catch (e: RuntimeException) { continue }
+                        if (tokens.size < 4 || tokens.any { it !is com.kinetica.keyboard.engine.models.TapToken }) continue
+                        val p = h.predictorFor(w)
+                        val taps = tokens.sortedBy { it.tStart }
+                        val literal = taps.joinToString("") { p.alphabet.charOf((it as com.kinetica.keyboard.engine.models.TapToken).code).toString() }
+                        if (p.isWordIgnoringCase(literal)) continue
+                        val cuts = (2..literal.length - 2).filter { p.isWordIgnoringCase(literal.take(it)) && p.isWordIgnoringCase(literal.drop(it)) }
+                        if (cuts.isEmpty()) continue
+                        val pauses = LongArray(taps.size) { k -> if (k == 0) 0L else taps[k].tStart - taps[k - 1].tEnd }
+                        val old = p.spaceSplit(literal)
+                        val new = p.spaceSplit(literal, pausesMs = pauses)
+                        val next = words.drop(i + 1).take(4).joinToString(" ") { it.second.committed ?: "?" }
+                        val cutText = cuts.joinToString(",") { c ->
+                            val hd = literal.take(c); val tl = literal.drop(c)
+                            "$hd|$tl:pair=${p.pairByte(hd, tl)}:f=${p.frequencyByte(hd)}/${p.frequencyByte(tl)}:paused=${p.pausedAt(pauses, c)}"
+                        }
+                        println(listOf(f.name, n, literal, w.committed ?: "-", w.how ?: "-",
+                            old?.let { "${it.first} ${it.second}" } ?: "-",
+                            new?.let { "${it.first} ${it.second}" } ?: "-",
+                            pauses.drop(1).joinToString(","), cutText, next).joinToString("\t"))
+                    }
+                }
+            }
+            "grammar" -> {
+                // grammar FILE...: the grammar pass (GrammarCheck) over each committed English word
+                // and the two before it, as the keyboard runs it when the word lands: every rewrite
+                // it would make, with the word pairs it read (#55).
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                var checked = 0
+                var fixed = 0
+                for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
+                    if (w.config.language != "en") continue
+                    val word = w.committed?.lowercase() ?: continue
+                    val ctx = w.context.map { it.lowercase() }
+                    val prev = ctx.lastOrNull() ?: continue
+                    val before = ctx.getOrNull(ctx.size - 2)
+                    val p = h.predictorFor(w)
+                    checked++
+                    val fix = com.kinetica.keyboard.engine.GrammarCheck.fixPrevious(before, prev, word) { x, y -> p.pairByte(x, y) } ?: continue
+                    fixed++
+                    println(listOf(f.name, n, "${before ?: "^"} $prev $word", "$prev->$fix",
+                        "pairs prev+next=${p.pairByte(prev, word)} fix+next=${p.pairByte(fix, word)} " +
+                            "before+prev=${before?.let { p.pairByte(it, prev) } ?: "-"} before+fix=${before?.let { p.pairByte(it, fix) } ?: "-"}",
+                    ).joinToString("\t"))
+                }
+                println("checked $checked rewrites $fixed")
             }
             "rejoindata" -> {
                 if (a.isEmpty()) usage()
