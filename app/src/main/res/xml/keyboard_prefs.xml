@@ -110,6 +110,13 @@
                         android:dependency="pref_autospace"
                         android:defaultValue="false" />
                     <SwitchPreferenceCompat
+                        android:key="pref_autospace_smart"
+                        android:title="@string/pref_autospace_smart_title"
+                        app:singleLineTitle="false"
+                        android:summary="@string/pref_autospace_smart_summary"
+                        android:dependency="pref_autospace_tapped_words"
+                        android:defaultValue="true" />
+                    <SwitchPreferenceCompat
                         android:key="pref_word_ends_on_space"
                         android:title="@string/pref_word_ends_on_space_title"
                         app:singleLineTitle="false"

@@ -202,6 +202,9 @@ class WordComposer(
 
     fun hasSwipeToken(): Boolean = tokens.any { it !is TapToken }
 
+    /** When each tap of the word in hand landed, in order. Main thread. */
+    fun tapStarts(): List<Long> = tokens.filterIsInstance<TapToken>().map { it.tStart }
+
     /**
      * The apostrophe key was tapped while this word was being swiped: the word wants its
      * apostrophe spelling ("we're", not "were"). Held until the buffer ends, so a tap

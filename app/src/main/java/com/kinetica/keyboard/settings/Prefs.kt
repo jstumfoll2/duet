@@ -194,6 +194,14 @@ object Prefs {
      * the next thing typed is a letter (see retractsAutospace).
      */
     const val AUTOSPACE_TAPPED_WORDS = "pref_autospace_tapped_words"
+
+    /**
+     * A tapped word's wait follows how likely its letters are the whole word: `if` and `my` space
+     * quickly, `th` and `al` wait three times as long, and a word spelled slowly waits at least
+     * as long as its own pauses between letters. See `smartTapDelay` for the bands and the
+     * numbers behind them. Only matters with [AUTOSPACE_TAPPED_WORDS] on.
+     */
+    const val AUTOSPACE_SMART = "pref_autospace_smart"
     const val ZEN_MODE = "pref_zen_mode"
     const val VIBRATION = "pref_vibration"
     const val VIBRATION_INTENSITY = "pref_vibration_intensity"
@@ -619,6 +627,9 @@ object Prefs {
     const val LONG_PRESS_MAX_MS = 700
     const val DEFAULT_WORD_ENDS_ON_SPACE = true
     const val DEFAULT_AUTOSPACE_TAPPED_WORDS = false
+
+    /** On: it acts only once tapped words autospace, which stays off by default. */
+    const val DEFAULT_AUTOSPACE_SMART = true
     const val DEFAULT_ZEN = false
     const val DEFAULT_VIBRATION = true
     const val DEFAULT_VIBRATION_INTENSITY = 2

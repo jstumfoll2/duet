@@ -47,6 +47,8 @@ data class KeyboardConfig(
 
     /** Autospace an all-tap word whose letters spell a dictionary word. */
     val autospaceTappedWords: Boolean,
+    /** The tapped word's wait follows how likely it is complete ([Prefs.AUTOSPACE_SMART]). */
+    val autospaceSmart: Boolean,
     val zenMode: Boolean,
     val vibration: Boolean,
     val vibrationIntensity: Int,
@@ -283,6 +285,7 @@ data class KeyboardConfig(
                 Prefs.AUTOSPACE_TAPPED_WORDS,
                 Prefs.DEFAULT_AUTOSPACE_TAPPED_WORDS,
             ),
+            autospaceSmart = prefs.getBoolean(Prefs.AUTOSPACE_SMART, Prefs.DEFAULT_AUTOSPACE_SMART),
             zenMode = prefs.getBoolean(Prefs.ZEN_MODE, Prefs.DEFAULT_ZEN),
             vibration = prefs.getBoolean(Prefs.VIBRATION, Prefs.DEFAULT_VIBRATION),
             vibrationIntensity = prefs.getInt(

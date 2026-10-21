@@ -336,6 +336,13 @@ class WordPredictor(
         s.isNotEmpty() && trie.prefixNode(AccentFolder.fold(s.lowercase())) != -1
 
     /**
+     * How likely [word] is finished rather than the start of a longer word, from the dictionary
+     * alone ([Trie.endShare]): 0 when it is not a word. The smart autospace delay reads it.
+     */
+    fun endShare(word: String): Float =
+        if (word.isEmpty()) 0f else trie.endShare(trie.nodeFor(AccentFolder.fold(word.lowercase())))
+
+    /**
      * Both readings of two-thumb input in one list: each word keeps the better
      * of its cut-and-merge score and its interleaved score times
      * [interleaveWeight], which puts the two geometric models on one scale. A
