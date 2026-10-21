@@ -58,8 +58,11 @@ object HarperLints {
         EditKind.INSERT_AFTER -> problem + edit.text
     }
 
-    /** One underline: [length] UTF-16 units from [start], and what a tap offers in its place. */
-    data class Mark(val start: Int, val length: Int, val suggestions: List<String>)
+    /**
+     * One underline: [length] UTF-16 units from [start], what a tap offers in its place, and
+     * Harper's explanation.
+     */
+    data class Mark(val start: Int, val length: Int, val suggestions: List<String>, val message: String = "")
 
     /**
      * The underlines for [lints] found in [text], in text order, at most [limit] suggestions
@@ -79,7 +82,54 @@ object HarperLints {
                 .filter { it.isNotEmpty() && it != problem }
                 .distinct()
                 .take(limit)
-            Mark(l.start, l.end - l.start, offered)
+            Mark(l.start, l.end - l.start, offered, l.message)
         }
     }
+
+    /**
+     * What the proofread strip shows: the sentence being written, from [start] in the text
+     * checked, and the marks inside it, offsets relative to the sentence.
+     */
+    data class Proof(val start: Int, val sentence: String, val marks: List<Mark>)
+
+    /** The strip's content for [text] (the editor text before the cursor) and its [marks]. */
+    fun proof(text: String, marks: List<Mark>): Proof {
+        val start = currentSentenceStart(text)
+        val sentence = text.substring(start).trimEnd()
+        val inside = marks.filter { it.start >= start && it.start + it.length <= start + sentence.length }
+            .map { it.copy(start = it.start - start) }
+        return Proof(start, sentence, inside)
+    }
+
+    /**
+     * Where the sentence being written starts in [text]: after the last `.`, `!`, `?` or line
+     * break that is followed by a space, not counting the marks at the very end, so a sentence
+     * just closed with `. ` is still the one shown. Leading spaces are skipped.
+     */
+    fun currentSentenceStart(text: CharSequence): Int {
+        var end = text.length
+        while (end > 0 && (text[end - 1].isWhitespace() || text[end - 1] in TERMINATORS)) end--
+        var start = 0
+        for (i in end - 1 downTo 0) {
+            val c = text[i]
+            if (c == '\n' || (c in TERMINATORS && i + 1 < text.length && text[i + 1].isWhitespace())) {
+                start = i + 1
+                break
+            }
+        }
+        while (start < end && text[start].isWhitespace()) start++
+        return start
+    }
+
+    /**
+     * Where a tail read at the read limit should be checked from: it starts mid-word, so from
+     * the first space on. A tail shorter than the limit is the whole text and kept.
+     */
+    fun windowStart(tail: CharSequence, truncated: Boolean): Int {
+        if (!truncated) return 0
+        val space = tail.indexOfFirst { it.isWhitespace() }
+        return if (space < 0) tail.length else space + 1
+    }
+
+    private const val TERMINATORS = ".!?"
 }

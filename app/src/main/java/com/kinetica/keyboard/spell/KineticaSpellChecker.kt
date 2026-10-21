@@ -12,6 +12,7 @@ import androidx.preference.PreferenceManager
 import com.kinetica.keyboard.data.DictionaryStore
 import com.kinetica.keyboard.data.KineticaDb
 import com.kinetica.keyboard.engine.Alphabet
+import com.kinetica.keyboard.engine.DecodeTrace
 import com.kinetica.keyboard.engine.DictionaryLoader
 import com.kinetica.keyboard.engine.HarperLints
 import com.kinetica.keyboard.engine.LoadedDictionary
@@ -65,8 +66,13 @@ class KineticaSpellChecker : SpellCheckerService() {
             suggestionsLimit: Int,
         ): Array<SentenceSuggestionsInfo?> {
             val words: Array<SentenceSuggestionsInfo?> = super.onGetSentenceSuggestionsMultiple(textInfos, suggestionsLimit)
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return words
             val config = KeyboardConfig.from(PreferenceManager.getDefaultSharedPreferences(context))
+            // Logged so a trace shows whether an app asks this checker at all (Compose fields may not).
+            DecodeTrace.log {
+                "  spellcheck sentences n=${textInfos.size} chars=${textInfos.sumOf { it.text.length }} " +
+                    "grammar=${config.harperGrammar} sdk=${Build.VERSION.SDK_INT}"
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return words
             if (!config.harperGrammar || config.language != "en") return words
             val dialect = if (config.britishSpelling) 1 else 0
             return Array(textInfos.size) { i ->
@@ -85,6 +91,7 @@ class KineticaSpellChecker : SpellCheckerService() {
             if (text.isBlank()) return words
             val encoded = HarperGrammar.lint(text, dialect) ?: return words
             val marks = HarperLints.marks(HarperLints.parse(encoded), text, limit)
+            DecodeTrace.log { "  spellcheck grammar chars=${text.length} marks=${marks.size}" }
             if (marks.isEmpty()) return words
             val infos = ArrayList<SuggestionsInfo>()
             val offsets = ArrayList<Int>()
