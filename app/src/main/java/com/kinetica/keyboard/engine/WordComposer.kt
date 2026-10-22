@@ -298,7 +298,7 @@ class WordComposer(
     fun tapHeadLiteral(): String {
         val sorted = tokens.sortedBy { it.tStart }
         val head = PeckSplit.tapHead(sorted)
-        return if (head == 0) "" else buildLiteral(sorted.subList(0, head))
+        return if (head == 0) "" else buildLiteral(sorted.subList(0, head), tokens)
     }
 
     /**
@@ -825,17 +825,30 @@ class WordComposer(
     private fun tapLeadAllowed(head: WordCandidate, activeLead: WordCandidate): Boolean =
         head.frequencyWeight >= activeLead.frequencyWeight
 
-    private fun buildLiteral(list: List<InputToken>): String {
+    /**
+     * The letters of [list]'s taps in time order. A tap held as long as [HeldDoubles] asks
+     * types its letter twice: the decode already ranks `too` over `to` for a held `o`, but a
+     * pecked word commits its taps as typed, so without this the hold was lost. In the owner's
+     * traces (2026-10-22, about 8,000 pecked letters over all batches) 99% of taps lift within
+     * 150 ms, and the 11 held 250 ms or more were all meant doubled. A held tap beside a tap of
+     * the same letter is doubled already and stays as typed. [all] is the whole buffer, for
+     * the rule that time another token was down does not count.
+     */
+    private fun buildLiteral(list: List<InputToken>, all: List<InputToken> = list): String {
         if (list.isEmpty() || list.any { it !is TapToken }) return ""
         val sorted = list.sortedBy { it.tStart }
-        val sb = StringBuilder(sorted.size)
+        val sb = StringBuilder(sorted.size + 1)
         val alphabet = predictor.alphabet
-        for (t in sorted) {
+        for ((i, t) in sorted.withIndex()) {
             val code = (t as TapToken).code
             // A tap read on another script's board, between a language switch and its dictionary
             // loading, has no letter here: it gives no literal, not an index past the alphabet.
             if (code !in 0 until alphabet.size) return ""
-            sb.append(alphabet.charOf(code))
+            val c = alphabet.charOf(code)
+            sb.append(c)
+            val besideSame = (sorted.getOrNull(i - 1) as TapToken?)?.code == code ||
+                (sorted.getOrNull(i + 1) as TapToken?)?.code == code
+            if (!besideSame && c.isLetter() && HeldDoubles.heldTap(all, t)) sb.append(c)
         }
         return sb.toString()
     }

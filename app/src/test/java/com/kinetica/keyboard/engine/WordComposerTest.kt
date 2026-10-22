@@ -1,5 +1,7 @@
 package com.kinetica.keyboard.engine
 
+import com.kinetica.keyboard.engine.models.StreamId
+import com.kinetica.keyboard.engine.models.TapToken
 import com.kinetica.keyboard.engine.models.WordCandidate
 import java.util.concurrent.Executor
 import org.junit.Assert.assertEquals
@@ -78,6 +80,45 @@ class WordComposerTest {
         composer.commitWord("you")
         assertEquals(listOf("are", "you"), composer.contextSnapshot())
         assertFalse(composer.hasPendingWord)
+    }
+
+    private fun heldTap(c: Char, t0: Long, ms: Long, stream: StreamId = StreamId.RIGHT): TapToken {
+        val code = g.alphabet.codeOf(c)
+        return TapToken(stream, code, g.centerX(code), g.centerY(code), ms >= 150, t0, t0 + ms)
+    }
+
+    @Test
+    fun heldTapTypesItsLetterTwice() {
+        val composer = WordComposer(predictor, direct, direct, Capture())
+        composer.onToken(TestData.tap('t', g, 0))
+        composer.onToken(heldTap('o', 200, 300))
+        assertEquals("too", composer.literal())
+    }
+
+    @Test
+    fun ordinaryTapsStayAsTyped() {
+        val composer = WordComposer(predictor, direct, direct, Capture())
+        composer.onToken(TestData.tap('t', g, 0))
+        composer.onToken(heldTap('o', 200, 140))
+        assertEquals("to", composer.literal())
+    }
+
+    @Test
+    fun heldTapBesideItsOwnLetterIsNotTripled() {
+        val composer = WordComposer(predictor, direct, direct, Capture())
+        composer.onToken(TestData.tap('t', g, 0))
+        composer.onToken(heldTap('o', 200, 300))
+        composer.onToken(TestData.tap('o', g, 600))
+        assertEquals("too", composer.literal())
+    }
+
+    @Test
+    fun heldTapCountsOnlyWhileTheOtherThumbIsUp() {
+        // The left thumb taps t and holds it through most of the o: a parked thumb, not a hold.
+        val composer = WordComposer(predictor, direct, direct, Capture())
+        composer.onToken(heldTap('t', 0, 400, StreamId.LEFT))
+        composer.onToken(heldTap('o', 100, 320))
+        assertEquals("to", composer.literal())
     }
 
     @Test
