@@ -34,7 +34,7 @@ internal object HeldDoubles {
         var out = IntArray(0)
         for (t in tokens) {
             if (t is TapToken) {
-                if (held(tokens, t, t.tStart, t.tEnd, midMs, freeTime) && t.code !in out) out += t.code
+                if (heldTap(tokens, t, midMs, freeTime) && t.code !in out) out += t.code
                 continue
             }
             if (t !is SwipeToken) continue
@@ -53,6 +53,14 @@ internal object HeldDoubles {
         }
         return out
     }
+
+    /**
+     * Whether tap [t] of [tokens] was held long enough to say "twice", by the rule [heldKeys]
+     * applies to taps. A pecked word's letters are its taps as typed, not a decode, so this is
+     * what doubles a held tap's letter there ([WordComposer.literal]).
+     */
+    fun heldTap(tokens: List<InputToken>, t: TapToken, midMs: Long = KineticaConstants.HELD_DOUBLE_MS, freeTime: Boolean = KineticaConstants.HELD_DOUBLE_FREE_TIME): Boolean =
+        held(tokens, t, t.tStart, t.tEnd, midMs, freeTime)
 
     /**
      * Whether [from]..[to] on [t] is a hold of [need] ms. Without [freeTime] any overlap with
