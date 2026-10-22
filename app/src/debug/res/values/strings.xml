@@ -27,6 +27,11 @@
     <string name="practice_explain">Swipe or tap the word shown with the Duet DEV keyboard, then space, three times per word. Each attempt is recorded with the shown word as its label, for measuring the decoder. If you know an attempt went wrong, tap Discard last swipe and do it again. Recording stops when you leave this screen.</string>
     <string name="practice_progress">Attempt %1$d of %2$d · %3$d recorded, %4$d decoded as shown</string>
     <string name="practice_discard">Discard last swipe</string>
+    <string name="prose_open">Prose practice</string>
+    <string name="prose_title">Duet DEV prose practice</string>
+    <string name="prose_next">Next passage</string>
+    <string name="prose_progress">This passage: %1$d of %2$d words, %3$d as shown · Done: %4$d passages, %6$d of %5$d words as shown</string>
+    <string name="prose_explain">Type the passage above with the Duet DEV keyboard, as you would type a message: swipe or tap, with or without automatic spaces, capitals and punctuation as you like. The word to type is underlined; finished words turn green when they came out as shown and red when not. Each word is recorded with the passage word as its label. To withdraw a bad attempt, tap Discard last swipe right after it, then delete the word and type it again. Recording stops when you leave this screen.</string>
 
     <string name="neural_toggle">Neural rerank (test)</string>
     <string name="neural_beta">Rerank strength (beta)</string>

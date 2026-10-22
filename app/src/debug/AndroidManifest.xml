@@ -17,6 +17,11 @@
             android:exported="false"
             android:label="@string/practice_title"
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity
+            android:name=".ime.ProsePracticeActivity"
+            android:exported="false"
+            android:label="@string/prose_title"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
     </application>
 
 </manifest>

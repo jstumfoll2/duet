@@ -105,6 +105,12 @@ class TraceActivity : AppCompatActivity() {
                 startActivity(android.content.Intent(this@TraceActivity, PracticeActivity::class.java))
             }
         }
+        val prose = Button(this).apply {
+            text = getString(R.string.prose_open)
+            setOnClickListener {
+                startActivity(android.content.Intent(this@TraceActivity, ProsePracticeActivity::class.java))
+            }
+        }
 
         // The neural rerank, for testing it on the phone: off is today's decoder.
         NeuralRerank.useSettings(this)
@@ -166,6 +172,7 @@ class TraceActivity : AppCompatActivity() {
             addView(wordExport)
             addView(wordClear)
             addView(practice)
+            addView(prose)
             addView(wordExplain)
             addView(neuralToggle)
             addView(neuralStats)
