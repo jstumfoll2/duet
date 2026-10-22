@@ -119,6 +119,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** The spacebar's words per minute (TypingSpeed), and the touch span of the word in hand. */
     private val typingSpeed = TypingSpeed()
+    private val autospacePace = AutospacePace()
     private var wordStartMs = -1L
     private var wordEndMs = -1L
     private val speedHideRunnable = Runnable { keyboardView?.speedLabel = null }
@@ -1248,6 +1249,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         composer?.reset()
         recentWords.clear()
         typingSpeed.clear()
+        autospacePace.clear()
         mainHandler.removeCallbacks(speedHideRunnable)
         keyboardView?.speedLabel = null
         selectionLedger.clear()
@@ -1811,17 +1813,26 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // Smart timing reads the letters themselves, so it replaces the one-letter floor too.
         val share = if (!swipe && config.autospaceSmart) predictor?.endShare(lit) else null
         val gap = if (share != null) medianLetterGap(composer?.tapStarts().orEmpty()) else -1L
+        val now = SystemClock.uptimeMillis()
+        // The sliders' values at an ordinary pace, moved with the pace of the moment.
+        val pace = when {
+            !config.autospaceAdaptive -> 1f
+            swipe -> autospacePace.swipeFactor(now)
+            else -> autospacePace.tapFactor(now)
+        }
+        val swipeBase = pacedDelay(config.autospaceDelayMs, pace, Prefs.AUTOSPACE_DELAY_MIN_MS.toLong(), Prefs.AUTOSPACE_DELAY_MAX_MS.toLong())
+        val tapBase = pacedDelay(config.autospaceTapDelayMs, pace, Prefs.AUTOSPACE_DELAY_MIN_MS.toLong(), Prefs.AUTOSPACE_DELAY_MAX_MS.toLong())
         val delay = when {
-            swipe -> config.autospaceDelayMs
-            share != null -> smartTapDelay(config.autospaceTapDelayMs, share, gap)
-            letter -> config.autospaceSingleLetterDelayMs
-            else -> config.autospaceTapDelayMs
+            swipe -> swipeBase
+            share != null && letter -> maxOf(smartTapDelay(tapBase, share, gap), config.autospaceLetterFloorMs)
+            share != null -> smartTapDelay(tapBase, share, gap)
+            letter -> singleLetterDelayMs(tapBase, config.autospaceLetterFloorMs)
+            else -> tapBase
         }
         val kind = if (swipe) "swipe" else if (letter) "letter" else "tap"
-        val now = SystemClock.uptimeMillis()
         val wait = autospaceWait(delay, composer?.lastTokenEnd ?: -1L, now)
         DecodeTrace.log {
-            "  autospace arm kind=$kind delay=$delay wait=$wait lit=$lit" +
+            "  autospace arm kind=$kind delay=$delay wait=$wait lit=$lit pace=${"%.2f".format(pace)}" +
                 (if (share != null) " share=${"%.2f".format(share)} gap=$gap" else "")
         }
         mainHandler.postDelayed(autospaceRunnable, wait)
@@ -4261,6 +4272,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun recordTypingSpeed(word: String) {
         val start = wordStartMs
         wordStartMs = -1L
+        // Kept apart from the spacebar's readout, which is a display setting: the autospace
+        // pace needs no number on screen.
+        if (start >= 0 && word.isNotEmpty()) {
+            autospacePace.onWord(start, wordEndMs, word.length, composer?.tapStarts().orEmpty())
+        }
         if (!config.typingSpeed || editorState.privateMode || start < 0 || word.isEmpty()) return
         val wpm = typingSpeed.logWord(start, wordEndMs, word.length)
         DecodeTrace.log { "  wpm display=${wpm?.let { "%.1f".format(it) }} rate=${typingSpeed.rate()?.let { "%.1f".format(it) }} letters=${word.length}" }

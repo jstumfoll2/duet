@@ -151,9 +151,10 @@ internal fun provenanceOf(candidates: List<WordCandidate>): Map<String, String> 
  * | 350 | 17/22 | 3/28 |
  * | 600 | 14/22 | 1/28 |
  *
- * [Prefs.SINGLE_LETTER_MIN_DELAY_MS] sits mid-plateau at 300: 275 is 1 ms above a cost sample,
- * 300 has 26 ms of margin below and 161 above. A floor, not a fixed value: a single letter
- * should never space sooner than a word whose delay the user raised.
+ * 300 sits mid-plateau: 275 is 1 ms above a cost sample, 300 has 26 ms of margin below and 161
+ * above. The floor is a slider now ([Prefs.AUTOSPACE_LETTER_DELAY_MS], default 150, where smart
+ * timing measured best). A floor, not a fixed value: a single letter should never space sooner
+ * than a word whose delay the user raised.
  */
 internal fun singleLetterDelayMs(tapDelayMs: Long, floorMs: Long): Long =
     maxOf(tapDelayMs, floorMs)

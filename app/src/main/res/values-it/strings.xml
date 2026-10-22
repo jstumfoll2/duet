@@ -113,7 +113,11 @@
     <string name="pref_autospace_delay_title">Attesa dello spazio dopo uno swipe (ms)</string>
     <string name="pref_autospace_delay_summary">Quanto aspetta lo spazio dopo una parola scritta con uno swipe. Alzalo se gli spazi finiscono dentro parole che stai ancora scrivendo</string>
     <string name="pref_autospace_tap_delay_title">Attesa dello spazio dopo i tocchi (ms)</string>
-    <string name="pref_autospace_tap_delay_summary">Lo stesso per una parola scritta a tocchi, contato dall\'ultimo tocco; serve anche Spazio automatico per le parole scritte a tocchi. Una parola di una lettera aspetta almeno 300 ms</string>
+    <string name="pref_autospace_tap_delay_summary">Lo stesso per una parola scritta a tocchi, contato dall\'ultimo tocco; serve anche Spazio automatico per le parole scritte a tocchi</string>
+    <string name="pref_autospace_letter_delay_title">Attesa dello spazio dopo una lettera (ms)</string>
+    <string name="pref_autospace_letter_delay_summary">Il minimo che una parola di una lettera come e o a aspetta lo spazio, così una parola che stai ancora scrivendo a tocchi non si divide dopo la prima lettera</string>
+    <string name="pref_autospace_adaptive_title">Adatta l\'attesa alla tua velocità</string>
+    <string name="pref_autospace_adaptive_summary">Più breve quando scrivi veloce, più lunga quando rallenti, da metà al doppio delle attese qui sopra</string>
     <string name="pref_autospace_timer_title">Mostra l\'attesa dello spazio</string>
     <string name="pref_autospace_timer_summary">Una banda nella barra dei suggerimenti si accorcia fino all\'arrivo dello spazio</string>
     <string name="pref_no_space_before_title">Nessuno spazio prima di</string>
