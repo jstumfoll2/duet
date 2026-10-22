@@ -25,6 +25,10 @@ class GrammarCheckTest {
         // A lone letter or a number is not a word to sound out.
         assertNull(GrammarCheck.fixPrevious(null, "a", "e", none))
         assertNull(GrammarCheck.fixPrevious(null, "a", "8", none))
+        // A word no article stands before is a split word or a slip, not a noun.
+        assertNull(GrammarCheck.fixPrevious("add", "a", "an", none))
+        assertNull(GrammarCheck.fixPrevious("about", "a", "all", none))
+        assertNull(GrammarCheck.fixPrevious("od", "a", "of", none))
     }
 
     @Test
@@ -89,5 +93,9 @@ class GrammarCheckTest {
         assertNull(fix("over", "there", "is"))
         // to/too is no set: pairs cannot see the comma in `me too, when`.
         assertNull(fix("me", "too", "when"))
+        // A word typed twice, and a right-side pair too weak when the word before says nothing.
+        assertNull(fix("inventory", "of", "of"))
+        assertNull(fix("gets", "off", "or"))
+        assertEquals("their", fix("narrator", "there", "whole"))
     }
 }

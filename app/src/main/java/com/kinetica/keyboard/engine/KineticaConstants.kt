@@ -205,6 +205,29 @@ object KineticaConstants {
     const val SPACE_SPLIT_MIN_PAIR_BYTE = 136
 
     /**
+     * A pause before a letter of tapped letters with no space that marks a new word there
+     * (WordPredictor.spaceSplit, issue #64): at least this long, and
+     * [SPACE_SPLIT_PAUSE_FACTOR] times the median of the word's other pauses. Thirteen batches
+     * (2026-10-21): committed as one word and split on a pause, `crookedbe` (850 ms against a
+     * median 92), `googlephotos` and `orswipe`; none that was meant as one word. The buffers
+     * dropped unfinished add `peckor`, and `tyer`, `revan` and `minmona`, pauses mid-word, which
+     * the short-piece rule below refuses.
+     */
+    const val SPACE_SPLIT_PAUSE_MS = 250L
+    const val SPACE_SPLIT_PAUSE_FACTOR = 3f
+
+    /**
+     * A piece of a cut made on a pause alone shorter than [SPACE_SPLIT_PAUSE_SHORT_LEN] letters
+     * must be at least this common (frequency byte): `or` 208, `be` 226, `the` 251 pass; `ty`
+     * 130, `re` 149, `min` 129, `bit` 185 do not.
+     */
+    const val SPACE_SPLIT_PAUSE_SHORT_LEN = 4
+    const val SPACE_SPLIT_PAUSE_SHORT_MIN_FREQ_BYTE = 200
+
+    /** Pauses this short are seeded taps of a reopened word, not the user's timing. */
+    const val SPACE_SPLIT_SEEDED_MS = 3L
+
+    /**
      * Tap charge, in kw, for a skipped stray tap or an untapped letter. 0.5 fixes 1 035 of
      * 2 008 dropped taps and 1 764 of 2 008 stray ones and changes no captured commit or lead
      * but 19 empty decodes; 0.25 cost three autocorrections. Negative: off.
@@ -503,6 +526,13 @@ object KineticaConstants {
     // unit cases while leaving `its own`, `better then i`, `me too when` (to/too is not a set).
     const val GRAMMAR_MIN_PAIR_BYTE = 40
     const val GRAMMAR_PAIR_GAP = 40
+
+    /**
+     * The pair a confusion-set swap needs with the next word when the word before has no pair
+     * with either spelling (#55). Thirteen batches: `there whole` -> `their whole` (103) stays,
+     * `gets off or` -> `of or` (92) goes.
+     */
+    const val GRAMMAR_SILENT_LEFT_MIN_PAIR_BYTE = 100
 
     /**
      * Score kept per letter a swipe segment consumed that the finger was never measurably on.

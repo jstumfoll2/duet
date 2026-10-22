@@ -329,6 +329,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private class AutocorrectUndo(val typed: String, val corrected: String, val end: Int)
     private var autocorrectUndo: AutocorrectUndo? = null
 
+    // The grammar pass's last rewrite: [shown] became [replacement] because [next] followed. The
+    // next word is its only evidence, so when that word is deleted the rewrite goes back
+    // ([undoGrammarFix]). Traces held four rewrites, two of them `an` made `a` by a fragment
+    // the user then deleted. Cleared by the next commit.
+    private class GrammarFix(val shown: String, val replacement: String, val next: String)
+    private var grammarFix: GrammarFix? = null
+
     /**
      * The autocorrect the last commit made, for the strip: unlike [autocorrectUndo] it outlives
      * the next token, because the strip does. Cleared by any other commit.
@@ -3469,6 +3476,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val left = backspaceLeft(before, word, COMMIT_TAIL_CHARS)
         backspaceTarget = if (left == null || left == 0) null else word
         if (left != null && left >= 0) DecodeTrace.log { "  backspace into commit word=$word left=$left src=$src" }
+        if (left == 0) undoGrammarFix(word)
         // Deleting into the word just committed rejects it: the +1 that commit earned goes
         // back, once, so a junk decode deleted on sight is not left in the learned list.
         val learned = lastCommitLearned
@@ -4456,10 +4464,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 null
             }
             // Two words with the space left out (`tofeel`): the space goes back. Letters typed
-            // onto a reopened word are cut only where the reopened word ended.
+            // onto a reopened word are cut only where the reopened word ended. A clear pause
+            // between the two stands in for a pair the bundled list lacks (`crooked be`).
             val spaced = if (target == null && slip == null && threshold != null && !editorState.addressField) {
                 when {
-                    !keeps -> p.spaceSplit(tentativeWord)
+                    !keeps -> p.spaceSplit(tentativeWord, pausesMs = comp.tapPauses()?.takeIf { it.size == tentativeWord.length })
                     reloadedWord != null && reloadedByHand && lastLiteral.lowercase() !in rejectedCorrections ->
                         p.spaceSplit(tentativeWord, reloadedWord!!.length)
                     else -> null
@@ -5019,6 +5028,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 ?.takeIf { it.endsWith(word) }?.dropLast(word.length)
         }
         composer?.commitWord(word.lowercase())
+        grammarFix = null
         if (!previousDeliberate) fixPreviousWord(word)
         tentativeLength = 0
         tentativeWord = ""
@@ -5106,7 +5116,41 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             unlearnWord(prev)
             learnWord(fixed, lang = "en")
         }
+        grammarFix = GrammarFix(shown, replacement, word)
         DecodeTrace.log { "  grammar word=$prev fixed=$fixed next=${word.lowercase()}" }
+    }
+
+    /**
+     * Puts back the word the grammar pass rewrote once [deleted], the word that made it rewrite,
+     * is gone: `a thea` with `thea` deleted is `an` again. Only while the rewritten word still
+     * ends the text, alone or with the space after it.
+     */
+    private fun undoGrammarFix(deleted: String) {
+        val fix = grammarFix ?: return
+        grammarFix = null
+        if (!fix.next.equals(deleted, ignoreCase = true)) return
+        val tail = ich.textBeforeCursor(fix.replacement.length + 2)?.toString() ?: return
+        val span = when {
+            tail.endsWith(" ${fix.replacement} ") || tail == "${fix.replacement} " -> fix.replacement.length + 1
+            tail.endsWith(" ${fix.replacement}") || tail == fix.replacement -> fix.replacement.length
+            else -> return
+        }
+        val trailing = if (span > fix.replacement.length) " " else ""
+        val start = cursorExpected() - span
+        ich.replaceBeforeCursor(span, fix.shown + trailing)
+        commitHistory.replaced(start, fix.replacement, fix.shown)
+        expectAfter(span, fix.shown.length + trailing.length, rewritesWord = true)
+        val prev = fix.shown.lowercase()
+        val fixed = fix.replacement.lowercase()
+        composer?.let { c ->
+            c.replaceCommit(0, fixed, prev)
+            c.replaceCommit(1, fixed, prev)
+        }
+        if (!editorState.teachesNothing) {
+            unlearnWord(fixed)
+            learnWord(prev, lang = "en")
+        }
+        DecodeTrace.log { "  grammar undone word=$fixed back=$prev src=deleted next=${deleted.lowercase()}" }
     }
 
     /** The proofread strip is up: Harper grammar on and English typed. */

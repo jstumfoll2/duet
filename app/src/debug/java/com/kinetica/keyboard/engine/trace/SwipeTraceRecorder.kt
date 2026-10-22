@@ -5,6 +5,7 @@ import com.kinetica.keyboard.engine.KeyboardGeometry
 import com.kinetica.keyboard.engine.WordComposer
 import com.kinetica.keyboard.engine.models.InputToken
 import com.kinetica.keyboard.engine.models.StreamId
+import com.kinetica.keyboard.engine.models.TapToken
 import com.kinetica.keyboard.engine.models.WordCandidate
 
 /**
@@ -51,6 +52,11 @@ class SwipeTraceRecorder(
     private class Done(val token: InputToken, val gesture: SwipeTrace.Gesture, val geometry: SwipeTrace.Geometry)
 
     private var geometry: SwipeTrace.Geometry? = null
+
+    // The last line's word when it was all taps: each tap's key and real touch times, in time
+    // order. A word reopened from the editor comes back as seeded taps with made-up times; when
+    // they spell this word, the line gets the real ones beside them.
+    private var lastTaps: List<Triple<Int, Long, Long>> = emptyList()
     private val open = HashMap<Int, Open>()
 
     // Finished gestures waiting for their buffer to end, oldest first. Matched by
@@ -96,6 +102,7 @@ class SwipeTraceRecorder(
         val g = geometry ?: return
         if (!enabled()) {
             for (t in tokens) done.removeAll { it.token === t }
+            lastTaps = emptyList()
             return
         }
         val out = ArrayList<SwipeTrace.Token>(tokens.size)
@@ -114,6 +121,7 @@ class SwipeTraceRecorder(
         // decode used cannot be replayed from one geometry; rare (a rotation
         // mid-word), and skipped rather than written wrong.
         if (geometryChanged) return
+        withRealTimes(tokens, out)
         val goal = target()
         val word = SwipeTrace.Word(
             config(), g, context, out,
@@ -121,6 +129,29 @@ class SwipeTraceRecorder(
             compare(tokens, context, goal), apostropheMark,
         )
         sink(SwipeTrace.encode(word))
+    }
+
+    // Gives the seeded taps that lead [tokens] the real times of [lastTaps] when they spell the
+    // same keys, then remembers this line's taps for the next one.
+    private fun withRealTimes(tokens: List<InputToken>, out: MutableList<SwipeTrace.Token>) {
+        val previous = lastTaps
+        val seeded = out.indexOfFirst { it !is SwipeTrace.Literal || it.token !is TapToken }.let { if (it < 0) out.size else it }
+        if (previous.isNotEmpty() && seeded == previous.size &&
+            (0 until seeded).all { (tokens[it] as TapToken).code == previous[it].first }
+        ) {
+            for (k in 0 until seeded) out[k] = SwipeTrace.Literal(tokens[k], previous[k].second to previous[k].third)
+        }
+        // Only taps whose times are all real: drawn, or seeded and given real times above.
+        val known = tokens.indices.all { k -> tokens[k] is TapToken && (out[k] is SwipeTrace.Gesture || (out[k] as SwipeTrace.Literal).real != null) }
+        lastTaps = if (known) {
+            tokens.indices.map { k ->
+                val t = tokens[k] as TapToken
+                val real = (out[k] as? SwipeTrace.Literal)?.real
+                Triple(t.code, real?.first ?: t.tStart, real?.second ?: t.tEnd)
+            }.sortedBy { it.second }
+        } else {
+            emptyList()
+        }
     }
 
     private companion object {

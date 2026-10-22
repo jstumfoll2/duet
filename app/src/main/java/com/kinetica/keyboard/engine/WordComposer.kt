@@ -207,6 +207,16 @@ class WordComposer(
     fun tapStarts(): List<Long> = tokens.filterIsInstance<TapToken>().map { it.tStart }
 
     /**
+     * The pause before each tap of an all-tap word in hand, in time order (from the previous
+     * tap's lift; the first is 0), or null when the word has a swipe. Main thread.
+     */
+    fun tapPauses(): LongArray? {
+        if (tokens.isEmpty() || hasSwipeToken()) return null
+        val taps = tokens.sortedBy { it.tStart }
+        return LongArray(taps.size) { i -> if (i == 0) 0L else taps[i].tStart - taps[i - 1].tEnd }
+    }
+
+    /**
      * The apostrophe key was tapped while this word was being swiped: the word wants its
      * apostrophe spelling ("we're", not "were"). Held until the buffer ends, so a tap
      * from the other thumb before this word's first token lands still counts.

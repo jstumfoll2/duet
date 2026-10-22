@@ -43,7 +43,10 @@ import com.kinetica.keyboard.engine.models.WordCandidate
  *    samples: `s` the stream the engine assigned, `ev` rows of [x px, y px,
  *    t ms], down first, lift last. Tokens that never came from the engine (a
  *    word reloaded from the editor as taps, an accent-popup letter) are
- *    `src:"tap"` or `src:"swipe"`, written field for field.
+ *    `src:"tap"` or `src:"swipe"`, written field for field. A reloaded tap's
+ *    `t0`/`t1` are made up 1 ms apart; when the word reopened is the tapped
+ *    word the line before committed, `rt` holds that tap's real [down, lift]
+ *    ms, for timing pecked words (absent on older lines and otherwise).
  *  - `shown`: the last candidate list the bar received, `n` the token count
  *    its decode saw and `c` rows of [word, score, language]. `n` short of the
  *    buffer means the word was committed before its final decode landed.
@@ -127,8 +130,11 @@ object SwipeTrace {
     /** A gesture as samples: down first, lift last. */
     data class Gesture(val stream: StreamId, val samples: List<Sample>) : Token()
 
-    /** A token that did not come from the engine, kept as is. */
-    data class Literal(val token: InputToken) : Token()
+    /**
+     * A token that did not come from the engine, kept as is. [real] is a seeded tap's touch
+     * times, down and lift, when the recorder saw that tap typed (`rt` on the line).
+     */
+    data class Literal(val token: InputToken, val real: Pair<Long, Long>? = null) : Token()
 
     data class Shown(val tokenCount: Int, val candidates: List<Candidate>)
 
@@ -330,6 +336,7 @@ object SwipeTrace {
                     .key("k").value(Alphabet.charOf(k.code).toString())
                     .key("x").value(k.x).key("y").value(k.y).key("lp").value(k.longPress)
                     .key("t0").value(k.tStart).key("t1").value(k.tEnd)
+                    .also { w -> t.real?.let { (d, u) -> w.key("rt").beginArray().value(d).value(u).endArray() } }
                 is SwipeToken -> {
                     j.key("src").value("swipe").key("s").value(k.streamId.name.substring(0, 1))
                         .key("t0").value(k.tStart).key("t1").value(k.tEnd)
@@ -400,6 +407,7 @@ object SwipeTrace {
             "ev" -> Gesture(stream, (m["ev"] as List<Any?>).map { val r = it as List<Any?>; Sample(f(r[0]), f(r[1]), l(r[2])) })
             "tap" -> Literal(
                 TapToken(stream, Alphabet.codeOf((m["k"] as String)[0]), f(m["x"]), f(m["y"]), m["lp"] as Boolean, l(m["t0"]), l(m["t1"])),
+                (m["rt"] as List<Any?>?)?.let { l(it[0]) to l(it[1]) },
             )
             "swipe" -> Literal(
                 SwipeToken(

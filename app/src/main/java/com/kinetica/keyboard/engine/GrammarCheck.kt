@@ -79,6 +79,13 @@ object GrammarCheck {
     )
     private val SILENT_H = listOf("hour", "honest", "honor", "honour", "heir")
 
+    // Words no article stands before. After `a` they are a word split in two (`a` + `ll`) or a
+    // slip, not a noun to sound out: traces had `a all`, `a an`, `a am` and `a of` made `an`.
+    private val NOT_AFTER_ARTICLE = setOf(
+        "a", "an", "the", "of", "and", "or", "all", "am", "are", "is", "as", "at", "in", "on",
+        "if", "it", "its", "it's", "us", "i", "out", "up", "any", "also",
+    )
+
     /**
      * The word [prev] should be, given [before] it (null at the start of the text) and [next]
      * after it, or null to leave it. Lowercase in and out; the caller restores the case.
@@ -89,6 +96,8 @@ object GrammarCheck {
         if (prev == "of" && before in MODALS && next.firstOrNull()?.isLetter() == true) return "have"
         if (before != null) AGREEMENT[before to prev]?.let { return it }
         val set = CONFUSIONS.firstOrNull { prev in it } ?: return null
+        // `of of` is a word typed twice, not `off of`.
+        if (next == prev) return null
         return confusion(before, prev, next, set, pairs)
     }
 
@@ -97,6 +106,7 @@ object GrammarCheck {
         if (prev != "a" && prev != "an") return null
         // A lone letter or a symbol says nothing about the sound: `a b c`, `a 5`.
         if (next.length < 2 || !next.all { it.isLetter() || it == '\'' }) return null
+        if (next in NOT_AFTER_ARTICLE) return null
         val wanted = if (vowelSound(next)) "an" else "a"
         return if (wanted == prev) null else wanted
     }
@@ -122,6 +132,9 @@ object GrammarCheck {
             val left = before?.let { pairs.byte(it, alt) } ?: 0
             // The left side may be silent but must not argue for the word as written.
             if (leftPrev - left > gap) continue
+            // With the word before silent on both, the right side alone must be a strong pair:
+            // `gets off or` read `of or` (92) on the right alone.
+            if (before != null && left == 0 && leftPrev == 0 && right < KineticaConstants.GRAMMAR_SILENT_LEFT_MIN_PAIR_BYTE) continue
             val score = (right + left).toFloat()
             if (score > bestScore) {
                 best = alt
