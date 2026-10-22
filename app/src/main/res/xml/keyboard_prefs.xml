@@ -88,6 +88,21 @@
                         app:sliderSteps="@array/timing_steps_autospace"
                         android:dependency="pref_autospace" />
                     <com.kinetica.keyboard.settings.SteppedSliderPreference
+                        android:key="pref_autospace_letter_delay_ms"
+                        android:title="@string/pref_autospace_letter_delay_title"
+                        android:summary="@string/pref_autospace_letter_delay_summary"
+                        app:singleLineTitle="false"
+                        android:defaultValue="150"
+                        app:sliderSteps="@array/timing_steps_autospace"
+                        android:dependency="pref_autospace" />
+                    <SwitchPreferenceCompat
+                        android:key="pref_autospace_adaptive"
+                        android:title="@string/pref_autospace_adaptive_title"
+                        app:singleLineTitle="false"
+                        android:summary="@string/pref_autospace_adaptive_summary"
+                        android:dependency="pref_autospace"
+                        android:defaultValue="true" />
+                    <com.kinetica.keyboard.settings.SteppedSliderPreference
                         android:key="pref_autospace_retract_ms"
                         android:title="@string/pref_autospace_retract_title"
                         android:summary="@string/pref_autospace_retract_summary"

@@ -154,18 +154,30 @@ object Prefs {
     const val AUTOSPACE_RETRACT_MS = "pref_autospace_retract_ms"
 
     /**
-     * The floor on how long a one-letter word waits for its automatic space. Not a preference:
-     * there is no key for it; it sits here beside the delays it relates to.
+     * The floor on how long a one-letter word waits for its automatic space, smart timing on
+     * or off. It was a fixed 300 ms until the owner asked for it on a slider (2026-10-22).
      *
      * One-letter words like `a` and `I` were 12% of the words in a prose capture, but one letter
-     * is weaker evidence than a word, so it waits longer. Premature fires are flat across
-     * 275-350 ms while the one-letter words spaced fall as the delay rises; 300 is the middle of
-     * that plateau, and 275 sits one millisecond above a measured premature fire.
+     * is weaker evidence than a word. With smart timing off, premature fires are flat across
+     * 275-350 ms while the one-letter words spaced fall as the delay rises (see
+     * `singleLetterDelayMs`). Smart timing reads `i` and `a` as maybe-complete and gives them the
+     * tap delay, so a floor there only matters below it: over 9 batches of pecked words at a
+     * 60 ms tap delay, a 150 ms floor cut premature spaces from 17.0% to 13.9% of mid-word
+     * pauses and spaced as many words first (80.6% against 80.9%); at a 150 ms tap delay it
+     * changes nothing. 300 kept only 24 of 151 one-letter words spaced before the user's own
+     * space. Hence [DEFAULT_AUTOSPACE_LETTER_DELAY_MS] at 150.
      *
      * A floor over AUTOSPACE_TAP_DELAY_MS, so lowering the word delay for speed does not make
      * single letters fire sooner.
      */
-    const val SINGLE_LETTER_MIN_DELAY_MS = 300
+    const val AUTOSPACE_LETTER_DELAY_MS = "pref_autospace_letter_delay_ms"
+
+    /**
+     * The autospace delays follow the pace of the moment: shorter while typing fast, longer
+     * while slow, within half and twice the sliders' values. See `AutospacePace` for the two
+     * readings and what they measured.
+     */
+    const val AUTOSPACE_ADAPTIVE = "pref_autospace_adaptive"
 
     /**
      * The word in progress ends only at a delimiter, never on a timer.
@@ -609,6 +621,12 @@ object Prefs {
 
     /** Both delays share a default; see AUTOSPACE_TAP_DELAY_MS for why. */
     const val DEFAULT_AUTOSPACE_TAP_DELAY_MS = DEFAULT_AUTOSPACE_DELAY_MS
+
+    /** See AUTOSPACE_LETTER_DELAY_MS. */
+    const val DEFAULT_AUTOSPACE_LETTER_DELAY_MS = 150
+
+    /** On: measured no worse than fixed delays for swipes and a little better for taps. */
+    const val DEFAULT_AUTOSPACE_ADAPTIVE = true
 
     /** The retraction window's default multiple of the tap delay. */
     const val DEFAULT_AUTOSPACE_RETRACT_MULTIPLE = 2

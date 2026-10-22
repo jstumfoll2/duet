@@ -347,7 +347,10 @@ Everything below comes from Kinetica and works the same in Duet.
   word was not over. Once the next word is finished, Duet weighs it as one word or two and puts
   the space back when two read better: `to` then `a` stays `to a`, `the` then `y` becomes `they`. Three sliders set the delays. *Smart timing for tapped words* (on) reads the
   letters: `if` and `my` space sooner, `th` waits longer, and a word you spell slowly waits for your
-  own pace.
+  own pace. *Autospace delay after one letter* sets the least `I` or `a` waits.
+- **Autospace that keeps up.** *Match the delay to your speed* (on) shortens the autospace wait
+  while you type fast and lengthens it while you slow down, from half to twice the sliders'
+  values: swiped words follow your words per minute, tapped words your pauses between letters.
 - **A shorter keyboard.** *Keyboard height* goes down to 10% of the screen, *Suggestion bar height*
   shrinks the bar and its text, and *Resize handle height* at 0 removes the grip.
 - **Long-press without the accents.** *Hide accented letters on long-press* leaves digits, symbols

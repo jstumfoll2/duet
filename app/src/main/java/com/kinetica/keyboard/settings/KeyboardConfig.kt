@@ -40,6 +40,10 @@ data class KeyboardConfig(
     val autospaceTapDelayMs: Long,
     /** The tap delay, floored so one letter never spaces quicker than a whole word. */
     val autospaceSingleLetterDelayMs: Long,
+    /** The one-letter floor itself ([Prefs.AUTOSPACE_LETTER_DELAY_MS]), for smart timing. */
+    val autospaceLetterFloorMs: Long = Prefs.DEFAULT_AUTOSPACE_LETTER_DELAY_MS.toLong(),
+    /** The delays follow the typing pace ([Prefs.AUTOSPACE_ADAPTIVE]). */
+    val autospaceAdaptive: Boolean = Prefs.DEFAULT_AUTOSPACE_ADAPTIVE,
     val autospaceRetractMs: Long,
 
     /** The word ends at a delimiter only, never on the autospace timer. */
@@ -224,6 +228,9 @@ data class KeyboardConfig(
             val swipeDelay = prefs.getInt(
                 Prefs.AUTOSPACE_DELAY_MS, Prefs.DEFAULT_AUTOSPACE_DELAY_MS,
             ).coerceIn(Prefs.AUTOSPACE_DELAY_MIN_MS, Prefs.AUTOSPACE_DELAY_MAX_MS).toLong()
+            val letterFloor = prefs.getInt(
+                Prefs.AUTOSPACE_LETTER_DELAY_MS, Prefs.DEFAULT_AUTOSPACE_LETTER_DELAY_MS,
+            ).coerceIn(Prefs.AUTOSPACE_DELAY_MIN_MS, Prefs.AUTOSPACE_DELAY_MAX_MS).toLong()
             return KeyboardConfig(
             heightPct = prefs.getInt(Prefs.KEYBOARD_HEIGHT_PCT, Prefs.DEFAULT_HEIGHT_PCT)
                 .coerceIn(Prefs.MIN_HEIGHT_PCT, Prefs.MAX_HEIGHT_PCT),
@@ -267,8 +274,10 @@ data class KeyboardConfig(
             autospaceSingleLetterDelayMs = singleLetterDelayMs(
                 prefs.getInt(Prefs.AUTOSPACE_TAP_DELAY_MS, swipeDelay.toInt())
                     .coerceIn(Prefs.AUTOSPACE_DELAY_MIN_MS, Prefs.AUTOSPACE_DELAY_MAX_MS).toLong(),
-                Prefs.SINGLE_LETTER_MIN_DELAY_MS.toLong(),
+                letterFloor,
             ),
+            autospaceLetterFloorMs = letterFloor,
+            autospaceAdaptive = prefs.getBoolean(Prefs.AUTOSPACE_ADAPTIVE, Prefs.DEFAULT_AUTOSPACE_ADAPTIVE),
             // Ceiling is above 2 * 800 so the derived default is always reachable.
             autospaceRetractMs = prefs.getInt(
                 Prefs.AUTOSPACE_RETRACT_MS,

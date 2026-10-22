@@ -135,7 +135,11 @@
     <string name="pref_autospace_delay_title">Autospace delay after a swipe (ms)</string>
     <string name="pref_autospace_delay_summary">How long a swiped word waits for its space. Raise it if spaces land inside words you are still swiping</string>
     <string name="pref_autospace_tap_delay_title">Autospace delay after tapping (ms)</string>
-    <string name="pref_autospace_tap_delay_summary">The same for a tapped word, counted from the last lift; it needs Autospace tapped words too. A one-letter word waits at least 300 ms</string>
+    <string name="pref_autospace_tap_delay_summary">The same for a tapped word, counted from the last lift; it needs Autospace tapped words too</string>
+    <string name="pref_autospace_letter_delay_title">Autospace delay after one letter (ms)</string>
+    <string name="pref_autospace_letter_delay_summary">The least a one-letter word such as I or a waits for its space, so a word you are still pecking does not split after its first letter</string>
+    <string name="pref_autospace_adaptive_title">Match the delay to your speed</string>
+    <string name="pref_autospace_adaptive_summary">Shorter while you type fast, longer while you slow down, from half to twice the delays above</string>
     <string name="pref_autospace_timer_title">Show the autospace wait</string>
     <string name="pref_autospace_timer_summary">A band on the suggestion bar shrinks until the space lands</string>
     <string name="pref_no_space_before_title">No space before</string>
