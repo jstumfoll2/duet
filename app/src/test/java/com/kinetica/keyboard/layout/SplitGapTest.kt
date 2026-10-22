@@ -85,7 +85,7 @@ class SplitGapTest {
     fun theHalvesNeverOverlapInARow() {
         for (gap in listOf(0f, 0.01f, 0.05f, 0.16f, 0.4f)) {
             for (a in qwerty()) for (b in qwerty()) {
-                if (a === b || a.y != b.y) continue
+                if (a.id == b.id || a.y != b.y) continue
                 val (al, ar) = span(a, gap)
                 val (bl, br) = span(b, gap)
                 assertTrue("${a.id}/${b.id} overlap at gap $gap", ar <= bl + 1e-6f || br <= al + 1e-6f)
@@ -95,8 +95,8 @@ class SplitGapTest {
 
     @Test
     fun everyDistanceInsideAHalfScalesAlike() {
-        // Like the side inset, a gap shrinks both halves by one factor, so no key's
-        // neighbours move relative to each other inside a half.
+        // A gap narrows both halves by one factor, (1 - gap) across and nothing down, so no
+        // key's neighbours change order or spacing inside a half.
         val full = geometry(0f)
         for (gap in listOf(0.05f, 0.16f, 0.4f)) {
             val g = geometry(gap)
@@ -106,8 +106,11 @@ class SplitGapTest {
                 if (leftHalf(a) != leftHalf(b)) continue
                 val ca = a.output[0] - 'a'
                 val cb = b.output[0] - 'a'
-                val wantPx = full.keyDist(ca, cb) * full.keyWidthPx * (1f - gap)
-                assertEquals("${a.id}->${b.id} at $gap", wantPx, g.keyDist(ca, cb) * g.keyWidthPx, 0.05f)
+                val wantPx = (full.centerX(ca) - full.centerX(cb)) * full.keyWidthPx * (1f - gap)
+                val gotPx = (g.centerX(ca) - g.centerX(cb)) * g.keyWidthPx
+                assertEquals("${a.id}->${b.id} at $gap", wantPx, gotPx, 0.05f)
+                val dyFull = (full.centerY(ca) - full.centerY(cb)) * full.keyWidthPx
+                assertEquals("${a.id}->${b.id} at $gap", dyFull, (g.centerY(ca) - g.centerY(cb)) * g.keyWidthPx, 0.05f)
             }
             // The decoder's midline stays the view's centre, so each thumb keeps its own half.
             assertEquals(viewW / 2f, g.midlinePx, 1e-2f)
