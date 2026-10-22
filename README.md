@@ -186,6 +186,10 @@ and recorded traces and settings carry over because the app id is unchanged.)
 - **Practice mode** (*Duet DEV practice*, from the traces screen): prompts a word, asks for three
   attempts, and records each as a labelled trace. *Discard last swipe* drops a bad attempt, and
   the word length can be picked.
+- **Prose practice** (*Duet DEV prose practice*, from the traces screen): a sentence or two to
+  copy as you would type a message. The word to type is underlined and finished words turn green
+  or red as they come out; each word is recorded with its passage word as the label, so running
+  text (context, automatic spaces, punctuation) gets measured too. *Next passage* skips ahead.
 - **Export**: *Export* and *Export word traces* write the traces to a file you choose through
   Android's file picker. The app itself has no network access, so sending them anywhere is up to
   you.
