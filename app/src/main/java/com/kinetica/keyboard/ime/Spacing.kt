@@ -283,6 +283,29 @@ internal fun hugsPreviousWord(text: String, hugging: String = Prefs.DEFAULT_NO_S
     text.length == 1 && text[0] in hugging
 
 /**
+ * Whether [text], written where a word's automatic space was due, owes that space to the next
+ * word. The space moved; it was not refused. Sentence and clause marks only, from a fixed set
+ * rather than the user's hugging list, so a mark added there (a hyphen, a slash) never splits
+ * `e-mail`. The accepted cost, as on stock keyboards: `example` + `.` + a swipe of `com` in a
+ * prose field reads `example. com`. Address fields arm no autospace, so they never owe one.
+ *
+ * [before] ends with [text] and holds the two characters ahead of it. One letter before the
+ * mark owes nothing: a tapped `a` earns its space, and `a.m.` must not become `a. m.`. Another
+ * mark before it passes the space on (`...`, `?!`); the caller decides whether one was owed.
+ */
+internal fun owesSpaceAfter(text: String, before: CharSequence): Boolean {
+    if (text.length != 1 || text[0] !in SPACE_AFTER_MARKS) return false
+    if (!before.endsWith(text)) return false
+    val ahead = before.subSequence(0, before.length - text.length)
+    if (ahead.isEmpty()) return false
+    val last = ahead[ahead.length - 1]
+    if (last in SPACE_AFTER_MARKS) return true
+    return last.isLetterOrDigit() && ahead.length >= 2 && ahead[ahead.length - 2].isLetterOrDigit()
+}
+
+private const val SPACE_AFTER_MARKS = ".,!?;:\u2026"
+
+/**
  * Whether the text before the cursor ends a sentence, so the next letter is capitalized.
  * [before] is at most `CAPS_LOOKBACK_CHARS` of the editor's text; empty is the start of the
  * field.
