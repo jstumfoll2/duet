@@ -3493,14 +3493,28 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * before it. No-op for a space the user typed, and once anything else has been committed:
      * every other path through commitTracked clears the flag.
      */
-    private fun eatAutospaceBefore(text: String) {
-        if (!autospaceInserted || !hugsPreviousWord(text, config.noSpaceBefore)) return
-        if (ich.textBeforeCursor(1)?.toString() != " ") return
+    private fun eatAutospaceBefore(text: String): Boolean {
+        if (!autospaceInserted || !hugsPreviousWord(text, config.noSpaceBefore)) return false
+        if (ich.textBeforeCursor(1)?.toString() != " ") return false
         ich.deleteBeforeCursor(1)
         expectAfter(1, 0)
         autospaceInserted = false
         autospaceFromTaps = false
         DecodeTrace.log { "  autospace eat punct=$text" }
+        return true
+    }
+
+    /**
+     * Moves the word's space to after the mark just written, when [ended] says the word had
+     * earned one: its autospace was eaten, or a swipe's was still on the timer. Owed, not
+     * written, so a space the user types settles it and a mark at the end of the text gains
+     * nothing; the next word that starts here pays it (`easier.This` in batch 13).
+     */
+    private fun oweSpaceAfterPunct(text: String, ended: Boolean) {
+        if (!ended || !owesSpaceAfter(text, ich.textBeforeCursor(text.length + 2) ?: "")) return
+        spaceOwedAt = cursorExpected()
+        spaceOwedFromTaps = false
+        DecodeTrace.log { "  autospace owed after punct=$text at=$spaceOwedAt" }
     }
 
     /**
@@ -3552,10 +3566,22 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     private fun finalizeThenCommitText(text: String) {
-        eatAutospaceBefore(text)
+        val ending = swipeAutospacePending() || markOwesSpace()
+        val ate = eatAutospaceBefore(text)
         finalizePendingWord()
         commitTracked(text)
+        oweSpaceAfterPunct(text, ate || ending)
     }
+
+    /**
+     * A mark right where a space is owed after another (`...`, `?!`): the run passes it on.
+     * Only a mark: a word starting there pays it first.
+     */
+    private fun markOwesSpace(): Boolean = spaceOwedAt >= 0 && spaceOwedAt == cursorExpected()
+
+    /** A swiped word whose autospace timer has not fired yet: punctuation will end it. */
+    private fun swipeAutospacePending(): Boolean =
+        autospacePending && composer?.let { it.hasPendingWord && it.hasSwipeToken() } == true
 
     /**
      * An accented letter chosen from a long-press popup extends the word being written
@@ -4016,14 +4042,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private fun onPunctuation(text: String) {
         if (text.length == 1 && consumeCtrl(text.lowercase())) return
+        // Read before cancelAutospace and commitTracked clear them.
+        val ending = swipeAutospacePending() || markOwesSpace()
         cancelAutospace()
         // Reserved action outputs never reach the editor as text.
         if (performIfAction(text)) return
         // "Hi" + autospace + "!" should read "Hi!", not "Hi !".
-        eatAutospaceBefore(text)
+        val ate = eatAutospaceBefore(text)
         if (text.none { it.isLetterOrDigit() }) fixDigitSlip()
         finalizePendingWord()
         commitTracked(text)
+        // ... and "Hi!" + a swipe should read "Hi! There", not "Hi!There".
+        oweSpaceAfterPunct(text, ate || ending)
         updateAutoShift()
     }
 
