@@ -37,6 +37,8 @@ class SizePreviewView @JvmOverloads constructor(
         /** The landscape arrangement, for the landscape picture; null draws the board as in portrait. */
         val landscapeArrangement: LandscapeArrangement? = null,
         val splitGapPct: Int = 50,
+        /** The gap of the Split layout mode, percent of the width. */
+        val modeSplitGapPct: Int = LayoutTransforms.DEFAULT_SPLIT_GAP_PCT,
         /** The keys' drawn spacing, percent of the stock spacing, as the keyboard draws it. */
         val keyGapPct: Int = 100,
     )
@@ -109,7 +111,7 @@ class SizePreviewView @JvmOverloads constructor(
             val r = if (arrangement != null && blockPx > 0f) {
                 LayoutTransforms.applyLandscape(k, s.screenW, s.boardPx, s.sidePadPx, arrangement, blockPx)
             } else {
-                LayoutTransforms.apply(s.mode, k, s.screenW, s.boardPx, s.sidePadPx)
+                LayoutTransforms.apply(s.mode, k, s.screenW, s.boardPx, s.sidePadPx, s.modeSplitGapPct / 100f)
             }
             rect.set(r.left * scale + inset, boardTop + r.top * scale + inset, r.right * scale - inset, boardTop + r.bottom * scale - inset)
             if (rect.width() <= 0f || rect.height() <= 0f) continue

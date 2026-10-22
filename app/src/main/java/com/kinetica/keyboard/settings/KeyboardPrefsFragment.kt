@@ -239,6 +239,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
                 LandscapeArrangement.appliesTo(landscape, (w / dm.density).toInt(), config.wideArrangement)
             },
             splitGapPct = config.landscapeSplitGapPct,
+            modeSplitGapPct = config.splitGapPct,
             keyGapPct = config.keyGapPct,
         )
         preview.show(
@@ -705,7 +706,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         val SIZE_PREVIEW_KEYS = listOf("pref_size_preview", "pref_bar_preview")
         val SIZE_SLIDERS = listOf(
             Prefs.KEYBOARD_HEIGHT_PCT, Prefs.KEYBOARD_HEIGHT_PCT_LANDSCAPE, Prefs.SUGGESTION_BAR_DP,
-            Prefs.SIDE_PAD_DP, Prefs.BOTTOM_PAD_DP, Prefs.DRAG_HANDLE_DP, Prefs.LANDSCAPE_SPLIT_GAP_PCT,
+            Prefs.SIDE_PAD_DP, Prefs.BOTTOM_PAD_DP, Prefs.DRAG_HANDLE_DP, Prefs.LANDSCAPE_SPLIT_GAP_PCT, Prefs.SPLIT_GAP_PCT,
             Prefs.HOME_ROW_SPREAD_PCT, Prefs.SPACE_ROW_GAP_PCT, Prefs.KEY_GAP_PCT,
             Prefs.NUMBER_ROW_SIZE_PCT, Prefs.BOTTOM_ROW_SIZE_PCT,
         )

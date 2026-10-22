@@ -15,6 +15,7 @@ object Prefs {
 
     /** How far apart the split halves sit, percent of the width. */
     const val LANDSCAPE_SPLIT_GAP_PCT = "pref_landscape_split_gap_pct"
+    const val SPLIT_GAP_PCT = "pref_split_gap_pct"
 
     /**
      * Suggestion-strip height in dp. Its text and every ornament scale off it (BarMetrics), so
@@ -592,6 +593,13 @@ object Prefs {
      */
     const val DEFAULT_LANDSCAPE_SPLIT_GAP_PCT = 30
     const val MAX_LANDSCAPE_SPLIT_GAP_PCT = 70
+
+    /**
+     * The portrait Split layout's gap, percent of the width. 16 is the gap it always had;
+     * 0 is the full-width board, so the halves can sit as close as the thumbs want.
+     */
+    const val DEFAULT_SPLIT_GAP_PCT = com.kinetica.keyboard.layout.LayoutTransforms.DEFAULT_SPLIT_GAP_PCT
+    const val MAX_SPLIT_GAP_PCT = 40
     /** The shipped strip height, so an existing install does not move. */
     const val DEFAULT_SUGGESTION_BAR_DP = 44
     const val DEFAULT_DRAG_HANDLE = true

@@ -1115,6 +1115,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         kv.spaceChordArmMs = config.spaceChordArmMs
         kv.layoutMode = config.layoutMode
         kv.landscapeSplitGapPct = config.landscapeSplitGapPct
+        kv.splitGapPct = config.splitGapPct
         kv.keyGapPct = config.keyGapPct
         val arranged = LandscapeArrangement.appliesTo(
             isLandscape(), resources.configuration.screenWidthDp, config.wideArrangement,

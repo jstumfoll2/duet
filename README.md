@@ -290,7 +290,8 @@ Everything below comes from Kinetica and works the same in Duet.
 - Numbers row above the letters (Keys, off). The keyboard grows so the letters keep their size.
 - Middle row width (Size and layout): spreads `a s d f g h j k l` toward the edges, for hands used to
   a board without the half-key indent.
-- Layout modes: full width, right, left, split, one-handed on either side. Landscape has its own
+- Layout modes: full width, right, left, split, one-handed on either side. Split's gap is a slider
+  (Size and layout, 0-40% of the width, 16 by default; 0 closes it). Landscape has its own
   height and can be split to the edges, centred or full width. An unfolded phone or a tablet held
   upright uses the landscape arrangement (Size and layout, on).
 - Height by dragging the handle above the bar, side and bottom margins, a live size preview.
