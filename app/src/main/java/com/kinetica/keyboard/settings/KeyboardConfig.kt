@@ -26,6 +26,8 @@ data class KeyboardConfig(
     /** The arrangement applies in portrait too on a wide screen (LandscapeArrangement.appliesTo). */
     val wideArrangement: Boolean,
     val landscapeSplitGapPct: Int,
+    /** Gap between the halves of the portrait Split layout mode, percent of the width. */
+    val splitGapPct: Int,
     /** Suggestion-strip height in dp; its text and ornaments scale off it. */
     val suggestionBarDp: Int,
     /** Draw the resize handle strip above the suggestion bar. */
@@ -237,6 +239,9 @@ data class KeyboardConfig(
             landscapeSplitGapPct = prefs.getInt(
                 Prefs.LANDSCAPE_SPLIT_GAP_PCT, Prefs.DEFAULT_LANDSCAPE_SPLIT_GAP_PCT,
             ).coerceIn(0, Prefs.MAX_LANDSCAPE_SPLIT_GAP_PCT),
+            splitGapPct = prefs.getInt(
+                Prefs.SPLIT_GAP_PCT, Prefs.DEFAULT_SPLIT_GAP_PCT,
+            ).coerceIn(0, Prefs.MAX_SPLIT_GAP_PCT),
             suggestionBarDp = prefs.getInt(
                 Prefs.SUGGESTION_BAR_DP, Prefs.DEFAULT_SUGGESTION_BAR_DP,
             ).coerceIn(BarMetrics.MIN_DP.toInt(), BarMetrics.MAX_DP.toInt()),

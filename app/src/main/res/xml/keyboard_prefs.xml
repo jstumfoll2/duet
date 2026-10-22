@@ -612,6 +612,15 @@
                     android:entryValues="@array/layout_mode_values"
                     android:defaultValue="full"
                     app:useSimpleSummaryProvider="true" />
+                <SeekBarPreference
+                    android:key="pref_split_gap_pct"
+                    android:title="@string/pref_split_gap_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_split_gap_summary"
+                    android:defaultValue="16"
+                    android:max="40"
+                    app:min="0"
+                    app:showSeekBarValue="true" />
                 <ListPreference
                     android:key="pref_landscape_arrangement"
                     android:title="@string/pref_landscape_arrangement_title"

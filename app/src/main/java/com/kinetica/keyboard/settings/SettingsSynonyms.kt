@@ -58,6 +58,8 @@ object SettingsSynonyms {
             listOf("landscape", "rotate", "rotated", "sideways", "horizontal", "size", "tall"),
         Prefs.LANDSCAPE_SPLIT_GAP_PCT to
             listOf("gap", "apart", "space", "split", "landscape", "rotate", "sideways", "wider", "bigger"),
+        Prefs.SPLIT_GAP_PCT to
+            listOf("gap", "apart", "split", "middle", "centre", "center", "closer", "halves"),
         Prefs.LANDSCAPE_ARRANGEMENT to
             listOf("landscape", "rotate", "rotated", "sideways", "horizontal", "split", "centre", "center"),
         Prefs.BAR_ACTIONS to listOf(

@@ -12,8 +12,13 @@ object LayoutTransforms {
 
     private const val SIDE_SCALE = 0.85f
     private const val ONE_HANDED_SCALE = 0.85f
-    private const val SPLIT_HALF = 0.42f
-    private const val SPLIT_RIGHT_START = 0.58f
+
+    /**
+     * Gap between the halves of the portrait split, as a fraction of the view, before
+     * [com.kinetica.keyboard.settings.Prefs.SPLIT_GAP_PCT] made it a setting: 16%.
+     */
+    const val DEFAULT_SPLIT_GAP_PCT = 16
+    const val DEFAULT_SPLIT_GAP = DEFAULT_SPLIT_GAP_PCT / 100f
 
     /** Widest side inset the setting offers, per side. */
     const val MAX_SIDE_PAD_DP = 48
@@ -158,8 +163,9 @@ object LayoutTransforms {
         viewW: Float,
         viewH: Float,
         sidePadPx: Float,
+        splitGap: Float = DEFAULT_SPLIT_GAP,
     ): RectF {
-        val r = apply(mode, key, viewW, viewH)
+        val r = apply(mode, key, viewW, viewH, splitGap)
         if (sidePadPx <= 0f) return r
         return RectF(
             padX(r.left, sidePadPx, viewW), padY(r.top, sidePadPx, viewW),
@@ -167,7 +173,13 @@ object LayoutTransforms {
         )
     }
 
-    fun apply(mode: LayoutMode, key: Key, viewW: Float, viewH: Float): RectF {
+    fun apply(
+        mode: LayoutMode,
+        key: Key,
+        viewW: Float,
+        viewH: Float,
+        splitGap: Float = DEFAULT_SPLIT_GAP,
+    ): RectF {
         val x0 = key.x
         val x1 = key.x + key.w
         val y0 = key.y
@@ -183,8 +195,8 @@ object LayoutTransforms {
                 x1 * SIDE_SCALE * viewW, y1 * viewH,
             )
             LayoutMode.SPLIT -> RectF(
-                splitX(x0, key) * viewW, y0 * viewH,
-                splitX(x1, key) * viewW, y1 * viewH,
+                splitX(x0, key, splitGap) * viewW, y0 * viewH,
+                splitX(x1, key, splitGap) * viewW, y1 * viewH,
             )
             LayoutMode.ONE_HANDED, LayoutMode.ONE_HANDED_LEFT -> {
                 val left = mode == LayoutMode.ONE_HANDED_LEFT
@@ -207,16 +219,22 @@ object LayoutTransforms {
     fun oneHandedY(y: Float): Float = 1f - ONE_HANDED_SCALE + y * ONE_HANDED_SCALE
 
     /**
-     * Split: left-half keys compress into [0, 0.42], right-half keys into
-     * [0.58, 1], leaving a 16% gap. The spacebar bridges the gap unchanged.
+     * Split, x: left-half keys compress into [0, (1 - gap) / 2], right-half keys into
+     * [(1 + gap) / 2, 1], leaving [gap] of the view between them; 0 is the full-width board.
+     * The spacebar bridges the gap unchanged. Exposed as floats for the JVM test, like [padX].
      */
-    private fun splitX(x: Float, key: Key): Float {
+    fun splitX(x: Float, key: Key, gap: Float = DEFAULT_SPLIT_GAP): Float {
         if (key.type == KeyType.SPACE) return x
+        val g = gap.coerceIn(0f, MAX_SPLIT_GAP)
+        val scale = 1f - g
         val centerX = key.x + key.w / 2f
         return if (centerX < 0.5f) {
-            x * (SPLIT_HALF / 0.5f)
+            x * scale
         } else {
-            SPLIT_RIGHT_START + (x - 0.5f) * ((1f - SPLIT_RIGHT_START) / 0.5f)
+            1f - (1f - x) * scale
         }
     }
+
+    /** Widest portrait split gap: past it a ten-key row is under half its full-width size. */
+    const val MAX_SPLIT_GAP = 0.5f
 }

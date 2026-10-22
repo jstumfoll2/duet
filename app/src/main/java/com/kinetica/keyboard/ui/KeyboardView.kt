@@ -271,6 +271,14 @@ class KeyboardView @JvmOverloads constructor(
             if (width > 0 && height > 0 && landscapeArrangement == LandscapeArrangement.SPLIT) rebuild()
         }
 
+    /** Gap of the Split layout mode, percent of the view width; set by the service. */
+    var splitGapPct: Int = LayoutTransforms.DEFAULT_SPLIT_GAP_PCT
+        set(value) {
+            if (field == value) return
+            field = value
+            if (width > 0 && height > 0 && layoutMode == LayoutMode.SPLIT) rebuild()
+        }
+
     /** Small dot on the spacebar while autospace is enabled. */
     var autospaceDot = false
         set(value) {
@@ -765,7 +773,7 @@ class KeyboardView @JvmOverloads constructor(
             val rect = if (arrangement != null && blockPx > 0f) {
                 LayoutTransforms.applyLandscape(k, w, h, sidePad, arrangement, blockPx)
             } else {
-                LayoutTransforms.apply(layoutMode, k, w, h, sidePad)
+                LayoutTransforms.apply(layoutMode, k, w, h, sidePad, splitGapPct / 100f)
             }
             keyRects.add(rect)
             keyInsets.add(insetRect(rect))
