@@ -1,6 +1,8 @@
 package com.kinetica.keyboard.ime
 
 import com.kinetica.keyboard.engine.AccentFolder
+import com.kinetica.keyboard.engine.GrammarAutoFix
+import com.kinetica.keyboard.engine.GrammarCheck
 import com.kinetica.keyboard.engine.KeyboardGeometry
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.WordPredictor
@@ -340,6 +342,40 @@ internal fun grammarWords(tail: String, word: String): Pair<String?, String>? {
 }
 
 private val GRAMMAR_TAIL_RE = Regex("""(?:(?:^|\s)([\p{L}']+) )?(?:^|(?<=[^\p{L}']))([\p{L}']+) $""")
+
+internal enum class AutoFixKind { DOUBLED, CONTRACTION, AFTER_I, JOINED }
+
+/**
+ * A grammar auto-fix of the text before the cursor: the last [span] characters, which read
+ * [shown], become [text].
+ */
+internal class AutoFixEdit(val kind: AutoFixKind, val span: Int, val shown: String, val text: String)
+
+/**
+ * The grammar auto-fix ([GrammarAutoFix]) for [word], just written at the end of [tail] (the
+ * text before the cursor), or null. The rules that read the word before need it right before
+ * [word] with one space between ([grammarWords]); the case of the letters typed is kept.
+ */
+internal fun grammarAutoFix(tail: String, word: String, lex: GrammarAutoFix.Lexicon): AutoFixEdit? {
+    if (!tail.endsWith(word)) return null
+    val words = grammarWords(tail, word)
+    if (words != null) {
+        val (before, prev) = words
+        val shown = "$prev $word"
+        if (GrammarAutoFix.doubled(prev, word)) return AutoFixEdit(AutoFixKind.DOUBLED, shown.length, shown, prev)
+        if (GrammarAutoFix.contraction(prev, word) != null) {
+            val joined = prev.trimEnd('\'', '\u2019') + "'" + word.trimStart('\'', '\u2019')
+            return AutoFixEdit(AutoFixKind.CONTRACTION, shown.length, shown, joined)
+        }
+        GrammarAutoFix.afterI(before, prev, word)?.let {
+            return AutoFixEdit(AutoFixKind.AFTER_I, word.length, word, GrammarCheck.inCaseOf(word, it))
+        }
+    }
+    // A word run into `to` stands alone: nothing but a space or a mark before it.
+    if (tail.length > word.length && tail[tail.length - word.length - 1].let { it.isLetterOrDigit() || it == '\'' }) return null
+    val (first, second) = GrammarAutoFix.joinedTo(word, lex) ?: return null
+    return AutoFixEdit(AutoFixKind.JOINED, word.length, word, "$first $second")
+}
 
 /** Moves [typed] to just after the committed word in a strip's [options], adding it if absent. */
 internal fun moveTypedSecond(options: MutableList<String>, typed: String) {

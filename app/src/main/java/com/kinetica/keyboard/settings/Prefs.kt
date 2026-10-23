@@ -550,6 +550,12 @@ object Prefs {
     const val HARPER_GRAMMAR = "pref_harper_grammar"
 
     /**
+     * Grammar auto-fixes: slips no reading makes right are fixed as the word lands (`to to`,
+     * `isn t`, `I are`, `tobe`), and one backspace takes the fix back (GrammarAutoFix).
+     */
+    const val GRAMMAR_AUTOFIX = "pref_grammar_autofix"
+
+    /**
      * The floating keyboard: narrower, and moved anywhere by its handle, with the app usable
      * around it. Its width is [FLOAT_WIDTH_PCT]; where it sits is [FLOAT_LEFT_PCT] and
      * [FLOAT_LIFT_DP], written by the handle, not by a settings row.
@@ -790,6 +796,7 @@ object Prefs {
     const val DEFAULT_INCOGNITO = false
     const val DEFAULT_KEY_SOUND = false
     const val DEFAULT_HARPER_GRAMMAR = false
+    const val DEFAULT_GRAMMAR_AUTOFIX = true
     const val DEFAULT_EMOJI_SUGGESTIONS = false
     const val DEFAULT_EMOJI_TONE = 0
     const val DEFAULT_FLOATING = false

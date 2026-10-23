@@ -42,6 +42,10 @@ import java.io.File
  *   grammar TRACE.jsonl...
  *       The grammar pass over each committed English word and the two before it: every
  *       rewrite it would make, with the word pairs it read (#55).
+ *   autofix [--lexicon] TRACE.jsonl...
+ *       The grammar auto-fixes (GrammarAutoFix) over each committed English word and the two
+ *       before it: every fix they would make and the next commits after it. --lexicon also
+ *       lists every English dictionary word joinedTo would cut.
  *   rejoindata TRACE.jsonl...
  *       One row per buffer of a word an automatic space ended, reopened, and typed on: a word
  *       and the next word's tokens after its seeded taps (split), and a tapped word cut where its
@@ -371,6 +375,59 @@ object ReplayCli {
                     ).joinToString("\t"))
                 }
                 println("checked $checked rewrites $fixed")
+            }
+            "autofix" -> {
+                val lexicon = a.remove("--lexicon")
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                // The user's commits so far, as the keyboard's personal counts would hold them.
+                val counts = HashMap<String, Int>()
+                fun lexOf(p: WordPredictor) = object : com.kinetica.keyboard.engine.GrammarAutoFix.Lexicon {
+                    override fun isWord(word: String) = p.isWordIgnoringCase(word)
+                    override fun frequencyByte(word: String) = p.frequencyByte(word)
+                    override fun pairByte(prev: String, next: String) = p.pairByte(prev, next)
+                    override fun learned(word: String) = (counts[word] ?: 0) >= KineticaConstants.PERSONAL_MERGE_MIN_COUNT
+                }
+                val tally = HashMap<String, Int>()
+                var checked = 0
+                var english: WordPredictor? = null
+                for (f in a.map { File(it) }) {
+                    val words = read(f, sink)
+                    for ((i, pair) in words.withIndex()) {
+                        val (n, w) = pair
+                        if (w.config.language != "en") continue
+                        val word = w.committed ?: continue
+                        val ctx = w.context
+                        val prev = ctx.lastOrNull()
+                        val before = ctx.getOrNull(ctx.size - 2)
+                        val lex = lexOf(h.predictorFor(w).also { english = it })
+                        checked++
+                        val fix = when {
+                            prev != null && com.kinetica.keyboard.engine.GrammarAutoFix.doubled(prev, word) -> "doubled" to "$prev $word -> $prev"
+                            prev != null -> com.kinetica.keyboard.engine.GrammarAutoFix.contraction(prev, word)?.let { "contraction" to "$prev $word -> $it" }
+                                ?: com.kinetica.keyboard.engine.GrammarAutoFix.afterI(before, prev, word)?.let { "afterI" to "${before ?: "^"} $prev $word -> $it" }
+                            else -> null
+                        } ?: com.kinetica.keyboard.engine.GrammarAutoFix.joinedTo(word, lex)?.let { "joined" to "$word -> ${it.first} ${it.second}" }
+                        counts.merge(word.lowercase(), 1, Int::plus)
+                        if (fix == null) continue
+                        tally.merge(fix.first, 1, Int::plus)
+                        val next = words.drop(i + 1).take(3).joinToString(" ") { it.second.committed ?: "?" }
+                        println(listOf(f.name.take(11), n, if (w.target != null) "practice" else "free", fix.first, fix.second, w.how ?: "-", "next: $next").joinToString("\t"))
+                    }
+                }
+                println("checked $checked fixes $tally")
+                val p = english
+                if (lexicon && p != null) {
+                    counts.clear()
+                    val lex = lexOf(p)
+                    val list = File(assets, "dictionaries/en_wordlist.txt").readLines().map { it.substringBefore('\t') }
+                    for (word in list) {
+                        val cut = com.kinetica.keyboard.engine.GrammarAutoFix.joinedTo(word, lex) ?: continue
+                        println("lexicon\t$word\tf=${p.frequencyByte(word)}\t${cut.first} ${cut.second}\tpair=${p.pairByte(cut.first, cut.second)}")
+                    }
+                }
             }
             "rejoindata" -> {
                 if (a.isEmpty()) usage()

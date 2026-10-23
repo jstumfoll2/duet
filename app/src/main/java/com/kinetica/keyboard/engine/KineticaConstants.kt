@@ -535,6 +535,12 @@ object KineticaConstants {
     const val GRAMMAR_SILENT_LEFT_MIN_PAIR_BYTE = 100
 
     /**
+     * The commonest a word may be and still be cut into `to` and a word by the grammar auto-fix
+     * ([GrammarAutoFix.joinedTo]): `tobe` (rare) is `to be`, `today` and `token` stay.
+     */
+    const val AUTOFIX_JOINED_MAX_FREQ_BYTE = 90
+
+    /**
      * Score kept per letter a swipe segment consumed that the finger was never measurably on.
      *
      * A segment admits any key whose centre is within R_INNER_KW of the path, so every neighbour
