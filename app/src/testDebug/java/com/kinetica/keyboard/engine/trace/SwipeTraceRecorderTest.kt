@@ -55,4 +55,13 @@ class SwipeTraceRecorderTest {
         end(listOf(seeded('t', 1297), seeded('o', 1298)), "to")
         assertNull(literals(lines.last()).first().real)
     }
+
+    @Test
+    fun onlyWordLinesCountAsWordsAndADiscardTakesOneBack() {
+        end(listOf(tap(1, 's', 1000, 1060), tap(2, 'o', 1200, 1250)), "so")
+        assertEquals(1, SwipeTrace.wordDelta(lines.last()))
+        assertEquals(-1, SwipeTrace.wordDelta(SwipeTrace.encodeDiscard()))
+        assertEquals(0, SwipeTrace.wordDelta(SwipeTrace.encodeKey("space", 1300)))
+        assertEquals(0, SwipeTrace.wordDelta(SwipeTrace.encodeCorrection("so", "do")))
+    }
 }

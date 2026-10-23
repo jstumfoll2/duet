@@ -204,6 +204,15 @@ object TraceRecorder {
         var lines: Long = 0L
             private set
 
+        /**
+         * Words recorded: word lines less the discards that withdrew some. [lines] counts key
+         * presses and corrections too, so a word typed with its own space was two lines and one
+         * given an automatic space one, and the line count said little about how much was typed.
+         */
+        @Volatile
+        var words: Long = 0L
+            private set
+
         /** Set by the practice screen while it is showing: its current prompt. */
         @Volatile
         var practiceTarget: String? = null
@@ -216,6 +225,7 @@ object TraceRecorder {
             prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             file = f
             lines = TraceRecorder.countLines(f)
+            words = TraceRecorder.countWords(File(f.parentFile, f.name + ".1")) + TraceRecorder.countWords(f)
         }
 
         internal fun attach(engine: GestureEngine, info: TraceInfo) {
@@ -259,12 +269,16 @@ object TraceRecorder {
                     f.parentFile?.mkdirs()
                     if (f.length() > MAX_WORD_BYTES) {
                         val old = File(f.parentFile, f.name + ".1")
-                        if (old.exists()) old.delete()
+                        if (old.exists()) {
+                            words -= TraceRecorder.countWords(old)
+                            old.delete()
+                        }
                         f.renameTo(old)
                         lines = 0L
                     }
                     f.appendText(line + "\n")
                     lines++
+                    words = (words + SwipeTrace.wordDelta(line)).coerceAtLeast(0L)
                 } catch (e: IOException) {
                     Log.w("KineticaTrace", "word trace write failed", e)
                 }
@@ -292,6 +306,7 @@ object TraceRecorder {
                 File(f.parentFile, f.name + ".1").delete()
                 f.delete()
                 lines = 0L
+                words = 0L
             }
         }
     }
@@ -302,6 +317,13 @@ object TraceRecorder {
 
     /** Two files of this size: at ~3 KB a word, about 5 000 words before the oldest go. */
     private const val MAX_WORD_BYTES = 8L * 1024 * 1024
+
+    private fun countWords(f: File): Long =
+        if (!f.exists()) 0L else try {
+            f.useLines { seq -> seq.sumOf { SwipeTrace.wordDelta(it).toLong() } }.coerceAtLeast(0L)
+        } catch (e: IOException) {
+            0L
+        }
 
     private fun countLines(f: File): Long =
         if (!f.exists()) 0L else try {

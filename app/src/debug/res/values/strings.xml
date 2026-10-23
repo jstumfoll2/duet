@@ -46,6 +46,10 @@
     <string name="practice_ab_last">Last: today \"%1$s\" (%2$s ms) · neural \"%3$s\" (%4$s ms)</string>
     <string name="practice_ab_none">Comparison unavailable until the keyboard has loaded its dictionary.</string>
 
+    <plurals name="trace_word_stats">
+        <item quantity="one">%1$d word (%2$d lines with key presses), %3$s</item>
+        <item quantity="other">%1$d words (%2$d lines with key presses), %3$s</item>
+    </plurals>
     <plurals name="trace_stats">
         <item quantity="one">%1$d line, %2$s</item>
         <item quantity="other">%1$d lines, %2$s</item>
