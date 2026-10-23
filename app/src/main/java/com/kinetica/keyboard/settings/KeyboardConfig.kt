@@ -215,6 +215,8 @@ data class KeyboardConfig(
     val keySound: Boolean = false,
     /** Harper's grammar problems underlined through Duet's spell checker (English only). */
     val harperGrammar: Boolean = false,
+    /** Doubled words, split contractions, `I are` and `tobe` fixed as they land (English only). */
+    val grammarAutoFix: Boolean = Prefs.DEFAULT_GRAMMAR_AUTOFIX,
     /** Emoji for the word before the cursor in the suggestion bar. */
     val emojiSuggestions: Boolean = false,
     /** The floating keyboard, its width as a percent of the screen, and where it sits. */
@@ -478,6 +480,7 @@ data class KeyboardConfig(
             incognito = prefs.getBoolean(Prefs.INCOGNITO, Prefs.DEFAULT_INCOGNITO),
             keySound = prefs.getBoolean(Prefs.KEY_SOUND, Prefs.DEFAULT_KEY_SOUND),
             harperGrammar = prefs.getBoolean(Prefs.HARPER_GRAMMAR, Prefs.DEFAULT_HARPER_GRAMMAR),
+            grammarAutoFix = prefs.getBoolean(Prefs.GRAMMAR_AUTOFIX, Prefs.DEFAULT_GRAMMAR_AUTOFIX),
             emojiSuggestions = prefs.getBoolean(Prefs.EMOJI_SUGGESTIONS, Prefs.DEFAULT_EMOJI_SUGGESTIONS),
             floating = prefs.getBoolean(Prefs.FLOATING, Prefs.DEFAULT_FLOATING),
             floatWidthPct = prefs.getInt(Prefs.FLOAT_WIDTH_PCT, Prefs.DEFAULT_FLOAT_WIDTH_PCT),

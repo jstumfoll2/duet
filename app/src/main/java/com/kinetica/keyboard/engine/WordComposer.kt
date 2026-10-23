@@ -429,6 +429,17 @@ class WordComposer(
         while (context.size > 2) context.removeFirst()
     }
 
+    /** The last committed word was taken out of the text (a word typed twice). */
+    fun dropLastCommit() {
+        if (context.isNotEmpty()) context.removeLast()
+    }
+
+    /** The context back as [words] held it, from [contextSnapshot]: an own edit taken back. */
+    fun restoreContext(words: List<String>) {
+        context.clear()
+        context.addAll(words.takeLast(2))
+    }
+
     /** The correction strip swapped the last committed word. */
     fun replaceLastCommit(word: String) {
         if (context.isNotEmpty()) context.removeLast()

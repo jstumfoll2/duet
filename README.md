@@ -104,6 +104,10 @@ F-Droid.
 - Word triples (`en_trigrams.txt`) for context, on top of Kinetica's word pairs.
 - A small grammar pass on the word before the one just written: `a`/`an`, `could of`, `he don't`,
   and confusion pairs such as `then`/`than` when the next word settles them (`GrammarCheck`).
+- Grammar auto-fixes as a word lands (on by default: Settings > Typing > Fix grammar slips
+  automatically): a function word typed twice (`to to`), a contraction split by a space
+  (`isn t`), `I are`, and `to` run into a word (`tobe`, `triedto`). One backspace right after
+  puts the text back (`GrammarAutoFix`).
 - Grammar underlines from [Harper](https://github.com/Automattic/harper) (opt-in: Settings >
   Typing > Grammar check). Harper (Apache-2.0, rule-based, a few milliseconds per sentence) runs
   on the phone. A slim row above the suggestion bar mirrors the sentence being written with its

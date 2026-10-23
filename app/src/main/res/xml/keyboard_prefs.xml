@@ -40,6 +40,12 @@
                     android:summary="@string/pref_harper_grammar_summary"
                     android:defaultValue="false" />
                 <SwitchPreferenceCompat
+                    android:key="pref_grammar_autofix"
+                    android:title="@string/pref_grammar_autofix_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_grammar_autofix_summary"
+                    android:defaultValue="true" />
+                <SwitchPreferenceCompat
                     android:key="pref_peck_mode"
                     android:title="@string/pref_peck_mode_title"
                     app:singleLineTitle="false"

@@ -43,6 +43,7 @@ import com.kinetica.keyboard.engine.Alphabet
 import com.kinetica.keyboard.engine.DictionaryLoader
 import com.kinetica.keyboard.engine.DigitSlips
 import com.kinetica.keyboard.engine.GestureEngine
+import com.kinetica.keyboard.engine.GrammarAutoFix
 import com.kinetica.keyboard.engine.GrammarCheck
 import com.kinetica.keyboard.engine.HarperLints
 import com.kinetica.keyboard.engine.KeyboardGeometry
@@ -336,6 +337,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // the user then deleted. Cleared by the next commit.
     private class GrammarFix(val shown: String, val replacement: String, val next: String)
     private var grammarFix: GrammarFix? = null
+
+    // The last grammar auto-fix ([autoFixGrammar]): [shown] became [fixed], ending at [end], with
+    // the composer's context as it was before. A backspace right after puts [shown] back, as it
+    // does an autocorrect. Cleared when an autocorrect's undo would be.
+    private class AutoFixUndo(val shown: String, val fixed: String, val end: Int, val context: List<String>?)
+    private var autoFixUndo: AutoFixUndo? = null
+    // Auto-fixes the user took back, lowercased (`to to`): not made again while the keyboard runs.
+    private val rejectedAutoFixes = LinkedHashSet<String>()
 
     /**
      * The autocorrect the last commit made, for the strip: unlike [autocorrectUndo] it outlives
@@ -1255,6 +1264,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         selectionLedger.clear()
         commitHistory.clear()
         autocorrectUndo = null
+        autoFixUndo = null
         // A field can open with text already selected, so seed from the editor. Either offset
         // is -1 when the editor did not report one, which means no selection.
         val s = attribute?.initialSelStart ?: -1
@@ -1374,6 +1384,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val verdict = selectionLedger.judge(newSelStart, newSelEnd, SystemClock.uptimeMillis())
         if (verdict == SelectionLedger.Verdict.USER) {
             autocorrectUndo = null
+            autoFixUndo = null
             wholeWordArmStart = -1
         }
         if (verdict != SelectionLedger.Verdict.USER) {
@@ -1434,6 +1445,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     override fun onTokenFinalized(token: InputToken) {
         autocorrectUndo = null
+        autoFixUndo = null
         cancelAutospace()
         clearCorrection()
         // A tapped letter under the one-shot Ctrl is a key combination, not a letter; a swipe
@@ -4078,6 +4090,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val armedStart = wholeWordArmStart
         wholeWordArmStart = -1
         cancelAutospace()
+        if (undoAutoFix()) return
         if (undoAutocorrect()) return
         if (splitJoinedCommit()) return
         if (tap && config.backspaceWholeWord && deleteSwipedWord(armedStart)) return
@@ -4585,7 +4598,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // commit: only a tapped head that stands as a word, and never a word reopened by hand.
         val rest = comp.twoWords?.takeIf { (reloadedWord == null || comp.rejoinHead > 0) && it.tapWord != null }?.restWord
         commitWordInternal(finalWord)
-        if (joinedAt > 0) {
+        if (joinedAt > 0 && autoFixUndo == null) {
             joinedCommit = JoinedCommit(finalWord, joinedAt, cursorExpected(), rest)
             DecodeTrace.log { "  joined word=$finalWord head=${finalWord.take(joinedAt)} rest=${rest ?: "-"}" }
         }
@@ -5132,6 +5145,91 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         reloadedByHand = false
         reloadHistory = null
         updateBarWordPending()
+        autoFixGrammar(word)
+    }
+
+    /**
+     * The grammar auto-fixes ([GrammarAutoFix]) on [word], which has just gone on screen: `to to`
+     * loses its second `to`, `isn t` becomes `isn't`, `I are` becomes `I am`, `tobe` becomes
+     * `to be`. English only, under autocorrect and the auto-fix setting, never in private or
+     * address fields, never on a word the user picked, and never where the grammar pass has just
+     * rewritten. One backspace right after takes it back ([undoAutoFix]).
+     */
+    private fun autoFixGrammar(word: String) {
+        autoFixUndo = null
+        if (!config.grammarAutoFix || config.autocorrectConfidence == null || !editorState.offersCorrections) return
+        if (editorState.addressField || word.isEmpty() || lastCommitDeliberate || grammarFix != null) return
+        if (config.language != "en" || languageOf(word) != "en" || selectionLength() != 0) return
+        val p = predictor ?: return
+        val w = word.lowercase()
+        // This commit's +1 is not the user writing the word.
+        val own = if (lastCommitLearned == w) 1 else 0
+        val lex = object : GrammarAutoFix.Lexicon {
+            override fun isWord(word: String) = p.isWordIgnoringCase(word)
+            override fun frequencyByte(word: String) = p.frequencyByte(word)
+            override fun pairByte(prev: String, next: String) = p.pairByte(prev, next)
+            override fun learned(word: String) =
+                (personalCounts[word] ?: 0) - (if (word == w) own else 0) >= KineticaConstants.PERSONAL_MERGE_MIN_COUNT
+        }
+        val tail = ich.textBeforeCursor(GRAMMAR_TAIL_CHARS)?.toString() ?: return
+        val edit = grammarAutoFix(tail, word, lex) ?: return
+        if (edit.shown.lowercase() in rejectedAutoFixes) return
+        val context = composer?.contextSnapshot()
+        ich.replaceBeforeCursor(edit.span, edit.text)
+        expectAfter(edit.span, edit.text.length)
+        composer?.let { c ->
+            when (edit.kind) {
+                AutoFixKind.DOUBLED -> c.dropLastCommit()
+                AutoFixKind.CONTRACTION -> {
+                    c.dropLastCommit()
+                    c.replaceLastCommit(edit.text.lowercase())
+                }
+                AutoFixKind.AFTER_I -> c.replaceLastCommit(edit.text.lowercase())
+                AutoFixKind.JOINED -> {
+                    val (first, second) = edit.text.lowercase().split(' ', limit = 2)
+                    c.splitLastCommit(first, second)
+                }
+            }
+        }
+        recentWords.dropNewest()
+        if (edit.kind != AutoFixKind.DOUBLED) {
+            if (edit.kind == AutoFixKind.CONTRACTION) recentWords.onReplaced(0, edit.text)
+            else recentWords.onCommit(edit.text, emptyList(), mapOf(edit.text.lowercase() to "en"))
+        }
+        if (lastCommitLearned == w) {
+            unlearnWord(word)
+            lastCommitLearned = null
+        }
+        clearCorrection()
+        autocorrectUndo = null
+        wholeWordArmStart = -1
+        autoFixUndo = AutoFixUndo(edit.shown, edit.text, cursorExpected(), context)
+        DecodeTrace.log { "  grammar autofix kind=${edit.kind.name.lowercase()} shown=${edit.shown} fixed=${edit.text}" }
+    }
+
+    /**
+     * Puts back what the last grammar auto-fix replaced, when the backspace comes right after it:
+     * the fixed text and at most the space after it. The fix is not made again.
+     */
+    private fun undoAutoFix(): Boolean {
+        val undo = autoFixUndo ?: return false
+        autoFixUndo = null
+        if (selectionLength() != 0) return false
+        val after = cursorExpected() - undo.end
+        val before = ich.textBeforeCursor(undo.fixed.length + 1) ?: return false
+        val span = autocorrectUndoSpan(before, undo.fixed, after)
+        if (span < 0) return false
+        abandonWord()
+        ich.replaceBeforeCursor(span, undo.shown)
+        expectAfter(span, undo.shown.length)
+        autospaceInserted = false
+        undo.context?.let { composer?.restoreContext(it) }
+        rejectedAutoFixes.remove(undo.shown.lowercase())
+        rejectedAutoFixes.add(undo.shown.lowercase())
+        while (rejectedAutoFixes.size > REJECTED_CORRECTIONS_MAX) rejectedAutoFixes.remove(rejectedAutoFixes.first())
+        DecodeTrace.log { "  grammar autofix undo fixed=${undo.fixed} back=${undo.shown}" }
+        updateAutoShift()
+        return true
     }
 
     /**

@@ -170,6 +170,8 @@
     <string name="pref_british_spelling_summary">Rank colour, centre and organise above the American spellings. English only</string>
     <string name="pref_enabled_languages_summary">Languages the language switch cycles through (order: English, Italiano, Español, Polski, Čeština, Nederlands, Deutsch, Français, Norsk, then the experimental Русский, עברית, العربية, Українська)</string>
     <string name="pref_peck_mode_title">Peck-type mode</string>
+    <string name="pref_grammar_autofix_title">Fix grammar slips automatically</string>
+    <string name="pref_grammar_autofix_summary">English, with autocorrect on. A word typed twice (to to), a contraction split by a space (isn t), I are, and to run into a word (tobe) are fixed as you type. One backspace right after puts it back</string>
     <string name="pref_harper_grammar_title">Grammar check (Harper)</string>
     <string name="pref_harper_grammar_summary">English. A slim row above the suggestions shows the sentence you are writing, with grammar mistakes underlined in red, checked on this phone by Harper; tap an underlined word for the fix. With Duet chosen as the system spell checker (Android 12+), apps that support it underline the mistakes in the text too</string>
     <string name="pref_incognito_title">Incognito</string>
