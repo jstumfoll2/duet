@@ -86,4 +86,49 @@ class PracticeProseTest {
         }
         assertEquals(PracticeProse.PASSAGES.size, seen.size)
     }
+
+    private val soon = PracticeProse.words("I will be there soon. Can you wait a little longer for me?")
+
+    @Test
+    fun twoWordsReadAsOneDoNotShiftTheLabelsAfterThem() {
+        // Batch 2026-10-22: "be there" came out as "between", and counting words labelled every
+        // later line with the word before its own.
+        val p = PracticeProse.progress(soon, "I will between ")
+        assertEquals(4, p.current)
+        assertEquals(listOf(true, true, false, false), p.finished)
+        assertEquals(5, PracticeProse.progress(soon, "I will between soon. ").current)
+    }
+
+    @Test
+    fun oneWordReadAsTwoDoesNotShiftThem() {
+        val passage = PracticeProse.words("We will meet today at noon.")
+        assertEquals(4, PracticeProse.progress(passage, "We will meet to day ").current)
+    }
+
+    @Test
+    fun aStrayWordIsPassedOver() {
+        assertEquals(4, PracticeProse.progress(soon, "I will be be there ").current)
+        assertEquals(5, PracticeProse.progress(soon, "I will be there a soon ").current)
+    }
+
+    @Test
+    fun aWrongWordStillTakesItsPlace() {
+        // Nothing like the passage word, and nothing to say it was meant for another one.
+        val p = PracticeProse.progress(soon, "I will be there gad ")
+        assertEquals(5, p.current)
+        assertEquals(listOf(true, true, true, true, false), p.finished)
+    }
+
+    @Test
+    fun aLeftOutWordIsRecoveredByTheNextOne() {
+        // "be" left out: one word on, "soon" places "there" where it belongs.
+        assertEquals(5, PracticeProse.progress(soon, "I will there soon ").current)
+    }
+
+    @Test
+    fun distanceRunsFromSameToNothingAlike() {
+        assertEquals(0.0, PracticeProse.distance("soon", "soon"), 0.0)
+        assertEquals(1.0, PracticeProse.distance("gad", "xyz"), 0.0)
+        assertEquals(0.25, PracticeProse.distance("its", "it's"), 1e-9)
+    }
 }
