@@ -9,6 +9,16 @@
     <!-- Opt-in (Settings > Typing > Names from contacts), asked for at runtime only when that
          switch is turned on: the words of contact names, read at dictionary load, never kept. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Android 11+ hides other apps unless asked for: the voice key looks for a voice typing
+         keyboard, or else an app that answers the speech recognizer prompt. No permission. -->
+    <queries>
+        <intent>
+            <action android:name="android.view.InputMethod" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
     <!-- READ_SMS implies a telephony requirement; a tablet still gets the keyboard. -->
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
@@ -108,6 +118,15 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/clip_images" />
         </provider>
+
+        <!-- The voice key's speech recognizer prompt (VoiceInput), when no voice typing keyboard
+             is on. Invisible: only the recognizer's own dialog shows. -->
+        <activity
+            android:name=".ime.VoiceActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <activity
             android:name=".onboarding.MainActivity"

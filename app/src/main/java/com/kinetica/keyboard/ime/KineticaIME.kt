@@ -1279,6 +1279,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         updateAutoShift()
         reloadChords()
         emojiStore.reload()
+        writeDictation(attribute)
+    }
+
+    /** Writes what the speech recognizer heard, once the field it was asked in is back. */
+    private fun writeDictation(info: EditorInfo?) {
+        val text = VoiceInput.take(info?.packageName, info?.fieldId ?: 0, SystemClock.uptimeMillis()) ?: return
+        val written = VoiceInput.joined(ich.textBeforeCursor(1), text)
+        DecodeTrace.log { "  voice wrote chars=${written.length}" }
+        commitTracked(written)
+        updateAutoShift()
     }
 
     /** Mirrors the expansion table into memory, on the database thread. */
@@ -3099,7 +3109,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     /**
      * Hands input to the user's voice typing keyboard (FUTO Voice Input, Google voice typing,
      * any input method with a voice subtype); it returns to this keyboard when it is done.
-     * Kinetica itself never listens. With none turned on, the input method settings open.
+     * With no such keyboard on, the phone's speech recognizer is asked instead (VoiceActivity).
+     * Kinetica itself never listens. With neither, the input method settings open.
      */
     private fun switchToVoice() {
         cancelAutospace()
@@ -3107,6 +3118,20 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val imm = getSystemService(InputMethodManager::class.java) ?: return
         val target = VoiceInput.target(imm, packageName)
         DecodeTrace.log { "  voice switch to=${target?.first ?: "none"}" }
+        // Gboard's own voice typing, and most phones', is no keyboard of its own: ask the
+        // speech recognizer instead, and write what it heard when the field is back.
+        if (target == null && VoiceInput.hasRecognizer(this)) {
+            DecodeTrace.log { "  voice recognizer" }
+            val info = currentInputEditorInfo
+            VoiceInput.expect(info?.packageName, info?.fieldId ?: 0, SystemClock.uptimeMillis())
+            requestHideSelf(0)
+            startActivity(
+                Intent(this, VoiceActivity::class.java)
+                    .putExtra(VoiceActivity.EXTRA_LANGUAGE, config.language)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION),
+            )
+            return
+        }
         if (target == null) {
             Toast.makeText(this, R.string.voice_none, Toast.LENGTH_LONG).show()
             requestHideSelf(0)

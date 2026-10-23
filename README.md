@@ -133,7 +133,9 @@ F-Droid.
   row (paste, undo, clipboard and the rest) in the middle of a sentence, over the last word's
   alternatives. A shortcut, a second tap or the next word puts the suggestions back. Turn it off in
   Settings > Suggestion bar.
-- **Voice typing key.** An action that hands the field to the phone's voice input; bind it to a
+- **Voice typing key.** An action that hands the field to the phone's voice input: a voice typing
+  keyboard (FUTO Voice Input, Google voice typing) if one is turned on, otherwise the phone's
+  speech recognizer prompt, whose words land in the field. Duet itself never listens. Bind it to a
   chord, an edge swipe or a bar shortcut.
 - **Autofill chips.** On Android 11 and later, the password manager's saved logins, addresses and
   codes appear as chips in the bar. The keyboard never sees the secret behind a chip.
