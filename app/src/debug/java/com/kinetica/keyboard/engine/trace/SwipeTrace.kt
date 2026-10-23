@@ -288,6 +288,20 @@ object SwipeTrace {
         JsonWriter().beginObject().key("v").value(VERSION).key("type").value("key")
             .key("k").value(name).key("t").value(t).endObject().toString()
 
+    /**
+     * What a line adds to the count of recorded words: 1 for a word line, -1 for a discard, which
+     * withdraws one, 0 for the rest (key presses, corrections). Read from the line's start, which
+     * the encoders above always write as `{"v":..,"type":..`, so counting a file parses nothing.
+     */
+    fun wordDelta(line: String): Int = when {
+        line.startsWith(WORD_HEAD) -> 1
+        line.startsWith(DISCARD_HEAD) -> -1
+        else -> 0
+    }
+
+    private val WORD_HEAD = "{\"v\":$VERSION,\"type\":\"word\""
+    private val DISCARD_HEAD = "{\"v\":$VERSION,\"type\":\"discard\""
+
     /** A line of any type: a [Word], a correction as (from, to), a discard, or a key press. */
     sealed class Line {
         data class WordLine(val word: Word) : Line()

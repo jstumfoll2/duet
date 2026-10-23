@@ -207,8 +207,9 @@ class TraceActivity : AppCompatActivity() {
             getString(R.string.trace_empty)
         } else {
             resources.getQuantityString(
-                R.plurals.trace_stats,
-                TraceRecorder.words.lines.toInt(),
+                R.plurals.trace_word_stats,
+                TraceRecorder.words.words.toInt(),
+                TraceRecorder.words.words,
                 TraceRecorder.words.lines,
                 readableSize(wordBytes),
             )
