@@ -458,8 +458,20 @@ internal fun mergeNextWords(
  * [head] letters were a word of their own before the join (`to` of `toddle`, from `to` tapped
  * and `feel` swiped). [rest] is how the swipe after the tapped word read on its own (`feel`),
  * null when it was not decoded that way.
+ *
+ * [lead] is the first word when it is not a prefix of [word]: a swiped word the next swipe
+ * joined before its automatic space (`changes` and `the`, read as `cheated`), [head] then 0.
  */
-internal class JoinedCommit(val word: String, val head: Int, val end: Int, val rest: String? = null) {
+internal class JoinedCommit(
+    val word: String,
+    val head: Int,
+    val end: Int,
+    val rest: String? = null,
+    val lead: String? = null,
+) {
+    /** The first of the two words, as the commit is cased. */
+    val first: String get() = if (lead == null) word.take(head) else casedLike(word, lead)
+
     /**
      * What a backspace right after the word puts back, as (characters replaced, text): the two
      * words, with the space after the word kept when one follows (`toddle ` becomes `to feel `).
@@ -469,10 +481,11 @@ internal class JoinedCommit(val word: String, val head: Int, val end: Int, val r
      */
     fun splitBefore(before: CharSequence, anchor: Int): Pair<Int, String>? {
         val r = rest?.takeIf { it.isNotEmpty() } ?: return null
-        if (head <= 0 || head >= word.length) return null
+        if (lead == null && (head <= 0 || head >= word.length)) return null
+        if (lead != null && (lead.isEmpty() || lead.equals(word, ignoreCase = true))) return null
         if (word.any { it == '\'' || it == '\u2019' }) return null
         val second = if (word.length > 1 && word.none { it.isLowerCase() }) r.uppercase() else r
-        val two = word.substring(0, head) + " " + second
+        val two = "$first $second"
         return when {
             anchor == end && before.endsWith(word) -> word.length to two
             anchor == end + 1 && before.endsWith("$word ") -> word.length + 1 to "$two "
@@ -487,6 +500,8 @@ internal class JoinedCommit(val word: String, val head: Int, val end: Int, val r
      * one space, and the text there is still the word.
      */
     fun cutBefore(before: CharSequence, anchor: Int): Int {
+        // A rewritten word shares no letters with its first word to stop at.
+        if (lead != null) return 0
         val tail = word.length - head
         if (tail <= 0) return 0
         return when {
@@ -495,4 +510,14 @@ internal class JoinedCommit(val word: String, val head: Int, val end: Int, val r
             else -> 0
         }
     }
+}
+
+/**
+ * [word] cased as [like] is: all capitals when [like] is (and longer than a letter), a capital
+ * first letter when [like] starts with one, else as it is.
+ */
+internal fun casedLike(like: String, word: String): String = when {
+    like.length > 1 && like.none { it.isLowerCase() } -> word.uppercase()
+    like.firstOrNull()?.isUpperCase() == true -> word.replaceFirstChar { it.uppercaseChar() }
+    else -> word
 }

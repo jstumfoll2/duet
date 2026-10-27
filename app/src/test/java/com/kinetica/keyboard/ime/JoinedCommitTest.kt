@@ -43,4 +43,16 @@ class JoinedCommitTest {
         assertNull(j.splitBefore("it became waddle", 17))
         assertNull("an apostrophe word is one word", JoinedCommit("it's", 1, 4, "ted").splitBefore("it's", 4))
     }
+
+    @Test
+    fun aSwipedWordTheNextSwipeRewroteSplitsBack() {
+        // `changes` swiped, `the` swiped before its automatic space, read as `cheated`.
+        val j = JoinedCommit("cheated", head = 0, end = 15, rest = "the", lead = "changes")
+        assertEquals(7 to "changes the", j.splitBefore("it cheated", 15))
+        assertEquals(8 to "changes the ", j.splitBefore("it cheated ", 16))
+        assertEquals("the commit's capital", 7 to "Changes the", JoinedCommit("Cheated", 0, 7, "the", "changes").splitBefore("Cheated", 7))
+        assertEquals("caps lock", 7 to "CHANGES THE", JoinedCommit("CHEATED", 0, 7, "the", "changes").splitBefore("CHEATED", 7))
+        assertNull("the same word is no join", JoinedCommit("the", 0, 3, "e", "the").splitBefore("the", 3))
+        assertEquals("the slide has no join to stop at", 0, j.cutBefore("it cheated", 15))
+    }
 }

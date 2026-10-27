@@ -131,4 +131,40 @@ class PeckSplitTest {
         assertEquals(false, r!!.chosen)
         assertEquals("a", r.tapWord)
     }
+
+    @Test
+    fun theSwipeHeadIsTheLastPauseBetweenSwipes() {
+        val a = TestData.swipe("chang", g, 0, 300, StreamId.LEFT)
+        val b = TestData.swipe("es", g, 100, 250)
+        val c = TestData.swipe("the", g, 700, 200)
+        assertEquals(2, PeckSplit.swipeHead(listOf(a, b, c)))
+        assertEquals("overlapping thumbs are one word", 0, PeckSplit.swipeHead(listOf(a, b)))
+        assertEquals("a tap after the pause is no next swipe", 0, PeckSplit.swipeHead(listOf(a, b, TestData.tap('t', g, 700))))
+        assertEquals("taps before are the peck split's", 0, PeckSplit.swipeHead(listOf(TestData.tap('t', g, 0), TestData.swipe("help", g, 400, 300))))
+    }
+
+    @Test
+    fun aSwipedWordAndTheNextSwipeReadBackAsTwo() {
+        val t = listOf(TestData.swipe("help", g, 0, 300), TestData.swipe("the", g, 700, 250))
+        val r = PeckSplit.readSwipe(english, t, listOf("i", "want"), oneLetter)
+        assertNotNull(r)
+        assertEquals(false, r!!.chosen)
+        assertEquals(true, r.swipeHead)
+        assertEquals(2, r.total)
+        assertEquals("help", r.tapWord)
+        assertEquals("the", r.restWord)
+        assertNull("one swipe", PeckSplit.readSwipe(english, t.take(1), listOf("i", "want"), oneLetter))
+    }
+
+    @Test
+    fun theComposerKeepsTheSwipeReadingWithAutomaticSpacesOff() {
+        val direct = Executor { it.run() }
+        val c = WordComposer(english, direct, direct, object : WordComposer.Callbacks {
+            override fun onCandidates(candidates: List<WordCandidate>, tentative: WordCandidate?, literal: String, generation: Int) = Unit
+        })
+        c.onToken(TestData.swipe("help", g, 0, 300))
+        c.onToken(TestData.swipe("the", g, 700, 250))
+        assertEquals("the", c.twoWords?.restWord)
+        assertNull(c.splitHead())
+    }
 }

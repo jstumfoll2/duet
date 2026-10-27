@@ -8,6 +8,10 @@ committed word comes out on top. Plain JVM: it needs a JDK, not the Android SDK.
 # between a tapped word and the swiped word after it (split), one TSV row each
 ./gradlew -p tools/replay replay --args="splitdata TRACE.jsonl..."
 
+# A swiped word and the swiped word after it with the space left out, read back as the backspace
+# split would (PeckSplit.readSwipe): how often both words come back
+./gradlew -p tools/replay replay --args="swipesplit TRACE.jsonl..."
+
 # Which score term each miss lost on: for every line whose label is listed but not
 # first, the ScoreTerms factor (freq, geo, bigram, path, ...) with the biggest deficit
 # against the winner, tallied. --lines prints each line too.

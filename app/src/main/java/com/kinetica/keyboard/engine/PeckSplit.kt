@@ -43,6 +43,8 @@ object PeckSplit {
         val tap: List<WordCandidate>,
         val rest: List<WordCandidate>,
         val chosen: Boolean = true,
+        val swipeHead: Boolean = false,
+        val total: Int = -1,
     ) {
         /** The tapped word as its own decode read it; a completion is a guess at a longer word. */
         val tapWord: String? get() = tap.firstOrNull { it.source != WordCandidate.Source.COMPLETION }?.word
@@ -109,6 +111,55 @@ object PeckSplit {
                 "rest=${rest.word}:${rest.score} joined=${joined.firstOrNull()?.word}:$one"
         }
         return Split(head, tapList, restList, chosen = yes)
+    }
+
+    /**
+     * Where [tokens] (sorted by start) last pause between two words: the first index whose
+     * gesture began after every gesture before it had lifted, with a swipe on both sides, so
+     * the head is a swiped word the thumbs let go of and the rest a swipe begun after it. 0
+     * when there is none, as in every word whose thumbs overlap.
+     */
+    fun swipeHead(tokens: List<InputToken>): Int {
+        if (tokens.size < 2) return 0
+        var lift = Long.MIN_VALUE
+        var swiped = false
+        var best = 0
+        for (i in tokens.indices) {
+            val t = tokens[i]
+            if (i > 0 && swiped && t.tStart >= lift && tokens.subList(i, tokens.size).any { it !is TapToken }) best = i
+            lift = maxOf(lift, t.tEnd)
+            if (t !is TapToken) swiped = true
+        }
+        return best
+    }
+
+    /**
+     * A swiped word the next swipe joined before its automatic space came, read back as the
+     * two words: `changes` swiped, `the` swiped straight after, decoded together as `cheated`.
+     * The head is decoded alone, as the bar showed it when the thumbs lifted, and the rest after
+     * it. Never [Split.chosen]: the joined reading is often the word (a long word swiped in two
+     * strokes), so this only lets a backspace take the join apart. Null without a pause between
+     * swipes ([swipeHead]), or when either part reads as nothing or as one letter that is no word
+     * by itself: a word swiped in two strokes reads `t` and `hank`, never two words.
+     */
+    fun readSwipe(
+        predictor: WordPredictor,
+        tokens: List<InputToken>,
+        context: List<String>,
+        oneLetterWord: (Char) -> Boolean,
+    ): Split? {
+        val sorted = tokens.sortedBy { it.tStart }
+        val head = swipeHead(sorted)
+        if (head == 0) return null
+        if (sorted.any { it is TapToken && it.apostrophe }) return null
+        val headList = predictor.decode(sorted.subList(0, head), context)
+        val first = headList.firstOrNull { it.source != WordCandidate.Source.COMPLETION } ?: return null
+        if (first.word.length == 1 && !oneLetterWord(first.word[0].lowercaseChar())) return null
+        val restList = predictor.decode(sorted.subList(head, sorted.size), context.takeLast(1) + first.word)
+        val rest = restList.firstOrNull() ?: return null
+        if (rest.word.length == 1 && !oneLetterWord(rest.word[0].lowercaseChar())) return null
+        DecodeTrace.log { "  swipe split head=${first.word} rest=${rest.word}" }
+        return Split(head, headList, restList, chosen = false, swipeHead = true, total = tokens.size)
     }
 
     /**
