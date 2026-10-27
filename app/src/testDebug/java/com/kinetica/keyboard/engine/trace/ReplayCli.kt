@@ -36,6 +36,10 @@ import java.io.File
  *       word and the swiped word after it with the space left out (split), with the joined,
  *       tapped and swiped readings and whether PeckSplit splits it. Reads committed labels
  *       (no retype relabelling): it pairs each commit with the next word's context.
+ *   swipesplit TRACE.jsonl...
+ *       A swiped word and the swiped word after it with the space left out, read back by
+ *       PeckSplit.readSwipe as a backspace would: how often both words come back. Also the real
+ *       buffers with a pause between swipes, and how often their joined word was right.
  *   spacesplit TRACE.jsonl...
  *       Tapped letters that are no word but cut into two words: today's split, the
  *       pause-aware split, each letter's pause and the next commits, one row each (#64).
@@ -313,6 +317,54 @@ object ReplayCli {
                         println(splitRow(h, f.name, n, "split", w, tokens + nextTokens, w.context, label, nextLabel))
                     }
                 }
+            }
+            "swipesplit" -> {
+                // swipesplit FILE...: what a backspace after a swipe-joined word gives back
+                // (PeckSplit.readSwipe). split: a swiped word and the swiped word after it, the
+                // space left out, scored on getting both back. join: real buffers with a pause
+                // between swipes, where the split would be wrong if the joined word was meant.
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                var pairs = 0; var joinedWrong = 0; var both = 0; var bothWhenWrong = 0; var none = 0
+                var real = 0; var realOne = 0
+                fun nf(x: Int, of: Int) = "$x/$of (${if (of == 0) "-" else "%.1f%%".format(100.0 * x / of)})"
+                for (f in a.map { File(it) }) {
+                    val words = read(f, sink)
+                    for ((i, pair) in words.withIndex()) {
+                        val (n, w) = pair
+                        val label = w.label?.lowercase() ?: continue
+                        val tokens = try { SwipeTrace.replayTokens(w) } catch (e: RuntimeException) { continue }
+                        val p = h.predictorFor(w)
+                        if (com.kinetica.keyboard.engine.PeckSplit.swipeHead(tokens.sortedBy { it.tStart }) > 0) {
+                            val r = com.kinetica.keyboard.engine.PeckSplit.readSwipe(p, tokens, w.context, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() })
+                            real++
+                            if (p.decode(tokens, w.context).firstOrNull()?.word?.lowercase() == label) realOne++
+                            println("join\t${f.name}\t$n\t$label\t${r?.tapWord}\t${r?.restWord}")
+                        }
+                        if (tokens.none { it !is com.kinetica.keyboard.engine.models.TapToken }) continue
+                        val next = words.getOrNull(i + 1)?.second ?: continue
+                        val nextLabel = next.label?.lowercase() ?: continue
+                        if (next.context.lastOrNull()?.lowercase() != w.committed?.lowercase()) continue
+                        val nextTokens = try { SwipeTrace.replayTokens(next) } catch (e: RuntimeException) { continue }
+                        if (nextTokens.minByOrNull { it.tStart } !is com.kinetica.keyboard.engine.models.SwipeToken) continue
+                        if (tokens.maxOf { it.tEnd } > nextTokens.minOf { it.tStart }) continue
+                        val all = tokens + nextTokens
+                        val joined = p.decode(all, w.context).firstOrNull()?.word?.lowercase()
+                        val r = com.kinetica.keyboard.engine.PeckSplit.readSwipe(p, all, w.context, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() })
+                        pairs++
+                        val wrong = joined != label && joined != nextLabel
+                        if (wrong) joinedWrong++
+                        if (r == null) none++
+                        val ok = r?.tapWord?.lowercase() == label && r.restWord?.lowercase() == nextLabel
+                        if (ok) both++
+                        if (ok && wrong) bothWhenWrong++
+                        println("split\t${f.name}\t$n\t$label $nextLabel\t$joined\t${r?.tapWord} ${r?.restWord}\t$ok")
+                    }
+                }
+                println("pairs=$pairs joined-wrong=${nf(joinedWrong, pairs)} no-reading=$none both-back=${nf(both, pairs)} both-back-when-joined-wrong=${nf(bothWhenWrong, joinedWrong)}")
+                println("real buffers with a pause between swipes=$real, joined word right=${nf(realOne, real)}")
             }
             "spacesplit" -> {
                 // spacesplit FILE...: every tapped word of four letters or more that is no word but

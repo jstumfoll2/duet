@@ -114,6 +114,7 @@ class WordComposer(
         val apostrophe: Boolean = false,
         val peckSplit: Boolean = false,
         val rejoinHead: Int = 0,
+        val swipeSplit: Boolean = false,
     )
 
     private val decodeLock = Any()
@@ -187,7 +188,8 @@ class WordComposer(
 
     /**
      * The buffer in hand read as a tapped word and a swiped one even when one word won
-     * ([PeckSplit.read]), for a backspace that splits the commit afterwards. Main thread.
+     * ([PeckSplit.read]), or as a swiped word and the swipe after it ([PeckSplit.readSwipe]),
+     * for a backspace that splits the commit afterwards. Main thread.
      */
     var twoWords: PeckSplit.Split? = null
         private set
@@ -506,6 +508,7 @@ class WordComposer(
             // A word reloaded from the editor and swiped on is one word by intent.
             peckSplit = peckSplit && seeded == 0,
             rejoinHead = rejoinHead,
+            swipeSplit = seeded == 0,
         )
         val scheduleWorker = synchronized(decodeLock) {
             pendingDecode = request
@@ -563,8 +566,10 @@ class WordComposer(
             val active = predictor.decodeFor(request)
             val split = if (request.rejoinHead > 0) {
                 PeckSplit.readRejoin(predictor, request.tokens, request.rejoinHead, request.context, active, oneLetterWord)
-            } else if (request.peckSplit && request.literal.isEmpty()) {
-                PeckSplit.read(predictor, request.tokens, request.context, active, oneLetterWord)
+            } else if (request.literal.isEmpty()) {
+                // A buffer with no tapped head may still be a swiped word and the next one.
+                (if (request.peckSplit) PeckSplit.read(predictor, request.tokens, request.context, active, oneLetterWord) else null)
+                    ?: if (request.swipeSplit) PeckSplit.readSwipe(predictor, request.tokens, request.context, oneLetterWord) else null
             } else {
                 null
             }
