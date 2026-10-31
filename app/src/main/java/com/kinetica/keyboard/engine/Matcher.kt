@@ -24,6 +24,8 @@ sealed class Matcher {
         val y: Float,
         val stream: StreamId? = null,
         val t: Long = 0L,
+        /** The tap's [TapToken.hints]: other keys the fuzzy passes always try. */
+        val hints: Long = 0L,
     ) : Matcher()
 
     /** From a swipe, with all per-letter geometry precomputed for O(1) pruning. */
@@ -146,7 +148,7 @@ sealed class Matcher {
                 when (t) {
                     is TapToken -> {
                         if (!g.hasKey(t.code)) return null
-                        out.add(Anchor(t.code, t.x, t.y, t.streamId, t.tStart))
+                        out.add(Anchor(t.code, t.x, t.y, t.streamId, t.tStart, t.hints))
                     }
                     is SwipeToken -> out.add(buildSegment(t, g))
                 }
