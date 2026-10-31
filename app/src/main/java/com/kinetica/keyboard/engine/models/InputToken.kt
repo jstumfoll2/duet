@@ -56,6 +56,12 @@ data class TapToken(
      * spelling, as [SwipeToken.apostrophe] says for a swipe (see ApostropheExcursion).
      */
     val apostrophe: Boolean = false,
+    /**
+     * Keys other than [code] this tap plausibly meant, by this user's learned touch spread
+     * ([TouchModel.hint]), as a bit per letter code. The fuzzy passes try them even past their
+     * radius: a right thumb low on `h` in the split layout lands on `b` or `j`, 1.2 kw from h.
+     */
+    val hints: Long = 0L,
 ) : InputToken()
 
 /**

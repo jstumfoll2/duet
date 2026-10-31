@@ -47,7 +47,9 @@ Options: `--keepdups` scores a word line again when an earlier file already had 
 repeats are skipped and counted: a later export can contain an earlier one); `--k N` sets the deep list for recall (default 50); `--edge G` sets the
 near-edge tap gap in kw (0 turns that pass off); `--nosplit` keeps a tapped word followed by a
 swipe one word, as with automatic spaces off (a split loses the line's word); `--assets DIR`
-points at `app/src/main/assets` when run from elsewhere. `replay` exits 1 if any
+points at `app/src/main/assets` when run from elsewhere. `--touch 1` gives the replay a touch model that learns
+line by line from the labels, as the keyboard's does from commits; with it, `--hintz Z` and
+`--hintshift KW` set when a tap hints a key it may have meant (see `TouchModel.hint`). `replay` exits 1 if any
 comparable line fails to reproduce.
 
 ## Output

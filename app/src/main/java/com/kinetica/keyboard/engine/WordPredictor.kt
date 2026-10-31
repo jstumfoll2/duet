@@ -627,7 +627,8 @@ class WordPredictor(
         val g = geometry ?: return emptyList()
         // A board in another script, for the moment a language switch leaves them apart.
         if (g.alphabet !== trie.alphabet) return emptyList()
-        val tokens = touchModel?.apply(repaired, g) ?: repaired
+        // An earned model moves taps; one still checking itself only names keys they may have meant.
+        val tokens = touchModel?.let { if (it.isActive) it.apply(repaired, g) else it.hint(repaired, g) } ?: repaired
         if (tokens.isEmpty() || tokens.size > KineticaConstants.MAX_WORD_LEN) return emptyList()
         // Timed only under a trace sink, so a release build pays nothing for it.
         val startNs = if (DecodeTrace.enabled) System.nanoTime() else 0L
@@ -913,7 +914,9 @@ class WordPredictor(
 
     /** Compact token label for DecodeTrace: type, stream, letter/interval. */
     private fun traceToken(t: InputToken): String = when (t) {
-        is TapToken -> "tap[${alphabet.charOf(t.code)},${t.streamId},t=${t.tStart}]"
+        is TapToken -> "tap[${alphabet.charOf(t.code)},${t.streamId},t=${t.tStart}" +
+            (if (t.hints == 0L) "" else ",hint=" + (0 until minOf(64, alphabet.letterCount))
+                .filter { (t.hints ushr it) and 1L != 0L }.joinToString("") { alphabet.charOf(it).toString() }) + "]"
         is SwipeToken -> "swipe[${t.streamId},t=${t.tStart}..${t.tEnd}" +
             (if (t.softStart) ",softStart" else "") + (if (t.softEnd) ",softEnd" else "") +
             // Contact letters make a captured gesture reconstructible as a golden fixture;
@@ -2001,9 +2004,13 @@ class WordPredictor(
                 for (code in 0 until alphabet.letterCount) {
                     if (!g.hasKey(code)) continue
                     val d = g.distToCenter(m.x, m.y, code)
-                    if (code != m.code && d > KineticaConstants.FUZZY_TAP_RADIUS_KW) continue
-                    if (code != m.code && d - own > edgeGapKw) continue
-                    val pen = if (code == m.code) 0f else KineticaConstants.FUZZY_TAP_LAMBDA * d
+                    // A key the user's touch spread says this tap may have meant is tried at
+                    // most the charge of a tap at the fuzzy radius, however far its centre.
+                    val hinted = code < 64 && (m.hints ushr code) and 1L != 0L
+                    if (code != m.code && !hinted && d > KineticaConstants.FUZZY_TAP_RADIUS_KW) continue
+                    if (code != m.code && !hinted && d - own > edgeGapKw) continue
+                    val pen = if (code == m.code) 0f
+                    else KineticaConstants.FUZZY_TAP_LAMBDA * minOf(d, KineticaConstants.FUZZY_TAP_RADIUS_KW)
                     tryAnchor(node, code, pen, ti, depth, tapPen, contactKeep)
                 }
             }
@@ -2648,6 +2655,7 @@ private fun WordCandidate.Source.spelledAsTyped(): Boolean =
  */
 internal fun nearEdge(m: Matcher.Anchor, g: KeyboardGeometry, gapKw: Float): Boolean {
     if (!g.hasKey(m.code)) return false
+    if (m.hints != 0L) return true
     val own = g.distToCenter(m.x, m.y, m.code)
     for (code in 0 until g.alphabet.letterCount) {
         if (code == m.code || !g.hasKey(code)) continue

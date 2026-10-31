@@ -72,6 +72,9 @@ object ReplayCli {
         opt(a, "--skipfrom")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_FROM = it.toInt() }
         opt(a, "--skip")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_KW = it.toFloat() }
         forceTouch = a.remove("--touchforce")
+        // --hintz Z: how many standard deviations of a key's learned touch spread still hint it.
+        opt(a, "--hintz")?.let { com.kinetica.keyboard.engine.TouchModel.HINT_Z = it.toFloat() }
+        opt(a, "--hintshift")?.let { com.kinetica.keyboard.engine.TouchModel.HINT_MIN_SHIFT_KW = it.toFloat() }
         // --boundary (any command): word boundaries decided by the fitted BoundaryModel.
         if (a.remove("--boundary")) com.kinetica.keyboard.engine.BoundaryModel.enabled = true
         val assets = File(opt(a, "--assets") ?: defaultAssets())
