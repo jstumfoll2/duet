@@ -46,6 +46,8 @@ object SettingsSynonyms {
         Prefs.THEME_MODE to listOf("dark", "light", "night", "colour", "color", "material"),
         Prefs.THEME_BRIGHTNESS to listOf("dark", "light", "contrast", "dim"),
         Prefs.THEME_HUE to listOf("colour", "color", "accent", "tint"),
+        Prefs.THEME_COLOR_HEX to listOf("colour", "color", "hex", "rgb", "code", "exact", "picker"),
+        Prefs.TRAIL_COLOR_HEX to listOf("trail", "swipe", "hex", "rgb", "exact", "picker"),
         Prefs.TRAIL_COLOR to listOf("swipe", "gesture", "line", "path", "rainbow"),
         Prefs.TRAIL_STYLE to listOf("swipe", "trail", "glow", "neon", "dots", "comet", "sparkle", "effect"),
         Prefs.PRESS_EFFECT to listOf("tap", "press", "flash", "ripple", "sparkle", "pulse", "effect", "animation"),

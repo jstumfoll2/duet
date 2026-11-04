@@ -456,6 +456,10 @@
                     app:min="0"
                     app:showSeekBarValue="true"
                     app:updatesContinuously="true" />
+                <com.kinetica.keyboard.settings.ColorHexPreference
+                    android:key="pref_theme_color_hex"
+                    android:title="@string/pref_theme_color_hex_title"
+                    app:singleLineTitle="false" />
                 <SwitchPreferenceCompat
                     android:key="pref_key_borders"
                     android:title="@string/pref_key_borders_title"
@@ -495,6 +499,10 @@
                     android:max="360"
                     app:min="0"
                     app:showSeekBarValue="true" />
+                <com.kinetica.keyboard.settings.ColorHexPreference
+                    android:key="pref_trail_color_hex"
+                    android:title="@string/pref_trail_color_hex_title"
+                    app:singleLineTitle="false" />
                 <ListPreference
                     android:key="pref_trail_style"
                     android:title="@string/pref_trail_style_title"

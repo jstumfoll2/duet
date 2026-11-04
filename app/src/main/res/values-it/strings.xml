@@ -641,4 +641,12 @@
     <string name="bar_why_unknown">non nel dizionario %1$s</string>
     <string name="bar_why_picked">scelta %1$d volte</string>
     <string name="bar_why_less">suggerita meno (%1$d passi)</string>
+    <string name="pref_theme_color_hex_title">Colore esatto del tema</string>
+    <string name="pref_trail_color_hex_title">Colore esatto della scia</string>
+    <string name="pref_color_hex_unset">Non impostato: decide il cursore della tonalità. Usa i cursori, un campione o scrivi #RRGGBB</string>
+    <string name="color_pick_hue">Tonalità</string>
+    <string name="color_pick_saturation">Saturazione</string>
+    <string name="color_pick_brightness">Luminosità</string>
+    <string name="color_hex_error_blank">Scrivi un colore come #RRGGBB</string>
+    <string name="color_hex_error_bad">%1$s non è un colore: sei cifre, da 0 a 9 o da A a F</string>
 </resources>

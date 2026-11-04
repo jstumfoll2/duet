@@ -220,6 +220,8 @@ object Prefs {
     const val VIBRATION_INTENSITY = "pref_vibration_intensity"
     const val TRAIL_COLOR = "pref_trail_color"
     const val TRAIL_COLOR_CUSTOM_HUE = "pref_trail_color_custom_hue"
+    /** `#RRGGBB` for the "exact" trail colour; blank until one is picked. */
+    const val TRAIL_COLOR_HEX = "pref_trail_color_hex"
     /** classic | glow | dots | comet ([com.kinetica.keyboard.ui.TrailStyle]). */
     const val TRAIL_STYLE = "pref_trail_style"
     /** burst | ripple | sparks | pulse | none ([com.kinetica.keyboard.ui.PressEffect]). */
@@ -606,6 +608,12 @@ object Prefs {
      * colour.
      */
     const val THEME_HUE = "pref_theme_hue"
+
+    /**
+     * An exact `#RRGGBB` for the custom theme, saturation and brightness included. Blank (the
+     * default) means the [THEME_HUE] slider decides; moving the slider clears it.
+     */
+    const val THEME_COLOR_HEX = "pref_theme_color_hex"
 
     const val DEFAULT_HEIGHT_PCT = 20
 

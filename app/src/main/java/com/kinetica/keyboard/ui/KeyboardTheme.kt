@@ -57,6 +57,24 @@ class KeyboardTheme(
         private const val CUSTOM_SAT = 0.72f
         private const val CUSTOM_VAL = 1.0f
 
+        /**
+         * How far a dark exact colour dims the surfaces. Black takes them to 60% of their
+         * brightness; any lower and the keys sink into the background.
+         */
+        private const val DARK_VALUE_REACH = 0.4f
+
+        /**
+         * The same on the light table, held smaller: down to black, body text stays above 4.5:1 on
+         * the dimmed keys and bar.
+         */
+        private const val LIGHT_VALUE_REACH = 0.2f
+
+        /**
+         * The dark table's accent is the exact colour itself, unless it is too dark to show on the
+         * keys: then the same hue and saturation at this value.
+         */
+        private const val ACCENT_MIN_VALUE = 0.6f
+
         // The dark table's three text roles, as literals so no android.graphics.Color call
         // reaches the JVM test runtime, where its statics throw "not mocked".
         private const val DARK_KEY_TEXT = 0xFFEDEDF2.toInt()
@@ -200,40 +218,43 @@ class KeyboardTheme(
         fun fromPrimary(primary: Int, light: Boolean = false): KeyboardTheme {
             val h = Hsv.hueOf(primary)
             val s = saturationOf(primary)
+            val v = Hsv.valueOf(primary)
             fun tone(sat: Float, value: Float): Int = Hsv.toColor(h, sat, value)
             val surfaceSat = min(s, 0.55f)
+            // A slider hue is at full value, so dim is 1 and those palettes do not move.
+            val dim = 1f - (if (light) LIGHT_VALUE_REACH else DARK_VALUE_REACH) * (1f - v)
             return if (light) {
                 KeyboardTheme(
                     // Surfaces near white, tinted enough to read as the hue. Keys sit brighter
                     // than the background so the gaps read as the darker line, as in the dark
                     // palette.
-                    background = tone(surfaceSat * 0.22f, 0.90f),
-                    key = tone(surfaceSat * 0.10f, 1.00f),
-                    keySpecial = tone(surfaceSat * 0.20f, 0.94f),
-                    keyPressed = tone(min(s, 0.40f), 0.82f),
+                    background = tone(surfaceSat * 0.22f, 0.90f * dim),
+                    key = tone(surfaceSat * 0.10f, 1.00f * dim),
+                    keySpecial = tone(surfaceSat * 0.20f, 0.94f * dim),
+                    keyPressed = tone(min(s, 0.40f), 0.82f * dim),
                     keyText = tone(min(s, 0.30f), 0.16f),
                     keyHint = tone(min(s, 0.35f), 0.45f),
-                    suggestionBg = tone(surfaceSat * 0.18f, 0.96f),
+                    suggestionBg = tone(surfaceSat * 0.18f, 0.96f * dim),
                     suggestionText = tone(min(s, 0.30f), 0.26f),
                     suggestionPrimary = tone(min(s, 0.40f), 0.12f),
-                    chip = tone(min(s, 0.45f), 0.86f),
-                    popupBg = tone(surfaceSat * 0.12f, 1.00f),
+                    chip = tone(min(s, 0.45f), 0.86f * dim),
+                    popupBg = tone(surfaceSat * 0.12f, 1.00f * dim),
                     accent = tone(min(s, 0.85f), 0.70f),
                 )
             } else {
                 KeyboardTheme(
-                    background = tone(surfaceSat * 0.55f, 0.10f),
-                    key = tone(surfaceSat * 0.50f, 0.21f),
-                    keySpecial = tone(surfaceSat * 0.50f, 0.16f),
-                    keyPressed = tone(min(s, 0.65f), 0.35f),
+                    background = tone(surfaceSat * 0.55f, 0.10f * dim),
+                    key = tone(surfaceSat * 0.50f, 0.21f * dim),
+                    keySpecial = tone(surfaceSat * 0.50f, 0.16f * dim),
+                    keyPressed = tone(min(s, 0.65f), 0.35f * dim),
                     keyText = DARK_KEY_TEXT,
                     keyHint = tone(0.15f, 0.66f),
-                    suggestionBg = tone(surfaceSat * 0.55f, 0.13f),
+                    suggestionBg = tone(surfaceSat * 0.55f, 0.13f * dim),
                     suggestionText = DARK_SUGGESTION_TEXT,
                     suggestionPrimary = DARK_SUGGESTION_PRIMARY,
-                    chip = tone(min(s, 0.60f), 0.30f),
-                    popupBg = tone(surfaceSat * 0.50f, 0.27f),
-                    accent = primary,
+                    chip = tone(min(s, 0.60f), 0.30f * dim),
+                    popupBg = tone(surfaceSat * 0.50f, 0.27f * dim),
+                    accent = if (v >= ACCENT_MIN_VALUE) primary else tone(s, ACCENT_MIN_VALUE),
                 )
             }
         }

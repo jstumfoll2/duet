@@ -716,4 +716,13 @@
     <string name="bar_why_unknown">not in the %1$s dictionary</string>
     <string name="bar_why_picked">you picked it %1$d times</string>
     <string name="bar_why_less">suggested less (%1$d steps)</string>
+    <string name="pref_theme_color_hex_title">Exact theme colour</string>
+    <string name="pref_trail_color_hex_title">Exact trail colour</string>
+    <string name="pref_color_hex_unset">Not set: the hue slider decides. Pick sliders, a swatch or type #RRGGBB</string>
+    <string name="color_hex_hint" translatable="false">#RRGGBB</string>
+    <string name="color_pick_hue">Hue</string>
+    <string name="color_pick_saturation">Saturation</string>
+    <string name="color_pick_brightness">Brightness</string>
+    <string name="color_hex_error_blank">Type a colour as #RRGGBB</string>
+    <string name="color_hex_error_bad">%1$s is not a colour: six digits, 0 to 9 or A to F</string>
 </resources>

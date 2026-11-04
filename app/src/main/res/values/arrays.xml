@@ -212,6 +212,7 @@
         <item>Violet</item>
         <item>Custom hue</item>
         <item>Theme colour</item>
+        <item>Exact colour</item>
     </string-array>
     <string-array name="trail_color_values" translatable="false">
         <item>rainbow</item>
@@ -222,6 +223,7 @@
         <item>violet</item>
         <item>custom</item>
         <item>theme</item>
+        <item>exact</item>
     </string-array>
 
     <string-array name="theme_mode_entries">

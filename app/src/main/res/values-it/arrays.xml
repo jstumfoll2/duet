@@ -46,6 +46,7 @@
         <item>Viola</item>
         <item>Tonalità a scelta</item>
         <item>Colore del tema</item>
+        <item>Colore esatto</item>
     </string-array>
     <string-array name="theme_mode_entries">
         <item>Duet scuro (predefinito)</item>

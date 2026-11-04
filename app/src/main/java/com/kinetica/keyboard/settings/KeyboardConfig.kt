@@ -13,6 +13,7 @@ import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutMode
 import com.kinetica.keyboard.layout.LayoutTransforms
 import com.kinetica.keyboard.ui.BarMetrics
+import com.kinetica.keyboard.ui.Hsv
 import com.kinetica.keyboard.ui.KeyBorder
 import com.kinetica.keyboard.ui.KeyboardTheme
 import com.kinetica.keyboard.ui.PressEffect
@@ -63,6 +64,9 @@ data class KeyboardConfig(
     val vibration: Boolean,
     val vibrationIntensity: Int,
     val trailBaseHue: Float,
+    /** Saturation and brightness the trail and press effects draw at; an exact colour sets both. */
+    val trailSaturation: Float,
+    val trailValue: Float,
     val longPressMs: Long,
     val chordArmMs: Long,
     /** The spacebar's own lead-in before a tap is a spacebar chord. */
@@ -320,6 +324,8 @@ data class KeyboardConfig(
                 Prefs.VIBRATION_INTENSITY, Prefs.DEFAULT_VIBRATION_INTENSITY,
             ).coerceIn(1, 3),
             trailBaseHue = trailHue(prefs),
+            trailSaturation = trailTone(prefs).first,
+            trailValue = trailTone(prefs).second,
             longPressMs = prefs.getInt(Prefs.LONG_PRESS_MS, Prefs.DEFAULT_LONG_PRESS_MS)
                 .coerceIn(Prefs.LONG_PRESS_MIN_MS, Prefs.LONG_PRESS_MAX_MS).toLong(),
             chordArmMs = prefs.getInt(Prefs.CHORD_ARM_MS, Prefs.DEFAULT_CHORD_ARM_MS)
@@ -625,6 +631,7 @@ data class KeyboardConfig(
          * keyboard changes colour on upgrade.
          */
         private fun themePrimary(prefs: SharedPreferences): Int {
+            exactColor(prefs.getString(Prefs.THEME_COLOR_HEX, null))?.let { return it }
             val stored = prefs.getInt(Prefs.THEME_HUE, -1)
             val hue = if (stored in 0..360) {
                 stored.toFloat()
@@ -658,11 +665,33 @@ data class KeyboardConfig(
         private fun trailHue(prefs: SharedPreferences): Float = trailHueFor(
             prefs.getString(Prefs.TRAIL_COLOR, Prefs.DEFAULT_TRAIL_COLOR),
             prefs.getInt(Prefs.TRAIL_COLOR_CUSTOM_HUE, 200),
+            prefs.getString(Prefs.TRAIL_COLOR_HEX, null),
         )
 
+        private fun trailTone(prefs: SharedPreferences): Pair<Float, Float> = trailToneFor(
+            prefs.getString(Prefs.TRAIL_COLOR, Prefs.DEFAULT_TRAIL_COLOR),
+            prefs.getString(Prefs.TRAIL_COLOR_HEX, null),
+        )
+
+        /** A typed `#RRGGBB`, or null when blank or not a colour. */
+        fun exactColor(hex: String?): Int? = (HexColor.parse(hex) as? HexColor.Result.Valid)?.color
+
+        /**
+         * Saturation and brightness of the trail: an exact colour keeps its own, everything else
+         * is the bright tone the trail always drew. A grey or black exact colour is honoured too.
+         */
+        fun trailToneFor(mode: String?, hex: String?): Pair<Float, Float> {
+            val c = if (mode == TRAIL_EXACT) exactColor(hex) else null
+            return if (c == null) DEFAULT_TRAIL_SAT to 1f else Hsv.saturationOf(c) to Hsv.valueOf(c)
+        }
+
+        const val TRAIL_EXACT = "exact"
+        const val DEFAULT_TRAIL_SAT = 0.85f
+
         /** Base trail hue for a trail selection; shared with the settings swatch. */
-        fun trailHueFor(mode: String?, customHue: Int): Float =
+        fun trailHueFor(mode: String?, customHue: Int, hex: String? = null): Float =
             when (mode) {
+                TRAIL_EXACT -> exactColor(hex)?.let { Hsv.hueOf(it) } ?: customHue.coerceIn(0, 360).toFloat()
                 "red" -> 0f
                 "orange" -> 30f
                 "green" -> 120f
