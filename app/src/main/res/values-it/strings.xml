@@ -133,6 +133,12 @@
     <string name="pref_key_sound_summary">Il clic dei tasti del telefono, al volume dei suoni al tocco. In silenzio quando la suoneria è su vibrazione o silenziosa</string>
     <string name="pref_vibration_intensity_title">Intensità della vibrazione</string>
     <string name="pref_trail_color_title">Colore della scia</string>
+    <string name="pref_trail_style_title">Stile della scia</string>
+    <string name="pref_press_effect_title">Effetto alla pressione</string>
+    <string name="pref_swipe_look_title">Cosa illumina uno swipe</string>
+    <string name="pref_key_borders_title">Bordi dei tasti</string>
+    <string name="pref_key_borders_summary">Una linea sottile attorno a ogni tasto, nel colore dei suggerimenti del tema</string>
+    <string name="pref_key_border_width_title">Spessore del bordo (dp)</string>
     <string name="pref_language_title">Lingua principale</string>
     <string name="pref_enabled_languages_title">Lingue attive</string>
     <string name="pref_side_pad_title">Margine laterale</string>

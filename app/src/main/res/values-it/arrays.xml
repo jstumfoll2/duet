@@ -19,6 +19,24 @@
         <item>A una mano, destra</item>
         <item>A una mano, sinistra</item>
     </string-array>
+    <string-array name="trail_style_entries">
+        <item>Classica</item>
+        <item>Bagliore</item>
+        <item>Punti</item>
+        <item>Cometa (scintille)</item>
+    </string-array>
+    <string-array name="press_effect_entries">
+        <item>Lampo</item>
+        <item>Onda</item>
+        <item>Scintille</item>
+        <item>Pulsazione</item>
+        <item>Nessuno</item>
+    </string-array>
+    <string-array name="swipe_look_entries">
+        <item>La scia</item>
+        <item>I tasti attraversati</item>
+        <item>Entrambi</item>
+    </string-array>
     <string-array name="trail_color_entries">
         <item>Arcobaleno</item>
         <item>Rosso</item>

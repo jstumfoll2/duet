@@ -13,7 +13,11 @@ import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutMode
 import com.kinetica.keyboard.layout.LayoutTransforms
 import com.kinetica.keyboard.ui.BarMetrics
+import com.kinetica.keyboard.ui.KeyBorder
 import com.kinetica.keyboard.ui.KeyboardTheme
+import com.kinetica.keyboard.ui.PressEffect
+import com.kinetica.keyboard.ui.SwipeLook
+import com.kinetica.keyboard.ui.TrailStyle
 
 /**
  * Immutable snapshot of all preferences the keyboard consumes, rebuilt on any preference change
@@ -170,6 +174,12 @@ data class KeyboardConfig(
     val themeBrightness: String,
     /** Raw trail selection; "theme" resolves against the active theme accent. */
     val trailColorMode: String,
+    val trailStyle: TrailStyle,
+    val pressEffect: PressEffect,
+    /** The trail, the keys a swipe crosses lit, or both. */
+    val swipeLook: SwipeLook,
+    /** The line round each key in dp, 0 = off. */
+    val keyBorderDp: Int,
     val edgeSwipes: EdgeSwipeBindings,
     val dictionaryGeneration: Int,
     /** Bumped by the expansion editor; a change reloads the trigger table. */
@@ -447,6 +457,15 @@ data class KeyboardConfig(
             ) ?: Prefs.DEFAULT_THEME_BRIGHTNESS,
             trailColorMode = prefs.getString(Prefs.TRAIL_COLOR, Prefs.DEFAULT_TRAIL_COLOR)
                 ?: Prefs.DEFAULT_TRAIL_COLOR,
+            trailStyle = TrailStyle.fromPref(prefs.getString(Prefs.TRAIL_STYLE, Prefs.DEFAULT_TRAIL_STYLE)),
+            pressEffect = PressEffect.fromPref(prefs.getString(Prefs.PRESS_EFFECT, Prefs.DEFAULT_PRESS_EFFECT)),
+            swipeLook = SwipeLook.fromPref(prefs.getString(Prefs.SWIPE_LOOK, Prefs.DEFAULT_SWIPE_LOOK)),
+            keyBorderDp = if (prefs.getBoolean(Prefs.KEY_BORDERS, Prefs.DEFAULT_KEY_BORDERS)) {
+                prefs.getInt(Prefs.KEY_BORDER_WIDTH, Prefs.DEFAULT_KEY_BORDER_WIDTH)
+                    .coerceIn(KeyBorder.MIN_DP, KeyBorder.MAX_DP)
+            } else {
+                0
+            },
             edgeSwipes = EdgeSwipeBindings.parse(prefs.getString(Prefs.EDGE_SWIPES, null)),
             dictionaryGeneration = prefs.getInt(Prefs.DICT_GENERATION, 0),
             expansionGeneration = prefs.getInt(Prefs.EXPANSION_GENERATION, 0),

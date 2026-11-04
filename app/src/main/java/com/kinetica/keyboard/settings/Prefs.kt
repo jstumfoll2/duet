@@ -220,6 +220,15 @@ object Prefs {
     const val VIBRATION_INTENSITY = "pref_vibration_intensity"
     const val TRAIL_COLOR = "pref_trail_color"
     const val TRAIL_COLOR_CUSTOM_HUE = "pref_trail_color_custom_hue"
+    /** classic | glow | dots | comet ([com.kinetica.keyboard.ui.TrailStyle]). */
+    const val TRAIL_STYLE = "pref_trail_style"
+    /** burst | ripple | sparks | pulse | none ([com.kinetica.keyboard.ui.PressEffect]). */
+    const val PRESS_EFFECT = "pref_press_effect"
+    /** trail | keys | both ([com.kinetica.keyboard.ui.SwipeLook], upstream Kinetica 2.2.0). */
+    const val SWIPE_LOOK = "pref_swipe_look"
+    /** A line round each key (upstream Kinetica 2.2.0), [KEY_BORDER_WIDTH] dp wide. */
+    const val KEY_BORDERS = "pref_key_borders"
+    const val KEY_BORDER_WIDTH = "pref_key_border_width"
     const val LANGUAGE = "pref_language"
     /** Last language agreed with Android; detects Settings edits while the IME is inactive. */
     const val SYNCED_LANGUAGE = "pref_synced_language"
@@ -673,6 +682,11 @@ object Prefs {
     const val DEFAULT_VIBRATION = true
     const val DEFAULT_VIBRATION_INTENSITY = 2
     const val DEFAULT_TRAIL_COLOR = "rainbow"
+    const val DEFAULT_TRAIL_STYLE = "classic"
+    const val DEFAULT_PRESS_EFFECT = "burst"
+    const val DEFAULT_SWIPE_LOOK = "trail"
+    const val DEFAULT_KEY_BORDERS = false
+    const val DEFAULT_KEY_BORDER_WIDTH = 1
     const val DEFAULT_LANGUAGE = "en"
     const val DEFAULT_KEY_ARRANGEMENT = "qwerty"
     const val DEFAULT_ARRANGEMENT_AUTO_APPLIED = false

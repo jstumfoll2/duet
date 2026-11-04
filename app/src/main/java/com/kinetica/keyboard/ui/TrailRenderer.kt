@@ -42,6 +42,19 @@ class TrailRenderer(private val density: Float) {
     /** Base hue in degrees; the right stream starts offset by 60 deg. */
     var baseHue = 0f
 
+    /** Saturation and value every point is drawn at: a typed colour keeps its own. */
+    var saturation = 0.85f
+    var value = 1f
+
+    /** How the stroke is drawn ([TrailStyle]). */
+    var style = TrailStyle.CLASSIC
+
+    /** Where a [TrailStyle.COMET] trail sheds its sparks; none without it. */
+    var sparks: SparkRenderer? = null
+    private var pointsSinceSpark = 0
+
+    private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
     fun startStream(stream: StreamId) {
         val i = stream.ordinal
         hues[i] = (baseHue + if (stream == StreamId.RIGHT) 60f else 0f) % 360f
@@ -78,7 +91,17 @@ class TrailRenderer(private val density: Float) {
             }
         }
         trail.addLast(point)
+        if (style == TrailStyle.COMET && !breakBefore) {
+            pointsSinceSpark++
+            if (pointsSinceSpark >= EffectShapes.COMET_EVERY_POINTS) {
+                pointsSinceSpark = 0
+                sparks?.emit(x, y, t, hue)
+            }
+        }
     }
+
+    /** The hue [stream] is drawing in now. */
+    fun hueOf(stream: StreamId): Float = hues[stream.ordinal]
 
     fun bumpHue(stream: StreamId) {
         hues[stream.ordinal] = (hues[stream.ordinal] + HUE_STEP) % 360f
@@ -118,10 +141,13 @@ class TrailRenderer(private val density: Float) {
                 val f = 1f - age / TRAIL_LIFE_MS.toFloat()
                 if (f <= 0f) continue
                 hsv[0] = p.hue
-                hsv[1] = 0.85f
-                hsv[2] = 1f
-                paint.color = Color.HSVToColor((200 * f).toInt(), hsv)
-                paint.strokeWidth = (3f + 7f * f) * density
+                hsv[1] = saturation
+                hsv[2] = value
+                if (style == TrailStyle.DOTS) {
+                    dotPaint.color = Color.HSVToColor((220 * f).toInt(), hsv)
+                    canvas.drawCircle(p.x, p.y, EffectShapes.dotRadiusDp(f) * density, dotPaint)
+                    continue
+                }
                 // A run ends at a break as well as at the finger, so a lift stays a gap, not a
                 // curve across the keyboard.
                 val next = trail.getOrNull(i + 1)?.takeIf { !it.breakBefore }
@@ -135,6 +161,19 @@ class TrailRenderer(private val density: Float) {
                 path.rewind()
                 path.moveTo(quad[0], quad[1])
                 path.quadTo(quad[2], quad[3], quad[4], quad[5])
+                if (style == TrailStyle.GLOW) {
+                    // A wide faint halo, then a core washed toward white: neon without a blur
+                    // filter, which would force a software layer on every frame.
+                    paint.color = Color.HSVToColor((70 * f).toInt(), hsv)
+                    paint.strokeWidth = EffectShapes.glowHaloDp(f) * density
+                    canvas.drawPath(path, paint)
+                    hsv[1] = saturation * 0.3f
+                    paint.color = Color.HSVToColor((240 * f).toInt(), hsv)
+                    paint.strokeWidth = EffectShapes.glowCoreDp(f) * density
+                } else {
+                    paint.color = Color.HSVToColor((200 * f).toInt(), hsv)
+                    paint.strokeWidth = (3f + 7f * f) * density
+                }
                 canvas.drawPath(path, paint)
             }
         }

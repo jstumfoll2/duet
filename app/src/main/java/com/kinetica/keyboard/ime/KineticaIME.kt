@@ -1148,6 +1148,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         applyNavigationBarColor(theme)
         kv.trailBaseHue =
             if (config.trailColorMode == "theme") theme.accentHue else config.trailBaseHue
+        kv.trailStyle = config.trailStyle
+        kv.pressEffect = config.pressEffect
+        kv.swipeLook = config.swipeLook
+        kv.keyBorderDp = config.keyBorderDp
         kv.longPressMs = config.longPressMs
         kv.chordArmMs = config.chordArmMs
         kv.chordLabelsEnabled = config.chordLabels

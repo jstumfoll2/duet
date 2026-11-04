@@ -158,6 +158,12 @@
     <string name="pref_key_sound_summary">The phone\'s key click, at its touch-sound volume. Silent while the ringer is on vibrate or silent</string>
     <string name="pref_vibration_intensity_title">Vibration intensity</string>
     <string name="pref_trail_color_title">Swipe trail colour</string>
+    <string name="pref_trail_style_title">Trail style</string>
+    <string name="pref_press_effect_title">Key press effect</string>
+    <string name="pref_swipe_look_title">What a swipe lights up</string>
+    <string name="pref_key_borders_title">Key borders</string>
+    <string name="pref_key_borders_summary">A thin line round each key, in the hint colour of the theme</string>
+    <string name="pref_key_border_width_title">Border width (dp)</string>
     <string name="pref_language_title">Primary language</string>
     <string name="pref_enabled_languages_title">Enabled languages</string>
     <string name="pref_side_pad_title">Side margin</string>
