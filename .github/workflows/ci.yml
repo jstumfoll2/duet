@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Lets a build be started by hand from the Actions tab, e.g. after Actions was off.
+  workflow_dispatch:
 
 # Build and test only read the repository; the artifact upload uses its own runtime token.
 permissions:

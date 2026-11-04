@@ -3,6 +3,7 @@ package com.kinetica.keyboard.ui
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
@@ -143,13 +144,57 @@ class KeyboardView @JvmOverloads constructor(
     /** Disables all animation work (trails, bursts) at enqueue time. */
     var zenMode = false
 
-    /** Extra trail gate: also cleared in private (password) fields. */
+    /** Extra trail gate: also cleared in private (password) fields. Covers the lit keys too. */
     var trailsEnabled = true
+
+    /** The trail, the keys a swipe crosses lit, or both. */
+    var swipeLook = SwipeLook.TRAIL
+        set(value) {
+            if (field == value) return
+            field = value
+            keyWake.clear()
+        }
 
     var trailBaseHue: Float
         get() = trailRenderer.baseHue
         set(value) {
             trailRenderer.baseHue = value
+        }
+
+    /** The line round each key in dp, 0 = off; drawn in the theme's hint colour. */
+    var keyBorderDp = 0
+        set(value) {
+            if (field == value) return
+            field = value
+            updateBorderWidth()
+            if (width > 0 && height > 0) renderStaticLayer()
+            invalidate()
+        }
+
+    /** Saturation and value of the trail, from a typed colour or the presets'. */
+    fun setTrailTone(saturation: Float, value: Float) {
+        trailRenderer.saturation = saturation
+        trailRenderer.value = value
+        burstRenderer.saturation = saturation
+        burstRenderer.value = value
+        sparkRenderer.saturation = saturation
+        sparkRenderer.value = value
+    }
+
+    /** How the swipe trail is drawn. */
+    var trailStyle: TrailStyle
+        get() = trailRenderer.style
+        set(value) {
+            if (trailRenderer.style == value) return
+            trailRenderer.style = value
+            sparkRenderer.clear()
+        }
+
+    /** What a key shows when a thumb lands on it or a swipe crosses it. */
+    var pressEffect: PressEffect
+        get() = burstRenderer.effect
+        set(value) {
+            burstRenderer.effect = value
         }
 
     /** Arm delay for backspace hold-repeat. */
@@ -374,11 +419,16 @@ class KeyboardView @JvmOverloads constructor(
 
     private val trailRenderer = TrailRenderer(density)
     private val burstRenderer = BurstRenderer(density)
+    private val sparkRenderer = SparkRenderer(density).also { trailRenderer.sparks = it }
+    private val keyWake = KeyWake()
+    private val wakePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val wakeRect = RectF()
     private var animating = false
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             val now = SystemClock.uptimeMillis()
-            val alive = trailRenderer.prune(now) or burstRenderer.prune(now)
+            val alive = trailRenderer.prune(now) or burstRenderer.prune(now) or sparkRenderer.prune(now) or
+                keyWake.anyLit(now)
             invalidate()
             if (alive) {
                 Choreographer.getInstance().postFrameCallback(this)
@@ -391,6 +441,7 @@ class KeyboardView @JvmOverloads constructor(
     // Sized for the widest alphabet, indexed by the board's own letter codes.
     private val letterCenterX = FloatArray(Alphabet.MAX_SIZE)
     private val letterCenterY = FloatArray(Alphabet.MAX_SIZE)
+    private val keyOfCode = IntArray(Alphabet.MAX_SIZE) { -1 }
 
     private val spaceController = SpacebarCursorController(density) { dir, byWord ->
         listener?.onCursorMove(dir, byWord)
@@ -415,6 +466,9 @@ class KeyboardView @JvmOverloads constructor(
     private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.RIGHT
     }
+    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val borderRect = RectF()
+    private var narrowestKeySidePx = 0f
 
     /** Resolved color roles; the setter restains every paint and re-renders. */
     var theme: KeyboardTheme = KeyboardTheme.fromResources(context)
@@ -425,13 +479,32 @@ class KeyboardView @JvmOverloads constructor(
             invalidate()
         }
 
+    /** A background image shows through: no board fill, keys at [keyAlpha]. */
+    private var overBackdrop = false
+    private var keyAlpha = 255
+
+    /** Draws the board for a background image underneath, or back to its own fill. */
+    fun setBackdropLook(on: Boolean, keyAlpha: Int) {
+        val alpha = if (on) keyAlpha.coerceIn(0, 255) else 255
+        if (on == overBackdrop && alpha == this.keyAlpha) return
+        overBackdrop = on
+        this.keyAlpha = alpha
+        applyThemePaints()
+        if (width > 0 && height > 0) renderStaticLayer()
+        invalidate()
+    }
+
     private fun applyThemePaints() {
         bgPaint.color = theme.background
         keyPaint.color = theme.key
         specialKeyPaint.color = theme.keySpecial
+        // After the colours, which carry their own alpha; the image's opacity scales it.
+        keyPaint.alpha = Color.alpha(theme.key) * keyAlpha / 255
+        specialKeyPaint.alpha = Color.alpha(theme.keySpecial) * keyAlpha / 255
         pressedPaint.color = theme.keyPressed
         labelPaint.color = theme.keyText
         hintPaint.color = theme.keyHint
+        borderPaint.color = theme.keyHint
         popupBgPaint.color = theme.popupBg
         popupSelectedPaint.color = theme.accent
         deletePreviewPaint.color = theme.keyText
@@ -710,11 +783,15 @@ class KeyboardView @JvmOverloads constructor(
     /** Swipe path entered a new key: cycle the trail hue and burst the key. */
     fun onEngineKeyTransition(streamId: StreamId, code: Int) {
         if (zenMode || !trailsEnabled) return
+        // Stepped with the trail hidden too: the lit keys take their colour from it.
         trailRenderer.bumpHue(streamId)
-        if (code in letterCenterX.indices) {
-            burstRenderer.spawn(letterCenterX[code], letterCenterY[code], SystemClock.uptimeMillis())
-            ensureAnimating()
+        if (code !in letterCenterX.indices) return
+        val now = SystemClock.uptimeMillis()
+        if (swipeLook.drawsTrail) {
+            burstRenderer.spawn(letterCenterX[code], letterCenterY[code], now, trailRenderer.hueOf(streamId))
         }
+        if (swipeLook.drawsKeys) keyWake.mark(keyOfCode[code], trailRenderer.hueOf(streamId), now)
+        ensureAnimating()
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -780,6 +857,14 @@ class KeyboardView @JvmOverloads constructor(
         }
         measureNumberRowGap(l)
         measureSpaceRowGap(l)
+        keyWake.resize(l.keys.size)
+        narrowestKeySidePx = 0f
+        for (i in l.keys.indices) {
+            if (l.keys[i].chromeless) continue
+            val side = minOf(keyInsets[i].width(), keyInsets[i].height())
+            if (side > 0f && (narrowestKeySidePx == 0f || side < narrowestKeySidePx)) narrowestKeySidePx = side
+        }
+        updateBorderWidth()
         buildGeometry(l)
         renderStaticLayer()
         invalidate()
@@ -832,6 +917,7 @@ class KeyboardView @JvmOverloads constructor(
         val rects = ArrayList<FloatArray>()
         val codes = ArrayList<Int>()
         var minLetterW = Float.MAX_VALUE
+        keyOfCode.fill(-1)
         for (i in l.keys.indices) {
             val k = l.keys[i]
             if (!k.isLetter) continue
@@ -841,6 +927,7 @@ class KeyboardView @JvmOverloads constructor(
             codes.add(code)
             letterCenterX[code] = r.centerX()
             letterCenterY[code] = r.centerY()
+            keyOfCode[code] = i
             if (r.width() < minLetterW) minLetterW = r.width()
         }
         engineActive = rects.isNotEmpty()
@@ -876,7 +963,11 @@ class KeyboardView @JvmOverloads constructor(
         val bmp = staticLayer?.takeIf { it.width == width && it.height == height }
             ?: Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { staticLayer = it }
         val c = Canvas(bmp)
-        c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
+        if (overBackdrop) {
+            bmp.eraseColor(Color.TRANSPARENT)
+        } else {
+            c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
+        }
         for (i in l.keys.indices) {
             drawKey(c, l.keys[i], keyInsets[i])
         }
@@ -888,6 +979,7 @@ class KeyboardView @JvmOverloads constructor(
         if (!key.chromeless) {
             val paint = if (key.type == KeyType.CHAR) keyPaint else specialKeyPaint
             c.drawRoundRect(inset, cornerPx, cornerPx, paint)
+            drawBorder(c, inset)
         }
 
         val action = if (key.type == KeyType.ENTER) enterLabel else null
@@ -952,6 +1044,38 @@ class KeyboardView @JvmOverloads constructor(
         c.drawText(text, inset.centerX(), baseline, labelPaint)
     }
 
+    /** Each lit key's edge, in the hue it was crossed in, narrowing and fading as it ages. */
+    private fun drawWake(canvas: Canvas, now: Long) {
+        if (!keyWake.anyLit(now)) return
+        for (i in 0 until minOf(keyWake.size, keyInsets.size)) {
+            val b = keyWake.lightAt(i, now)
+            if (b <= 0f) continue
+            val w = KeyWake.widthDp(b) * density
+            val d = w / 2f
+            val inset = keyInsets[i]
+            wakeRect.set(inset.left + d, inset.top + d, inset.right - d, inset.bottom - d)
+            wakePaint.strokeWidth = w
+            wakePaint.color = Hsv.toColor(keyWake.hueOf(i), trailRenderer.saturation, trailRenderer.value)
+            wakePaint.alpha = (255 * b).toInt()
+            val r = (cornerPx - d).coerceAtLeast(0f)
+            canvas.drawRoundRect(wakeRect, r, r, wakePaint)
+        }
+    }
+
+    private fun updateBorderWidth() {
+        borderPaint.strokeWidth = KeyBorder.widthPx(keyBorderDp, density, narrowestKeySidePx)
+    }
+
+    /** The key's line, inside its fill so the gap between keys is unchanged. */
+    private fun drawBorder(c: Canvas, inset: RectF) {
+        val w = borderPaint.strokeWidth
+        if (keyBorderDp <= 0 || w <= 0f) return
+        val d = KeyBorder.inset(w)
+        borderRect.set(inset.left + d, inset.top + d, inset.right - d, inset.bottom - d)
+        val r = (cornerPx - d).coerceAtLeast(0f)
+        c.drawRoundRect(borderRect, r, r, borderPaint)
+    }
+
     private fun insetRect(rect: RectF): RectF = RectF(
         rect.left + keyGapPx, rect.top + keyGapPx,
         rect.right - keyGapPx, rect.bottom - keyGapPx,
@@ -970,6 +1094,7 @@ class KeyboardView @JvmOverloads constructor(
                 // RectF allocation on every animation frame while a key is held.
                 val inset = keyInsets[idx]
                 canvas.drawRoundRect(inset, cornerPx, cornerPx, pressedPaint)
+                drawBorder(canvas, inset)
                 val label = if (key.isLetter && uppercase) key.label.uppercase() else key.label
                 if (label.isNotEmpty() && key.type == KeyType.CHAR) {
                     labelPaint.textSize =
@@ -981,8 +1106,12 @@ class KeyboardView @JvmOverloads constructor(
         }
         if (!zenMode) {
             val now = SystemClock.uptimeMillis()
-            trailRenderer.draw(canvas, now)
-            burstRenderer.draw(canvas, now)
+            drawWake(canvas, now)
+            if (swipeLook.drawsTrail) {
+                sparkRenderer.draw(canvas, now)
+                trailRenderer.draw(canvas, now)
+                burstRenderer.draw(canvas, now)
+            }
         }
         drawSpeed(canvas)
         drawGhost(canvas)
@@ -1225,7 +1354,10 @@ class KeyboardView @JvmOverloads constructor(
                     // The board's own letter code: a Cyrillic key's char minus 'a' runs past the array.
                     val code = key?.letterCode?.takeIf { it in letterCenterX.indices }
                     if (code != null) {
-                        burstRenderer.spawn(letterCenterX[code], letterCenterY[code], t)
+                        if (swipeLook.drawsTrail) {
+                            burstRenderer.spawn(letterCenterX[code], letterCenterY[code], t, trailRenderer.hueOf(stream))
+                        }
+                        if (swipeLook.drawsKeys) keyWake.mark(keyOfCode[code], trailRenderer.hueOf(stream), t)
                         ensureAnimating()
                     }
                 }
@@ -1840,7 +1972,7 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     private fun addTrailPoint(e: GestureEngine, pid: Int, x: Float, y: Float, t: Long) {
-        if (zenMode || !trailsEnabled) return
+        if (zenMode || !trailsEnabled || !swipeLook.drawsTrail) return
         if (!e.isSwipeCommitted(pid)) return
         val stream = e.streamIdOf(pid) ?: return
         trailRenderer.addPoint(stream, x, y, t)
@@ -2134,6 +2266,8 @@ class KeyboardView @JvmOverloads constructor(
         pressedKeys.clear()
         trailRenderer.clear()
         burstRenderer.clear()
+        sparkRenderer.clear()
+        keyWake.clear()
         invalidate()
     }
 

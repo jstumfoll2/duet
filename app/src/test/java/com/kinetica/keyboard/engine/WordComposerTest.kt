@@ -260,4 +260,36 @@ class WordComposerTest {
         composer.commitWord("t")
         assertEquals(listOf(true, false, true, false), seen)
     }
+
+    @Test
+    fun takingTheLastGestureBackBringsBackTheDecodeBeforeIt() {
+        // Two thumbs: a sloppy swipe, a tap from the other thumb, then the rest of the word.
+        // Backspace takes the last one back, and the bar must read as it did before it.
+        val cap = Capture()
+        val composer = WordComposer(predictor, direct, direct, cap)
+        composer.onToken(TestData.sloppySwipe("some", g, 0, 300, 0.3f, StreamId.LEFT))
+        composer.onToken(TestData.tap('t', g, 350, StreamId.RIGHT))
+        val words = cap.candidates.map { it.word }
+        val lead = cap.tentative?.word
+        assertTrue("the two gestures decode to something", words.isNotEmpty())
+        composer.onToken(TestData.sloppySwipe("hing", g, 450, 300, 0.3f, StreamId.LEFT))
+        assertEquals(3, composer.tokenCount)
+        composer.truncate(2)
+        assertEquals(2, composer.tokenCount)
+        assertEquals(words, cap.candidates.map { it.word })
+        assertEquals(lead, cap.tentative?.word)
+        // A count past the buffer changes nothing.
+        composer.truncate(5)
+        assertEquals(2, composer.tokenCount)
+    }
+
+    @Test
+    fun takingTheFirstGestureBackLeavesNoWord() {
+        val cap = Capture()
+        val composer = WordComposer(predictor, direct, direct, cap)
+        composer.onToken(TestData.tap('t', g, 0))
+        composer.truncate(0)
+        assertFalse(composer.hasPendingWord)
+        assertEquals("", composer.literal())
+    }
 }

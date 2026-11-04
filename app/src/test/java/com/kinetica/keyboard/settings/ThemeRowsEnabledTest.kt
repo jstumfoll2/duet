@@ -42,10 +42,13 @@ class ThemeRowsEnabledTest {
         val mode = f.row(Prefs.THEME_MODE) as ListPreference
         assertEquals("default", mode.value)
         assertFalse("Duet dark ignores the hue", f.row(Prefs.THEME_HUE).isEnabled)
+        assertFalse(f.row(Prefs.THEME_COLOR_HEX).isEnabled)
         choose(mode, "custom")
         assertTrue(f.row(Prefs.THEME_HUE).isEnabled)
+        assertTrue(f.row(Prefs.THEME_COLOR_HEX).isEnabled)
         choose(mode, "dynamic")
         assertFalse(f.row(Prefs.THEME_HUE).isEnabled)
+        assertFalse(f.row(Prefs.THEME_COLOR_HEX).isEnabled)
     }
 
     @Test
@@ -69,6 +72,10 @@ class ThemeRowsEnabledTest {
         choose(trail, "custom")
         assertTrue(f.row(Prefs.TRAIL_COLOR_CUSTOM_HUE).isEnabled)
         choose(trail, "theme")
+        assertFalse(f.row(Prefs.TRAIL_COLOR_CUSTOM_HUE).isEnabled)
+        assertFalse(f.row(Prefs.TRAIL_COLOR_HEX).isEnabled)
+        choose(trail, "exact")
+        assertTrue(f.row(Prefs.TRAIL_COLOR_HEX).isEnabled)
         assertFalse(f.row(Prefs.TRAIL_COLOR_CUSTOM_HUE).isEnabled)
     }
 

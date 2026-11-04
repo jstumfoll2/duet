@@ -90,6 +90,8 @@ import com.kinetica.keyboard.settings.KeyboardHeights
 import com.kinetica.keyboard.settings.Prefs
 import com.kinetica.keyboard.settings.SettingsActivity
 import com.kinetica.keyboard.settings.SettingsSynonyms
+import com.kinetica.keyboard.ui.BackdropCrop
+import com.kinetica.keyboard.ui.BackdropFit
 import com.kinetica.keyboard.ui.EmojiPickerView
 import com.kinetica.keyboard.ui.EmojiSuggest
 import com.kinetica.keyboard.ui.FloatingFrame
@@ -117,6 +119,7 @@ import java.util.concurrent.Executors
 class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.Callbacks {
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val backdrop by lazy { BackdropLoader(this, mainHandler) }
 
     /** The spacebar's words per minute (TypingSpeed), and the touch span of the word in hand. */
     private val typingSpeed = TypingSpeed()
@@ -503,6 +506,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // armed the autospace timer like a thumb's and put a second space in.
     private var seededWithoutTokens = false
 
+    // The word as it stood before each of its gestures, for Prefs.BACKSPACE_UNDO.
+    private val gestureUndo = GestureUndo()
+
     private var autospacePending = false
     private val autospaceRunnable = Runnable {
         autospacePending = false
@@ -701,6 +707,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     override fun onDestroy() {
+        backdrop.shutdown()
         prefListener?.let {
             PreferenceManager.getDefaultSharedPreferences(this)
                 .unregisterOnSharedPreferenceChangeListener(it)
@@ -1142,9 +1149,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         suggestionBar?.theme = theme
         containerView?.applyTheme(theme)
         emojiPicker?.theme = theme
+        backdrop.refresh(config.backdropStamp) { applyBackdrop() }
+        applyBackdrop()
         applyNavigationBarColor(theme)
         kv.trailBaseHue =
             if (config.trailColorMode == "theme") theme.accentHue else config.trailBaseHue
+        kv.setTrailTone(config.trailSaturation, config.trailValue)
+        kv.trailStyle = config.trailStyle
+        kv.pressEffect = config.pressEffect
+        kv.swipeLook = config.swipeLook
+        kv.keyBorderDp = config.keyBorderDp
         kv.longPressMs = config.longPressMs
         kv.chordArmMs = config.chordArmMs
         kv.chordLabelsEnabled = config.chordLabels
@@ -1219,6 +1233,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * navigationBarColor is deprecated once targetSdk 35 enforces edge-to-edge; at 34 it still
      * applies, and raising the target is a reproducible-build change of its own.
      */
+    /** The background image under the bar and keys, or each view's own fill when there is none. */
+    private fun applyBackdrop() {
+        val image = backdrop.bitmap
+        val on = image != null
+        val cut = if (isLandscape()) config.backdropCropLandscape else config.backdropCrop
+        containerView?.setBackdrop(image, BackdropFit.alpha255(config.backdropAlphaPct), BackdropCrop.parse(cut))
+        keyboardView?.setBackdropLook(on, BackdropFit.alpha255(config.keyAlphaPct))
+        suggestionBar?.overBackdrop = on
+    }
+
     private fun applyNavigationBarColor(theme: KeyboardTheme) {
         val w = window?.window ?: return
         @Suppress("DEPRECATION")
@@ -1480,6 +1504,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // -------------------------------------------------- engine listener (UI)
 
     override fun onTokenFinalized(token: InputToken) {
+        shift.onOtherKey()
         autocorrectUndo = null
         autoFixUndo = null
         cancelAutospace()
@@ -1543,6 +1568,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     // The letter that caused this: the reopened word must land before it.
                     retractAutospace(token.tStart)
                 }
+                rememberWordBeforeGesture()
                 if (tentativeLength == 0) wordShift = shift.state
                 val ch = shift.apply(boardAlphabet.charOf(token.code))
                 commitTracked(ch.toString())
@@ -1570,6 +1596,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     Log.w(TAG, "swipe before dictionary ready, dropped")
                     return
                 }
+                rememberWordBeforeGesture()
                 seededWithoutTokens = false
                 comp.peckSplit = comp.hasPendingWord && peckSplitAllowed()
                 comp.onToken(token)
@@ -1579,6 +1606,52 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
             }
         }
+    }
+
+    /** The word as it stands before the gesture about to join it; see [undoLastGesture]. */
+    private fun rememberWordBeforeGesture() {
+        if (!config.backspaceUndo) return
+        val comp = composer ?: return
+        gestureUndo.push(
+            GestureUndo.State(tentativeWord, comp.tokenCount, shift.state, wordShift, swipeDecodeEmpty),
+        )
+    }
+
+    /**
+     * Takes the word's last tap or swipe back (upstream Kinetica 2.1.2): the editor shows the
+     * word as it stood before it and the composer decodes the tokens before it again, so the
+     * bar comes back as it was. Until the next gesture the word stays open: no automatic space
+     * arms on the decode.
+     */
+    private fun undoLastGesture(): Boolean {
+        val comp = composer ?: return false
+        val state = gestureUndo.pop() ?: return false
+        val from = comp.tokenCount
+        if (state.tokens >= from) {
+            gestureUndo.clear()
+            return false
+        }
+        DecodeTrace.log { "  backspace undo tokens=$from->${state.tokens} text=${state.text}" }
+        replaceTentative(state.text)
+        if (state.tokens == 0) {
+            abandonWord()
+        } else {
+            wordShift = state.wordShift
+            swipeDecodeEmpty = state.decodeEmpty
+            seededWithoutTokens = true
+            lastCandidates = emptyList()
+            lastTentative = null
+            lastLiteral = ""
+            suggestionBar?.clearSuggestions()
+            comp.truncate(state.tokens)
+            updateBarWordPending()
+        }
+        // A capital the undone letter spent comes back with it.
+        if (state.shift == ShiftState.State.SHIFT && shift.state == ShiftState.State.NONE) {
+            shift.autoShift(true)
+            keyboardView?.setShiftUppercase(shift.isShifted)
+        }
+        return true
     }
 
     override fun onKeyTransition(streamId: StreamId, code: Int) {
@@ -1901,6 +1974,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private val keyboardListener = object : KeyboardView.Listener {
         override fun onKeyTap(key: Key) {
+            if (key.type != KeyType.SHIFT) shift.onOtherKey()
             when (key.type) {
                 KeyType.SPACE -> "space"
                 KeyType.BACKSPACE -> "backspace"
@@ -1982,6 +2056,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
 
         override fun onKeyAlternate(key: Key, text: String) {
+            if (key.type != KeyType.SHIFT) shift.onOtherKey()
             cancelAutospace()
             if (text.isEmpty()) return
             // Shift's cells are labels, not text: the key is the command and the cell its
@@ -2802,7 +2877,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.RETYPE, EditorAction.EXPANDIFY, EditorAction.SETTINGS,
             EditorAction.NEXT_LANGUAGE, EditorAction.TOGGLE_AUTOSPACE,
             EditorAction.ONE_HANDED, EditorAction.DATE, EditorAction.TIME,
-            EditorAction.ENTER, EditorAction.COPY_LINE, EditorAction.TOGGLE_NEXT_WORD,
+            EditorAction.ENTER, EditorAction.COPY_LINE, EditorAction.CLEAN_LINKS, EditorAction.TOGGLE_NEXT_WORD,
             EditorAction.TOGGLE_RECENT_WORDS, EditorAction.TOGGLE_NUMBER_ROW,
             EditorAction.TOGGLE_TIDY_SPACES, EditorAction.TOGGLE_TYPING_SPEED,
             EditorAction.TOGGLE_PECK_MODE, EditorAction.TOGGLE_INCOGNITO,
@@ -2843,6 +2918,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.TIME -> insertNow(date = false)
             EditorAction.ENTER -> onEnter()
             EditorAction.COPY_LINE -> copyLine()
+            EditorAction.CLEAN_LINKS -> cleanLinks()
             EditorAction.TOGGLE_NEXT_WORD -> togglePref(Prefs.NEXT_WORD, !config.nextWord)
             EditorAction.TOGGLE_RECENT_WORDS -> togglePref(Prefs.RECENT_WORDS, !config.recentWords)
             EditorAction.TOGGLE_NUMBER_ROW -> togglePref(Prefs.NUMBER_ROW, !config.numberRow)
@@ -2961,6 +3037,42 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         getSystemService(ClipboardManager::class.java)
             ?.setPrimaryClip(ClipData.newPlainText(getString(R.string.clip_label_line), line))
+    }
+
+    /**
+     * Tracking parameters out of the selection's links, or out of the link just before the
+     * cursor, as after a paste (upstream Kinetica 2.1.2). Nothing to clean buzzes, as a refused
+     * line copy does. A private field is never read for it.
+     */
+    private fun cleanLinks() {
+        cancelAutospace()
+        finalizePendingWord()
+        if (editorState.privateMode) return
+        if (selectionLength() > 0) {
+            val text = ich.selectedText()?.toString() ?: return
+            val cleaned = if (text.length > CLEAN_LINKS_READ_CHARS) text else LinkCleaner.clean(text)
+            DecodeTrace.log { "  clean links src=selection len=${text.length}->${cleaned.length}" }
+            if (cleaned == text) {
+                vibrateForKeyPress()
+                return
+            }
+            val at = ich.liveSelection()?.first ?: minOf(selStart, selEnd)
+            ich.replaceSelection(at, cleaned)
+            // The length changes, unlike a re-case: the words recorded after it move.
+            commitHistory.onEdit(at + text.length, text.length, cleaned.length)
+            expectAt(at, at + cleaned.length)
+            return
+        }
+        val before = ich.textBeforeCursor(CLEAN_LINKS_READ_CHARS) ?: return
+        val found = LinkCleaner.cleanLastLink(before)
+        DecodeTrace.log { "  clean links src=cursor changed=${found != null}" }
+        if (found == null) {
+            vibrateForKeyPress()
+            return
+        }
+        ich.replaceBeforeCursor(found.span, found.text)
+        expectAfter(found.span, found.text.length)
+        updateAutoShift()
     }
 
     // ------------------------------------------------------------------ clipboard, voice, codes
@@ -3687,6 +3799,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (code < 0 || !g.hasKey(code)) return false
         if (comp.tokenCount >= KineticaConstants.MAX_WORD_LEN) return false
         clearCorrection()
+        rememberWordBeforeGesture()
         if (tentativeLength == 0) wordShift = shift.state
         // The popup already applied the layout's case to its cells, so the glyph goes in
         // as chosen, not through shift.apply again.
@@ -4163,6 +4276,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         cancelAutospace()
         if (undoAutoFix()) return
         if (undoAutocorrect()) return
+        if (undoesGesture(tap, config.backspaceUndo, tentativeLength, selectionLength(), gestureUndo.size) &&
+            undoLastGesture()
+        ) {
+            return
+        }
         if (splitJoinedCommit()) return
         if (tap && config.backspaceWholeWord && deleteSwipedWord(armedStart)) return
         val eating = lastCommit.retypeWord ?: backspaceTarget
@@ -4255,6 +4373,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         tentativeLength = fragment.length
         tentativeWord = fragment
         reloadedWord = fragment
+        gestureUndo.clear()
         reloadedByHand = byHand
         // The word this keyboard committed here, if it is still that word: its bar comes back.
         reloadHistory = commitHistory.at(cursorExpected() - fragment.length, fragment)
@@ -4301,6 +4420,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // The decode follows the word before this one, not the commits made since, which can
         // include the word itself.
         comp.reset()
+        gestureUndo.clear()
         wordBefore(before, word.head)?.let { comp.anchorContext(it) }
         comp.seed(taps)
         seededWithoutTokens = true
@@ -5239,6 +5359,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         reloadedWord = null
         reloadedByHand = false
         reloadHistory = null
+        gestureUndo.clear()
         updateBarWordPending()
         autoFixGrammar(word)
     }
@@ -5487,6 +5608,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         reloadedWord = null
         reloadedByHand = false
         reloadHistory = null
+        gestureUndo.clear()
         seededWithoutTokens = false
         tentativeLength = 0
         tentativeWord = ""
@@ -5519,6 +5641,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         reloadedWord = null
         reloadedByHand = false
         reloadHistory = null
+        gestureUndo.clear()
         seededWithoutTokens = false
         tentativeLength = 0
         tentativeWord = ""
@@ -5684,6 +5807,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // How far each way COPY_LINE reads for the line's ends. A longer line is refused,
         // not half copied.
         const val COPY_LINE_READ_CHARS = 2000
+
+        // How far back the clean-links action reads for the link before the cursor.
+        const val CLEAN_LINKS_READ_CHARS = 4000
 
         /** ClipDescription.EXTRA_IS_SENSITIVE, which Android 13 added and password managers set. */
         const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"

@@ -456,6 +456,50 @@
                     app:min="0"
                     app:showSeekBarValue="true"
                     app:updatesContinuously="true" />
+                <com.kinetica.keyboard.settings.ColorHexPreference
+                    android:key="pref_theme_color_hex"
+                    android:title="@string/pref_theme_color_hex_title"
+                    app:singleLineTitle="false" />
+                <Preference
+                    android:key="pref_backdrop_image"
+                    android:title="@string/backdrop_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/backdrop_none"
+                    android:persistent="false" />
+                <!-- app:min and android:defaultValue match BackdropFit's opacity bounds. -->
+                <SeekBarPreference
+                    android:key="pref_backdrop_alpha"
+                    android:title="@string/pref_backdrop_alpha_title"
+                    app:singleLineTitle="false"
+                    android:defaultValue="100"
+                    android:max="100"
+                    app:min="0"
+                    app:showSeekBarValue="true"
+                    app:updatesContinuously="true" />
+                <SeekBarPreference
+                    android:key="pref_key_alpha"
+                    android:title="@string/pref_key_alpha_title"
+                    app:singleLineTitle="false"
+                    android:defaultValue="60"
+                    android:max="100"
+                    app:min="10"
+                    app:showSeekBarValue="true"
+                    app:updatesContinuously="true" />
+                <SwitchPreferenceCompat
+                    android:key="pref_key_borders"
+                    android:title="@string/pref_key_borders_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_key_borders_summary"
+                    android:defaultValue="false" />
+                <SeekBarPreference
+                    android:key="pref_key_border_width"
+                    android:title="@string/pref_key_border_width_title"
+                    app:singleLineTitle="false"
+                    android:dependency="pref_key_borders"
+                    android:defaultValue="1"
+                    android:max="4"
+                    app:min="1"
+                    app:showSeekBarValue="true" />
                 <com.kinetica.keyboard.settings.ThemePreviewPreference
                     android:key="pref_theme_preview"
                     android:persistent="false"
@@ -480,6 +524,34 @@
                     android:max="360"
                     app:min="0"
                     app:showSeekBarValue="true" />
+                <com.kinetica.keyboard.settings.ColorHexPreference
+                    android:key="pref_trail_color_hex"
+                    android:title="@string/pref_trail_color_hex_title"
+                    app:singleLineTitle="false" />
+                <ListPreference
+                    android:key="pref_trail_style"
+                    android:title="@string/pref_trail_style_title"
+                    app:singleLineTitle="false"
+                    android:entries="@array/trail_style_entries"
+                    android:entryValues="@array/trail_style_values"
+                    android:defaultValue="classic"
+                    app:useSimpleSummaryProvider="true" />
+                <ListPreference
+                    android:key="pref_press_effect"
+                    android:title="@string/pref_press_effect_title"
+                    app:singleLineTitle="false"
+                    android:entries="@array/press_effect_entries"
+                    android:entryValues="@array/press_effect_values"
+                    android:defaultValue="burst"
+                    app:useSimpleSummaryProvider="true" />
+                <ListPreference
+                    android:key="pref_swipe_look"
+                    android:title="@string/pref_swipe_look_title"
+                    app:singleLineTitle="false"
+                    android:entries="@array/swipe_look_entries"
+                    android:entryValues="@array/swipe_look_values"
+                    android:defaultValue="trail"
+                    app:useSimpleSummaryProvider="true" />
                 <SwitchPreferenceCompat
                     android:key="pref_zen_mode"
                     android:title="@string/pref_zen_title"
@@ -929,6 +1001,12 @@
                     android:title="@string/pref_backspace_whole_word_title"
                     app:singleLineTitle="false"
                     android:summary="@string/pref_backspace_whole_word_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
+                    android:key="pref_backspace_undo"
+                    android:title="@string/pref_backspace_undo_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_backspace_undo_summary"
                     android:defaultValue="false" />
                 <SeekBarPreference
                     android:key="pref_backspace_step_dp"

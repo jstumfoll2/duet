@@ -13,6 +13,8 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
@@ -91,6 +93,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         wireTraceScreen()
         dropIconSpace(preferenceScreen)
         wireThemePreview()
+        wireBackdrop()
         wireSizePreview()
         showVersion()
     }
@@ -107,6 +110,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         // A search result asks for its row before this fragment has a list to scroll, so
         // the request is held and spent here, once, whichever way it arrived.
         applyReveal()
+        refreshBackdropRow()
         if (smsAwaitingSettings) {
             smsAwaitingSettings = false
             if (smsAllowed()) findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.isChecked = true
@@ -578,19 +582,27 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         wireTrailSwatch()
         val preview = findPreference<ThemePreviewPreference>(PREVIEW_KEY) ?: return
         val hue = findPreference<SeekBarPreference>(Prefs.THEME_HUE)
+        val exact = findPreference<ColorHexPreference>(Prefs.THEME_COLOR_HEX)
         val mode = findPreference<ListPreference>(Prefs.THEME_MODE)
         val brightness = findPreference<ListPreference>(Prefs.THEME_BRIGHTNESS)
 
         // Repaint while the thumb moves; otherwise the swatch only catches up on release.
         hue?.updatesContinuously = true
 
-        fun refresh(newHue: Int? = null, newMode: String? = null, newBrightness: String? = null) {
+        fun refresh(
+            newHue: Int? = null,
+            newMode: String? = null,
+            newBrightness: String? = null,
+            newExact: Int? = null,
+        ) {
             val prefs = preferenceManager.sharedPreferences ?: return
             // KeyboardConfig owns the migration from the retired colour list, so going through it
             // keeps the swatch correct on first open, before the hue preference is written.
             val config = KeyboardConfig.from(prefs)
-            val primary = newHue?.let { KeyboardTheme.primaryForHue(it.toFloat()) }
+            val primary = newExact
+                ?: newHue?.let { KeyboardTheme.primaryForHue(it.toFloat()) }
                 ?: config.themeColor
+            exact?.fallbackColor = primary
             val resolvedMode = newMode ?: config.themeMode
             val theme = KeyboardTheme.resolve(
                 requireContext(),
@@ -603,6 +615,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
             // Grayed out, not hidden, where the theme ignores them: the rows stay findable and
             // the preview note says why they do nothing.
             hue?.isEnabled = KeyboardTheme.hueAffects(resolvedMode)
+            exact?.isEnabled = KeyboardTheme.hueAffects(resolvedMode)
             brightness?.isEnabled = !ThemePresets.isPreset(resolvedMode)
             preview.show(
                 theme,
@@ -617,7 +630,16 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         }
 
         hue?.setOnPreferenceChangeListener { _, value ->
+            // The slider takes over again: an exact colour would otherwise hide every move.
+            exact?.clear()
             refresh(newHue = value as? Int)
+            true
+        }
+        exact?.setOnPreferenceChangeListener { _, value ->
+            val c = KeyboardConfig.exactColor(value as? String) ?: return@setOnPreferenceChangeListener false
+            // The slider follows, so the two rows never disagree about the hue.
+            hue?.value = Math.round(Hsv.hueOf(c)).coerceIn(0, 360)
+            refresh(newExact = c)
             true
         }
         mode?.setOnPreferenceChangeListener { _, value ->
@@ -638,9 +660,19 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
      */
     private inner class TrailSwatch(private val row: ListPreference) {
         var mode: String? = row.value
-            set(v) { field = v; paint(); customHueRow?.isEnabled = v == TRAIL_CUSTOM }
+            set(v) {
+                field = v
+                paint()
+                customHueRow?.isEnabled = v == TRAIL_CUSTOM
+                exactRow?.isEnabled = v == KeyboardConfig.TRAIL_EXACT
+            }
         var customHueRow: HueSliderPreference? = null
             set(v) { field = v; v?.isEnabled = mode == TRAIL_CUSTOM }
+        var exactRow: ColorHexPreference? = null
+            set(v) { field = v; v?.isEnabled = mode == KeyboardConfig.TRAIL_EXACT }
+        var exactHex: String? = preferenceManager.sharedPreferences
+            ?.getString(Prefs.TRAIL_COLOR_HEX, null)
+            set(v) { field = v; paint() }
         var customHue: Int = preferenceManager.sharedPreferences
             ?.getInt(Prefs.TRAIL_COLOR_CUSTOM_HUE, 200) ?: 200
             set(v) { field = v; paint() }
@@ -658,6 +690,10 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
                         colors = IntArray(7) { i -> Hsv.toColor(i * 60f % 360f, TRAIL_SAT, 1f) }
                     }
                     "theme" -> setColor(Hsv.toColor(themeAccentHue, TRAIL_SAT, 1f))
+                    KeyboardConfig.TRAIL_EXACT -> setColor(
+                        KeyboardConfig.exactColor(exactHex)
+                            ?: Hsv.toColor(customHue.toFloat(), TRAIL_SAT, 1f),
+                    )
                     else -> setColor(
                         Hsv.toColor(KeyboardConfig.trailHueFor(mode, customHue), TRAIL_SAT, 1f),
                     )
@@ -683,6 +719,13 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         }
         // Only the custom-hue trail reads the slider.
         swatch.customHueRow = customHue
+        val exact = findPreference<ColorHexPreference>(Prefs.TRAIL_COLOR_HEX)
+        exact?.fallbackColor = Hsv.toColor(swatch.customHue.toFloat(), TRAIL_SAT, 1f)
+        exact?.setOnPreferenceChangeListener { _, value ->
+            swatch.exactHex = value as? String
+            true
+        }
+        swatch.exactRow = exact
         // Covers screens without the theme rows, where wireThemePreview never sets the accent.
         preferenceManager.sharedPreferences?.let { prefs ->
             val config = KeyboardConfig.from(prefs)
@@ -692,6 +735,105 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         }
     }
 
+    // ------------------------------------------------------------------ background image
+
+    // The system picker hands back one image the user chose; no storage permission is asked.
+    private val pickBackdrop =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) importBackdrop(uri)
+        }
+
+    /** The image row picks a picture, or offers another, a new cut or none once one is set. */
+    private fun wireBackdrop() {
+        val row = findPreference<Preference>(BACKDROP_ROW_KEY) ?: return
+        row.setOnPreferenceClickListener {
+            val ctx = requireContext()
+            val prefs = preferenceManager.sharedPreferences
+            if (prefs != null && BackdropStore.isSet(ctx, prefs)) {
+                AlertDialog.Builder(ctx)
+                    .setTitle(R.string.backdrop_title)
+                    .setItems(
+                        arrayOf(
+                            getString(R.string.backdrop_change), getString(R.string.backdrop_adjust),
+                            getString(R.string.backdrop_remove),
+                        ),
+                    ) { _, which ->
+                        when (which) {
+                            0 -> pickBackdrop.launch(arrayOf("image/*"))
+                            1 -> startActivity(Intent(ctx, BackdropCropActivity::class.java))
+                            else -> removeBackdrop()
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            } else {
+                pickBackdrop.launch(arrayOf("image/*"))
+            }
+            true
+        }
+        refreshBackdropRow()
+    }
+
+    /** The row says whether an image is set; its two opacities only act while one is. */
+    private fun refreshBackdropRow() {
+        val row = findPreference<Preference>(BACKDROP_ROW_KEY) ?: return
+        val ctx = context ?: return
+        val prefs = preferenceManager.sharedPreferences ?: return
+        val set = BackdropStore.isSet(ctx, prefs)
+        row.setSummary(if (set) R.string.backdrop_set else R.string.backdrop_none)
+        findPreference<Preference>(Prefs.BACKDROP_ALPHA)?.isEnabled = set
+        findPreference<Preference>(Prefs.KEY_ALPHA)?.isEnabled = set
+    }
+
+    /**
+     * Copies the picked image in off the main thread, then opens the crop screen on it; that
+     * screen's Save makes it the image and writes the stamp the keyboard watches.
+     */
+    private fun importBackdrop(uri: Uri) {
+        val app = requireContext().applicationContext
+        val dm = resources.displayMetrics
+        val maxLong = maxOf(dm.widthPixels, dm.heightPixels)
+        val main = Handler(Looper.getMainLooper())
+        Thread({
+            val ok = try {
+                BackdropStore.import(app, uri, maxLong)
+                true
+            } catch (e: IOException) {
+                Log.w(TAG, "background image not imported", e)
+                false
+            } catch (e: SecurityException) {
+                Log.w(TAG, "background image not readable", e)
+                false
+            } catch (e: OutOfMemoryError) {
+                Log.w(TAG, "background image too large", e)
+                false
+            }
+            main.post {
+                val host = activity
+                when {
+                    !ok -> Toast.makeText(app, R.string.backdrop_failed, Toast.LENGTH_LONG).show()
+                    // The settings closed while the copy ran: nothing to fit it in, so it goes.
+                    host == null -> BackdropStore.dropPending(app)
+                    else -> host.startActivity(
+                        Intent(host, BackdropCropActivity::class.java).putExtra(BackdropCropActivity.EXTRA_PENDING, true),
+                    )
+                }
+                refreshBackdropRow()
+            }
+        }, "duet-backdrop-import").start()
+    }
+
+    private fun removeBackdrop() {
+        val ctx = requireContext()
+        BackdropStore.remove(ctx)
+        preferenceManager.sharedPreferences?.edit()
+            ?.putString(Prefs.BACKDROP, "")
+            ?.remove(Prefs.BACKDROP_CROP)
+            ?.remove(Prefs.BACKDROP_CROP_LANDSCAPE)
+            ?.apply()
+        refreshBackdropRow()
+    }
+
     private var revealKey: String? = null
 
     private companion object {
@@ -699,6 +841,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         const val RESET_LETTER_LISTS_KEY = "pref_letter_alternates_reset"
         const val LETTER_NOTE_KEY = "pref_letter_alternates_note"
         const val PREVIEW_KEY = "pref_theme_preview"
+        const val BACKDROP_ROW_KEY = "pref_backdrop_image"
         const val TRAIL_DOT_DP = 24f
         const val TRAIL_CUSTOM = "custom"
         // TrailRenderer's stroke saturation, so the dot is the colour the trail draws.

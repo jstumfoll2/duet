@@ -246,6 +246,24 @@ class WordComposer(
     }
 
     /**
+     * Keeps the first [count] tokens, in the order the thumbs lifted, and decodes them again:
+     * backspace taking the last tap or swipe of the word back (upstream Kinetica 2.1.2).
+     * Decoding is deterministic, so the bar comes back as it was before that gesture. At 0 the
+     * word is gone, as after [clear].
+     */
+    fun truncate(count: Int) {
+        if (count >= tokens.size) return
+        if (count <= 0) {
+            clear()
+            return
+        }
+        while (tokens.size > count) tokens.removeAt(tokens.size - 1)
+        if (seeded > count) seeded = count
+        if (rejoinHead > count) rejoinHead = 0
+        requestDecode()
+    }
+
+    /**
      * Seeds the buffer from already-committed text: when backspace edits into
      * a committed word, its remaining characters return as exact tap anchors,
      * so later tokens continue that word instead of starting a fragment and

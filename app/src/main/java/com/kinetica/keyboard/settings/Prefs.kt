@@ -220,6 +220,17 @@ object Prefs {
     const val VIBRATION_INTENSITY = "pref_vibration_intensity"
     const val TRAIL_COLOR = "pref_trail_color"
     const val TRAIL_COLOR_CUSTOM_HUE = "pref_trail_color_custom_hue"
+    /** `#RRGGBB` for the "exact" trail colour; blank until one is picked. */
+    const val TRAIL_COLOR_HEX = "pref_trail_color_hex"
+    /** classic | glow | dots | comet ([com.kinetica.keyboard.ui.TrailStyle]). */
+    const val TRAIL_STYLE = "pref_trail_style"
+    /** burst | ripple | sparks | pulse | none ([com.kinetica.keyboard.ui.PressEffect]). */
+    const val PRESS_EFFECT = "pref_press_effect"
+    /** trail | keys | both ([com.kinetica.keyboard.ui.SwipeLook], upstream Kinetica 2.2.0). */
+    const val SWIPE_LOOK = "pref_swipe_look"
+    /** A line round each key (upstream Kinetica 2.2.0), [KEY_BORDER_WIDTH] dp wide. */
+    const val KEY_BORDERS = "pref_key_borders"
+    const val KEY_BORDER_WIDTH = "pref_key_border_width"
     const val LANGUAGE = "pref_language"
     /** Last language agreed with Android; detects Settings edits while the IME is inactive. */
     const val SYNCED_LANGUAGE = "pref_synced_language"
@@ -333,6 +344,13 @@ object Prefs {
      * word still delete a letter at a time.
      */
     const val BACKSPACE_WHOLE_WORD = "pref_backspace_whole_word"
+
+    /**
+     * While a word is being typed, a backspace tap takes back its last tap or swipe instead of
+     * one letter (upstream Kinetica 2.1.2). Off by default; the hold's repeat and a finished
+     * word still delete letters.
+     */
+    const val BACKSPACE_UNDO = "pref_backspace_undo"
 
     /**
      * Reserve the suggestion bar's right edge for a retype button: one tap throws the
@@ -591,6 +609,27 @@ object Prefs {
      */
     const val THEME_HUE = "pref_theme_hue"
 
+    /**
+     * An exact `#RRGGBB` for the custom theme, saturation and brightness included. Blank (the
+     * default) means the [THEME_HUE] slider decides; moving the slider clears it.
+     */
+    const val THEME_COLOR_HEX = "pref_theme_color_hex"
+
+    /**
+     * When the background image was picked, as millis; empty for none. The image is a file in
+     * app storage ([BackdropStore]); a new value tells the keyboard to read it again. Not backed
+     * up, since the file is not.
+     */
+    const val BACKDROP = "pref_backdrop"
+    /** The background image's opacity over the theme background, 0-100. */
+    const val BACKDROP_ALPHA = "pref_backdrop_alpha"
+    /** The keys' opacity over the background image, 10-100. */
+    const val KEY_ALPHA = "pref_key_alpha"
+    /** The image's cut for portrait, fractions `l,t,r,b` ([com.kinetica.keyboard.ui.BackdropCrop]). */
+    const val BACKDROP_CROP = "pref_backdrop_crop"
+    /** The image's cut for landscape. */
+    const val BACKDROP_CROP_LANDSCAPE = "pref_backdrop_crop_landscape"
+
     const val DEFAULT_HEIGHT_PCT = 20
 
     /**
@@ -666,6 +705,11 @@ object Prefs {
     const val DEFAULT_VIBRATION = true
     const val DEFAULT_VIBRATION_INTENSITY = 2
     const val DEFAULT_TRAIL_COLOR = "rainbow"
+    const val DEFAULT_TRAIL_STYLE = "classic"
+    const val DEFAULT_PRESS_EFFECT = "burst"
+    const val DEFAULT_SWIPE_LOOK = "trail"
+    const val DEFAULT_KEY_BORDERS = false
+    const val DEFAULT_KEY_BORDER_WIDTH = 1
     const val DEFAULT_LANGUAGE = "en"
     const val DEFAULT_KEY_ARRANGEMENT = "qwerty"
     const val DEFAULT_ARRANGEMENT_AUTO_APPLIED = false
@@ -691,6 +735,7 @@ object Prefs {
     const val DEFAULT_ALTERNATE_SWIPES = true
     const val DEFAULT_BACKSPACE_CHAR_SLIDE = false
     const val DEFAULT_BACKSPACE_WHOLE_WORD = false
+    const val DEFAULT_BACKSPACE_UNDO = false
     /** Must match DeleteSpan.DEFAULT_WORD_STEP_DP and keyboard_prefs.xml. */
     const val DEFAULT_BACKSPACE_STEP_DP = 56
     const val DEFAULT_RETYPE_BUTTON = false

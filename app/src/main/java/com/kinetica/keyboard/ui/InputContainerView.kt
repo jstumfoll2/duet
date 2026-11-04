@@ -2,8 +2,11 @@ package com.kinetica.keyboard.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -68,6 +71,12 @@ class InputContainerView(
         fun onMoveEnded()
     }
     private var inlineStrip: View? = null
+    private var theme: KeyboardTheme? = null
+    private var backdrop: Bitmap? = null
+    private val backdropPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val backdropSrc = Rect()
+    private val backdropDst = Rect()
+    private var backdropCut: FloatArray? = null
 
     init {
         orientation = VERTICAL
@@ -90,11 +99,56 @@ class InputContainerView(
         wireHandle()
     }
 
-    /** The handle strip and the gap below the keys follow the active theme. */
+    /**
+     * The handle strip and the gap below the keys follow the active theme; over a background
+     * image both are clear, so the image shows through them.
+     */
     fun applyTheme(theme: KeyboardTheme) {
-        handle.setColors(theme.suggestionBg, theme.keyHint)
+        this.theme = theme
         proofStrip.setColors(theme.suggestionBg, theme.suggestionText, theme.chip)
-        bottomGap.setBackgroundColor(theme.background)
+        if (backdrop == null) {
+            handle.setColors(theme.suggestionBg, theme.keyHint)
+            bottomGap.setBackgroundColor(theme.background)
+        } else {
+            handle.setColors(Color.TRANSPARENT, theme.keyHint)
+            bottomGap.setBackgroundColor(Color.TRANSPARENT)
+            invalidate()
+        }
+    }
+
+    /**
+     * The background image at [alpha] (0-255) over the theme background, or none when [bitmap]
+     * is null. Drawn once under the handle, bar, keys and gap so it reads as one picture, from
+     * [cut], this orientation's chosen part, trimmed to whatever height the keyboard is dragged
+     * to; with no cut, from the centre.
+     */
+    fun setBackdrop(bitmap: Bitmap?, alpha: Int, cut: FloatArray?) {
+        if (bitmap === backdrop && alpha == backdropPaint.alpha && cut.contentEquals(backdropCut)) return
+        backdrop = bitmap
+        backdropPaint.alpha = alpha
+        backdropCut = cut
+        setWillNotDraw(bitmap == null)
+        fitBackdrop()
+        theme?.let { applyTheme(it) }
+        invalidate()
+    }
+
+    private fun fitBackdrop() {
+        val b = backdrop ?: return
+        val r = BackdropCrop.source(backdropCut, b.width, b.height, width, height)
+        backdropSrc.set(r[0], r[1], r[2], r[3])
+        backdropDst.set(0, 0, width, height)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        fitBackdrop()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val b = backdrop ?: return
+        theme?.let { canvas.drawColor(it.background) }
+        canvas.drawBitmap(b, backdropSrc, backdropDst, backdropPaint)
     }
 
     /**

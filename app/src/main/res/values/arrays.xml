@@ -167,6 +167,42 @@
         <item>one_handed_left</item>
     </string-array>
 
+    <string-array name="trail_style_entries">
+        <item>Classic</item>
+        <item>Glow</item>
+        <item>Dots</item>
+        <item>Comet (sparks)</item>
+    </string-array>
+    <string-array name="trail_style_values" translatable="false">
+        <item>classic</item>
+        <item>glow</item>
+        <item>dots</item>
+        <item>comet</item>
+    </string-array>
+    <string-array name="press_effect_entries">
+        <item>Burst</item>
+        <item>Ripple</item>
+        <item>Sparks</item>
+        <item>Pulse</item>
+        <item>None</item>
+    </string-array>
+    <string-array name="press_effect_values" translatable="false">
+        <item>burst</item>
+        <item>ripple</item>
+        <item>sparks</item>
+        <item>pulse</item>
+        <item>none</item>
+    </string-array>
+    <string-array name="swipe_look_entries">
+        <item>The trail</item>
+        <item>The keys it crosses</item>
+        <item>Both</item>
+    </string-array>
+    <string-array name="swipe_look_values" translatable="false">
+        <item>trail</item>
+        <item>keys</item>
+        <item>both</item>
+    </string-array>
     <string-array name="trail_color_entries">
         <item>Rainbow</item>
         <item>Red</item>
@@ -176,6 +212,7 @@
         <item>Violet</item>
         <item>Custom hue</item>
         <item>Theme colour</item>
+        <item>Exact colour</item>
     </string-array>
     <string-array name="trail_color_values" translatable="false">
         <item>rainbow</item>
@@ -186,6 +223,7 @@
         <item>violet</item>
         <item>custom</item>
         <item>theme</item>
+        <item>exact</item>
     </string-array>
 
     <string-array name="theme_mode_entries">

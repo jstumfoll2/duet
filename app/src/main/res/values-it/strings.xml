@@ -133,6 +133,12 @@
     <string name="pref_key_sound_summary">Il clic dei tasti del telefono, al volume dei suoni al tocco. In silenzio quando la suoneria è su vibrazione o silenziosa</string>
     <string name="pref_vibration_intensity_title">Intensità della vibrazione</string>
     <string name="pref_trail_color_title">Colore della scia</string>
+    <string name="pref_trail_style_title">Stile della scia</string>
+    <string name="pref_press_effect_title">Effetto alla pressione</string>
+    <string name="pref_swipe_look_title">Cosa illumina uno swipe</string>
+    <string name="pref_key_borders_title">Bordi dei tasti</string>
+    <string name="pref_key_borders_summary">Una linea sottile attorno a ogni tasto, nel colore dei suggerimenti del tema</string>
+    <string name="pref_key_border_width_title">Spessore del bordo (dp)</string>
     <string name="pref_language_title">Lingua principale</string>
     <string name="pref_enabled_languages_title">Lingue attive</string>
     <string name="pref_side_pad_title">Margine laterale</string>
@@ -269,6 +275,7 @@
     <string name="action_time">Ora</string>
     <string name="action_enter">Invio</string>
     <string name="action_copy_line">Copia la riga</string>
+    <string name="action_clean_links">Pulisci i link</string>
     <string name="notice_undo">Annulla</string>
     <string name="notice_redo">Ripeti</string>
     <string name="notice_paste">Incolla</string>
@@ -326,6 +333,7 @@
     <string name="notice_time">Ora</string>
     <string name="notice_enter">Invio</string>
     <string name="notice_copy_line">Riga copiata</string>
+    <string name="notice_clean_links">Link puliti</string>
     <string name="notice_tab">Tab</string>
     <string name="notice_backspace">Cancella</string>
     <string name="notice_name_ctrl">Ctrl</string>
@@ -482,6 +490,8 @@
     <string name="pref_backspace_char_slide_title">Il trascinamento di cancella toglie lettere</string>
     <string name="pref_backspace_whole_word_title">Cancella toglie una parola tracciata</string>
     <string name="pref_backspace_whole_word_summary">Subito dopo una parola tracciata, un tocco su cancella toglie tutta la parola e il suo spazio, e la barra offre le altre letture. Tenendo premuto cancella si tolgono ancora le lettere</string>
+    <string name="pref_backspace_undo_title">Cancella annulla l\'ultimo tocco o swipe</string>
+    <string name="pref_backspace_undo_summary">Mentre scrivi una parola, un tocco su cancella annulla il suo ultimo tocco o swipe, e la barra torna a mostrare quello che mostrava prima. Tenendo premuto cancella si tolgono ancora lettere, come con un tocco a parola finita</string>
     <string name="pref_backspace_step_title">Distanza di trascinamento del tasto cancella</string>
     <string name="pref_backspace_step_summary">Quanto trascinare a sinistra dal tasto cancella per segnare una parola in più (una lettera circa la metà). Più alto è più calmo</string>
     <string name="pref_backspace_char_slide_summary">Trascinando a sinistra da cancella si seleziona una lettera alla volta invece di una parola. Niente viene cancellato finché non sollevi il dito; tornando indietro si annulla</string>
@@ -631,4 +641,24 @@
     <string name="bar_why_unknown">non nel dizionario %1$s</string>
     <string name="bar_why_picked">scelta %1$d volte</string>
     <string name="bar_why_less">suggerita meno (%1$d passi)</string>
+    <string name="pref_theme_color_hex_title">Colore esatto del tema</string>
+    <string name="pref_trail_color_hex_title">Colore esatto della scia</string>
+    <string name="pref_color_hex_unset">Non impostato: decide il cursore della tonalità. Usa i cursori, un campione o scrivi #RRGGBB</string>
+    <string name="color_pick_hue">Tonalità</string>
+    <string name="color_pick_saturation">Saturazione</string>
+    <string name="color_pick_brightness">Luminosità</string>
+    <string name="color_hex_error_blank">Scrivi un colore come #RRGGBB</string>
+    <string name="color_hex_error_bad">%1$s non è un colore: sei cifre, da 0 a 9 o da A a F</string>
+    <string name="backdrop_title">Immagine di sfondo</string>
+    <string name="backdrop_none">Nessuna: tocca per scegliere un\'immagine</string>
+    <string name="backdrop_set">Impostata: tocca per cambiarla o rimuoverla</string>
+    <string name="backdrop_change">Scegline un\'altra</string>
+    <string name="backdrop_adjust">Regola il ritaglio</string>
+    <string name="backdrop_remove">Rimuovi</string>
+    <string name="backdrop_failed">Impossibile leggere l\'immagine</string>
+    <string name="backdrop_crop_title">Adatta l\'immagine</string>
+    <string name="backdrop_crop_hint">Trascina la cornice per spostarla, allarga o stringi con due dita per ridimensionarla. Verticale e orizzontale hanno ciascuna la propria cornice.</string>
+    <string name="backdrop_crop_save">Salva</string>
+    <string name="pref_backdrop_alpha_title">Opacità dell\'immagine (%)</string>
+    <string name="pref_key_alpha_title">Opacità dei tasti sull\'immagine (%)</string>
 </resources>

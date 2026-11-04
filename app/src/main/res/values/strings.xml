@@ -158,6 +158,12 @@
     <string name="pref_key_sound_summary">The phone\'s key click, at its touch-sound volume. Silent while the ringer is on vibrate or silent</string>
     <string name="pref_vibration_intensity_title">Vibration intensity</string>
     <string name="pref_trail_color_title">Swipe trail colour</string>
+    <string name="pref_trail_style_title">Trail style</string>
+    <string name="pref_press_effect_title">Key press effect</string>
+    <string name="pref_swipe_look_title">What a swipe lights up</string>
+    <string name="pref_key_borders_title">Key borders</string>
+    <string name="pref_key_borders_summary">A thin line round each key, in the hint colour of the theme</string>
+    <string name="pref_key_border_width_title">Border width (dp)</string>
     <string name="pref_language_title">Primary language</string>
     <string name="pref_enabled_languages_title">Enabled languages</string>
     <string name="pref_side_pad_title">Side margin</string>
@@ -308,6 +314,7 @@
     <string name="action_time">Time</string>
     <string name="action_enter">Enter</string>
     <string name="action_copy_line">Copy the line</string>
+    <string name="action_clean_links">Clean links</string>
     <string name="notice_undo">Undo</string>
     <string name="notice_redo">Redo</string>
     <string name="notice_paste">Paste</string>
@@ -365,6 +372,7 @@
     <string name="notice_time">Time</string>
     <string name="notice_enter">Enter</string>
     <string name="notice_copy_line">Copy line</string>
+    <string name="notice_clean_links">Clean links</string>
     <string name="notice_tab">Tab</string>
     <string name="notice_backspace">Backspace</string>
     <string name="notice_name_ctrl">Ctrl</string>
@@ -562,6 +570,8 @@
     <string name="pref_backspace_char_slide_title">Backspace slide deletes letters</string>
     <string name="pref_backspace_whole_word_title">Backspace deletes a swiped word</string>
     <string name="pref_backspace_whole_word_summary">Right after a swiped word, one tap on backspace deletes the whole word and its space, and the bar offers the other readings. Holding backspace still deletes letters</string>
+    <string name="pref_backspace_undo_title">Backspace undoes the last tap or swipe</string>
+    <string name="pref_backspace_undo_summary">While a word is being typed, a tap on backspace takes back its last tap or swipe, and the bar shows what it showed before it. Holding backspace still deletes letters, and so does a tap once the word is finished</string>
     <string name="pref_backspace_step_title">Backspace slide distance</string>
     <string name="pref_backspace_step_summary">How far you slide left from backspace to mark one more word (a letter takes about half). Higher is calmer</string>
     <string name="pref_backspace_char_slide_summary">Sliding left from backspace marks one letter at a time instead of a word. Nothing is deleted until you lift; sliding back undoes it</string>
@@ -706,4 +716,25 @@
     <string name="bar_why_unknown">not in the %1$s dictionary</string>
     <string name="bar_why_picked">you picked it %1$d times</string>
     <string name="bar_why_less">suggested less (%1$d steps)</string>
+    <string name="pref_theme_color_hex_title">Exact theme colour</string>
+    <string name="pref_trail_color_hex_title">Exact trail colour</string>
+    <string name="pref_color_hex_unset">Not set: the hue slider decides. Pick sliders, a swatch or type #RRGGBB</string>
+    <string name="color_hex_hint" translatable="false">#RRGGBB</string>
+    <string name="color_pick_hue">Hue</string>
+    <string name="color_pick_saturation">Saturation</string>
+    <string name="color_pick_brightness">Brightness</string>
+    <string name="color_hex_error_blank">Type a colour as #RRGGBB</string>
+    <string name="color_hex_error_bad">%1$s is not a colour: six digits, 0 to 9 or A to F</string>
+    <string name="backdrop_title">Background image</string>
+    <string name="backdrop_none">None: tap to pick a picture</string>
+    <string name="backdrop_set">Set: tap to change or remove it</string>
+    <string name="backdrop_change">Choose another</string>
+    <string name="backdrop_adjust">Adjust the cut</string>
+    <string name="backdrop_remove">Remove</string>
+    <string name="backdrop_failed">That image could not be read</string>
+    <string name="backdrop_crop_title">Fit the image</string>
+    <string name="backdrop_crop_hint">Drag the frame to move it, pinch to resize it. Portrait and landscape each keep their own frame.</string>
+    <string name="backdrop_crop_save">Save</string>
+    <string name="pref_backdrop_alpha_title">Image opacity (%)</string>
+    <string name="pref_key_alpha_title">Key opacity over the image (%)</string>
 </resources>

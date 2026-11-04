@@ -12,8 +12,14 @@ import com.kinetica.keyboard.keys.SpacebarCursorController
 import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutMode
 import com.kinetica.keyboard.layout.LayoutTransforms
+import com.kinetica.keyboard.ui.BackdropFit
 import com.kinetica.keyboard.ui.BarMetrics
+import com.kinetica.keyboard.ui.Hsv
+import com.kinetica.keyboard.ui.KeyBorder
 import com.kinetica.keyboard.ui.KeyboardTheme
+import com.kinetica.keyboard.ui.PressEffect
+import com.kinetica.keyboard.ui.SwipeLook
+import com.kinetica.keyboard.ui.TrailStyle
 
 /**
  * Immutable snapshot of all preferences the keyboard consumes, rebuilt on any preference change
@@ -59,6 +65,17 @@ data class KeyboardConfig(
     val vibration: Boolean,
     val vibrationIntensity: Int,
     val trailBaseHue: Float,
+    /** Saturation and brightness the trail and press effects draw at; an exact colour sets both. */
+    val trailSaturation: Float,
+    /** The background image's pick stamp, empty for none ([Prefs.BACKDROP]). */
+    val backdropStamp: String,
+    /** Image opacity over the theme background, and the keys' over the image, in percent. */
+    val backdropAlphaPct: Int,
+    val keyAlphaPct: Int,
+    /** The stored cuts of the image, portrait and landscape ([com.kinetica.keyboard.ui.BackdropCrop]); blank for centred. */
+    val backdropCrop: String,
+    val backdropCropLandscape: String,
+    val trailValue: Float,
     val longPressMs: Long,
     val chordArmMs: Long,
     /** The spacebar's own lead-in before a tap is a spacebar chord. */
@@ -82,6 +99,8 @@ data class KeyboardConfig(
     val backspaceCharSlide: Boolean,
     /** One backspace tap after a swiped word deletes the whole word. */
     val backspaceWholeWord: Boolean,
+    /** A backspace tap mid-word takes back the word's last tap or swipe. */
+    val backspaceUndo: Boolean,
     /** Backspace slide travel per staged word; a letter step is a fixed share of it. */
     val backspaceStepDp: Float,
     /** Suggestion bar reserves its right edge for a retype button. */
@@ -168,6 +187,12 @@ data class KeyboardConfig(
     val themeBrightness: String,
     /** Raw trail selection; "theme" resolves against the active theme accent. */
     val trailColorMode: String,
+    val trailStyle: TrailStyle,
+    val pressEffect: PressEffect,
+    /** The trail, the keys a swipe crosses lit, or both. */
+    val swipeLook: SwipeLook,
+    /** The line round each key in dp, 0 = off. */
+    val keyBorderDp: Int,
     val edgeSwipes: EdgeSwipeBindings,
     val dictionaryGeneration: Int,
     /** Bumped by the expansion editor; a change reloads the trigger table. */
@@ -308,6 +333,14 @@ data class KeyboardConfig(
                 Prefs.VIBRATION_INTENSITY, Prefs.DEFAULT_VIBRATION_INTENSITY,
             ).coerceIn(1, 3),
             trailBaseHue = trailHue(prefs),
+            trailSaturation = trailTone(prefs).first,
+            backdropStamp = prefs.getString(Prefs.BACKDROP, "") ?: "",
+            backdropAlphaPct = prefs.getInt(Prefs.BACKDROP_ALPHA, BackdropFit.IMAGE_ALPHA_DEFAULT).coerceIn(0, 100),
+            keyAlphaPct = prefs.getInt(Prefs.KEY_ALPHA, BackdropFit.KEY_ALPHA_DEFAULT)
+                .coerceIn(BackdropFit.KEY_ALPHA_MIN, 100),
+            backdropCrop = prefs.getString(Prefs.BACKDROP_CROP, "") ?: "",
+            backdropCropLandscape = prefs.getString(Prefs.BACKDROP_CROP_LANDSCAPE, "") ?: "",
+            trailValue = trailTone(prefs).second,
             longPressMs = prefs.getInt(Prefs.LONG_PRESS_MS, Prefs.DEFAULT_LONG_PRESS_MS)
                 .coerceIn(Prefs.LONG_PRESS_MIN_MS, Prefs.LONG_PRESS_MAX_MS).toLong(),
             chordArmMs = prefs.getInt(Prefs.CHORD_ARM_MS, Prefs.DEFAULT_CHORD_ARM_MS)
@@ -353,6 +386,7 @@ data class KeyboardConfig(
             backspaceWholeWord = prefs.getBoolean(
                 Prefs.BACKSPACE_WHOLE_WORD, Prefs.DEFAULT_BACKSPACE_WHOLE_WORD,
             ),
+            backspaceUndo = prefs.getBoolean(Prefs.BACKSPACE_UNDO, Prefs.DEFAULT_BACKSPACE_UNDO),
             backspaceStepDp = prefs.getInt(
                 Prefs.BACKSPACE_STEP_DP, Prefs.DEFAULT_BACKSPACE_STEP_DP,
             ).coerceIn(
@@ -444,6 +478,15 @@ data class KeyboardConfig(
             ) ?: Prefs.DEFAULT_THEME_BRIGHTNESS,
             trailColorMode = prefs.getString(Prefs.TRAIL_COLOR, Prefs.DEFAULT_TRAIL_COLOR)
                 ?: Prefs.DEFAULT_TRAIL_COLOR,
+            trailStyle = TrailStyle.fromPref(prefs.getString(Prefs.TRAIL_STYLE, Prefs.DEFAULT_TRAIL_STYLE)),
+            pressEffect = PressEffect.fromPref(prefs.getString(Prefs.PRESS_EFFECT, Prefs.DEFAULT_PRESS_EFFECT)),
+            swipeLook = SwipeLook.fromPref(prefs.getString(Prefs.SWIPE_LOOK, Prefs.DEFAULT_SWIPE_LOOK)),
+            keyBorderDp = if (prefs.getBoolean(Prefs.KEY_BORDERS, Prefs.DEFAULT_KEY_BORDERS)) {
+                prefs.getInt(Prefs.KEY_BORDER_WIDTH, Prefs.DEFAULT_KEY_BORDER_WIDTH)
+                    .coerceIn(KeyBorder.MIN_DP, KeyBorder.MAX_DP)
+            } else {
+                0
+            },
             edgeSwipes = EdgeSwipeBindings.parse(prefs.getString(Prefs.EDGE_SWIPES, null)),
             dictionaryGeneration = prefs.getInt(Prefs.DICT_GENERATION, 0),
             expansionGeneration = prefs.getInt(Prefs.EXPANSION_GENERATION, 0),
@@ -603,6 +646,7 @@ data class KeyboardConfig(
          * keyboard changes colour on upgrade.
          */
         private fun themePrimary(prefs: SharedPreferences): Int {
+            exactColor(prefs.getString(Prefs.THEME_COLOR_HEX, null))?.let { return it }
             val stored = prefs.getInt(Prefs.THEME_HUE, -1)
             val hue = if (stored in 0..360) {
                 stored.toFloat()
@@ -636,11 +680,33 @@ data class KeyboardConfig(
         private fun trailHue(prefs: SharedPreferences): Float = trailHueFor(
             prefs.getString(Prefs.TRAIL_COLOR, Prefs.DEFAULT_TRAIL_COLOR),
             prefs.getInt(Prefs.TRAIL_COLOR_CUSTOM_HUE, 200),
+            prefs.getString(Prefs.TRAIL_COLOR_HEX, null),
         )
 
+        private fun trailTone(prefs: SharedPreferences): Pair<Float, Float> = trailToneFor(
+            prefs.getString(Prefs.TRAIL_COLOR, Prefs.DEFAULT_TRAIL_COLOR),
+            prefs.getString(Prefs.TRAIL_COLOR_HEX, null),
+        )
+
+        /** A typed `#RRGGBB`, or null when blank or not a colour. */
+        fun exactColor(hex: String?): Int? = (HexColor.parse(hex) as? HexColor.Result.Valid)?.color
+
+        /**
+         * Saturation and brightness of the trail: an exact colour keeps its own, everything else
+         * is the bright tone the trail always drew. A grey or black exact colour is honoured too.
+         */
+        fun trailToneFor(mode: String?, hex: String?): Pair<Float, Float> {
+            val c = if (mode == TRAIL_EXACT) exactColor(hex) else null
+            return if (c == null) DEFAULT_TRAIL_SAT to 1f else Hsv.saturationOf(c) to Hsv.valueOf(c)
+        }
+
+        const val TRAIL_EXACT = "exact"
+        const val DEFAULT_TRAIL_SAT = 0.85f
+
         /** Base trail hue for a trail selection; shared with the settings swatch. */
-        fun trailHueFor(mode: String?, customHue: Int): Float =
+        fun trailHueFor(mode: String?, customHue: Int, hex: String? = null): Float =
             when (mode) {
+                TRAIL_EXACT -> exactColor(hex)?.let { Hsv.hueOf(it) } ?: customHue.coerceIn(0, 360).toFloat()
                 "red" -> 0f
                 "orange" -> 30f
                 "green" -> 120f
