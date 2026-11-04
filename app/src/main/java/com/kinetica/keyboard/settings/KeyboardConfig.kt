@@ -12,6 +12,7 @@ import com.kinetica.keyboard.keys.SpacebarCursorController
 import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutMode
 import com.kinetica.keyboard.layout.LayoutTransforms
+import com.kinetica.keyboard.ui.BackdropFit
 import com.kinetica.keyboard.ui.BarMetrics
 import com.kinetica.keyboard.ui.Hsv
 import com.kinetica.keyboard.ui.KeyBorder
@@ -66,6 +67,14 @@ data class KeyboardConfig(
     val trailBaseHue: Float,
     /** Saturation and brightness the trail and press effects draw at; an exact colour sets both. */
     val trailSaturation: Float,
+    /** The background image's pick stamp, empty for none ([Prefs.BACKDROP]). */
+    val backdropStamp: String,
+    /** Image opacity over the theme background, and the keys' over the image, in percent. */
+    val backdropAlphaPct: Int,
+    val keyAlphaPct: Int,
+    /** The stored cuts of the image, portrait and landscape ([com.kinetica.keyboard.ui.BackdropCrop]); blank for centred. */
+    val backdropCrop: String,
+    val backdropCropLandscape: String,
     val trailValue: Float,
     val longPressMs: Long,
     val chordArmMs: Long,
@@ -325,6 +334,12 @@ data class KeyboardConfig(
             ).coerceIn(1, 3),
             trailBaseHue = trailHue(prefs),
             trailSaturation = trailTone(prefs).first,
+            backdropStamp = prefs.getString(Prefs.BACKDROP, "") ?: "",
+            backdropAlphaPct = prefs.getInt(Prefs.BACKDROP_ALPHA, BackdropFit.IMAGE_ALPHA_DEFAULT).coerceIn(0, 100),
+            keyAlphaPct = prefs.getInt(Prefs.KEY_ALPHA, BackdropFit.KEY_ALPHA_DEFAULT)
+                .coerceIn(BackdropFit.KEY_ALPHA_MIN, 100),
+            backdropCrop = prefs.getString(Prefs.BACKDROP_CROP, "") ?: "",
+            backdropCropLandscape = prefs.getString(Prefs.BACKDROP_CROP_LANDSCAPE, "") ?: "",
             trailValue = trailTone(prefs).second,
             longPressMs = prefs.getInt(Prefs.LONG_PRESS_MS, Prefs.DEFAULT_LONG_PRESS_MS)
                 .coerceIn(Prefs.LONG_PRESS_MIN_MS, Prefs.LONG_PRESS_MAX_MS).toLong(),

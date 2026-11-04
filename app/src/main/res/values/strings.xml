@@ -725,4 +725,16 @@
     <string name="color_pick_brightness">Brightness</string>
     <string name="color_hex_error_blank">Type a colour as #RRGGBB</string>
     <string name="color_hex_error_bad">%1$s is not a colour: six digits, 0 to 9 or A to F</string>
+    <string name="backdrop_title">Background image</string>
+    <string name="backdrop_none">None: tap to pick a picture</string>
+    <string name="backdrop_set">Set: tap to change or remove it</string>
+    <string name="backdrop_change">Choose another</string>
+    <string name="backdrop_adjust">Adjust the cut</string>
+    <string name="backdrop_remove">Remove</string>
+    <string name="backdrop_failed">That image could not be read</string>
+    <string name="backdrop_crop_title">Fit the image</string>
+    <string name="backdrop_crop_hint">Drag the frame to move it, pinch to resize it. Portrait and landscape each keep their own frame.</string>
+    <string name="backdrop_crop_save">Save</string>
+    <string name="pref_backdrop_alpha_title">Image opacity (%)</string>
+    <string name="pref_key_alpha_title">Key opacity over the image (%)</string>
 </resources>

@@ -460,6 +460,31 @@
                     android:key="pref_theme_color_hex"
                     android:title="@string/pref_theme_color_hex_title"
                     app:singleLineTitle="false" />
+                <Preference
+                    android:key="pref_backdrop_image"
+                    android:title="@string/backdrop_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/backdrop_none"
+                    android:persistent="false" />
+                <!-- app:min and android:defaultValue match BackdropFit's opacity bounds. -->
+                <SeekBarPreference
+                    android:key="pref_backdrop_alpha"
+                    android:title="@string/pref_backdrop_alpha_title"
+                    app:singleLineTitle="false"
+                    android:defaultValue="100"
+                    android:max="100"
+                    app:min="0"
+                    app:showSeekBarValue="true"
+                    app:updatesContinuously="true" />
+                <SeekBarPreference
+                    android:key="pref_key_alpha"
+                    android:title="@string/pref_key_alpha_title"
+                    app:singleLineTitle="false"
+                    android:defaultValue="60"
+                    android:max="100"
+                    app:min="10"
+                    app:showSeekBarValue="true"
+                    app:updatesContinuously="true" />
                 <SwitchPreferenceCompat
                     android:key="pref_key_borders"
                     android:title="@string/pref_key_borders_title"

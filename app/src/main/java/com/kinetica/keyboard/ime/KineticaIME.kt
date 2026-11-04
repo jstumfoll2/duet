@@ -90,6 +90,8 @@ import com.kinetica.keyboard.settings.KeyboardHeights
 import com.kinetica.keyboard.settings.Prefs
 import com.kinetica.keyboard.settings.SettingsActivity
 import com.kinetica.keyboard.settings.SettingsSynonyms
+import com.kinetica.keyboard.ui.BackdropCrop
+import com.kinetica.keyboard.ui.BackdropFit
 import com.kinetica.keyboard.ui.EmojiPickerView
 import com.kinetica.keyboard.ui.EmojiSuggest
 import com.kinetica.keyboard.ui.FloatingFrame
@@ -117,6 +119,7 @@ import java.util.concurrent.Executors
 class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.Callbacks {
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val backdrop by lazy { BackdropLoader(this, mainHandler) }
 
     /** The spacebar's words per minute (TypingSpeed), and the touch span of the word in hand. */
     private val typingSpeed = TypingSpeed()
@@ -704,6 +707,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     override fun onDestroy() {
+        backdrop.shutdown()
         prefListener?.let {
             PreferenceManager.getDefaultSharedPreferences(this)
                 .unregisterOnSharedPreferenceChangeListener(it)
@@ -1145,6 +1149,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         suggestionBar?.theme = theme
         containerView?.applyTheme(theme)
         emojiPicker?.theme = theme
+        backdrop.refresh(config.backdropStamp) { applyBackdrop() }
+        applyBackdrop()
         applyNavigationBarColor(theme)
         kv.trailBaseHue =
             if (config.trailColorMode == "theme") theme.accentHue else config.trailBaseHue
@@ -1227,6 +1233,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * navigationBarColor is deprecated once targetSdk 35 enforces edge-to-edge; at 34 it still
      * applies, and raising the target is a reproducible-build change of its own.
      */
+    /** The background image under the bar and keys, or each view's own fill when there is none. */
+    private fun applyBackdrop() {
+        val image = backdrop.bitmap
+        val on = image != null
+        val cut = if (isLandscape()) config.backdropCropLandscape else config.backdropCrop
+        containerView?.setBackdrop(image, BackdropFit.alpha255(config.backdropAlphaPct), BackdropCrop.parse(cut))
+        keyboardView?.setBackdropLook(on, BackdropFit.alpha255(config.keyAlphaPct))
+        suggestionBar?.overBackdrop = on
+    }
+
     private fun applyNavigationBarColor(theme: KeyboardTheme) {
         val w = window?.window ?: return
         @Suppress("DEPRECATION")

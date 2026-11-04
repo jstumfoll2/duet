@@ -649,4 +649,16 @@
     <string name="color_pick_brightness">Luminosità</string>
     <string name="color_hex_error_blank">Scrivi un colore come #RRGGBB</string>
     <string name="color_hex_error_bad">%1$s non è un colore: sei cifre, da 0 a 9 o da A a F</string>
+    <string name="backdrop_title">Immagine di sfondo</string>
+    <string name="backdrop_none">Nessuna: tocca per scegliere un\'immagine</string>
+    <string name="backdrop_set">Impostata: tocca per cambiarla o rimuoverla</string>
+    <string name="backdrop_change">Scegline un\'altra</string>
+    <string name="backdrop_adjust">Regola il ritaglio</string>
+    <string name="backdrop_remove">Rimuovi</string>
+    <string name="backdrop_failed">Impossibile leggere l\'immagine</string>
+    <string name="backdrop_crop_title">Adatta l\'immagine</string>
+    <string name="backdrop_crop_hint">Trascina la cornice per spostarla, allarga o stringi con due dita per ridimensionarla. Verticale e orizzontale hanno ciascuna la propria cornice.</string>
+    <string name="backdrop_crop_save">Salva</string>
+    <string name="pref_backdrop_alpha_title">Opacità dell\'immagine (%)</string>
+    <string name="pref_key_alpha_title">Opacità dei tasti sull\'immagine (%)</string>
 </resources>

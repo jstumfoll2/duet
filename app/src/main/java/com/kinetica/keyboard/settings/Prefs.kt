@@ -615,6 +615,21 @@ object Prefs {
      */
     const val THEME_COLOR_HEX = "pref_theme_color_hex"
 
+    /**
+     * When the background image was picked, as millis; empty for none. The image is a file in
+     * app storage ([BackdropStore]); a new value tells the keyboard to read it again. Not backed
+     * up, since the file is not.
+     */
+    const val BACKDROP = "pref_backdrop"
+    /** The background image's opacity over the theme background, 0-100. */
+    const val BACKDROP_ALPHA = "pref_backdrop_alpha"
+    /** The keys' opacity over the background image, 10-100. */
+    const val KEY_ALPHA = "pref_key_alpha"
+    /** The image's cut for portrait, fractions `l,t,r,b` ([com.kinetica.keyboard.ui.BackdropCrop]). */
+    const val BACKDROP_CROP = "pref_backdrop_crop"
+    /** The image's cut for landscape. */
+    const val BACKDROP_CROP_LANDSCAPE = "pref_backdrop_crop_landscape"
+
     const val DEFAULT_HEIGHT_PCT = 20
 
     /**

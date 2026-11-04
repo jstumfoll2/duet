@@ -71,6 +71,13 @@ object Backup {
         val capitals: List<Capital> = emptyList(),
     )
 
+    /**
+     * Whether a setting travels in a backup, out and back in. The background image's stamp and
+     * cuts do not: the image file stays on this device, and they alone would point at nothing.
+     */
+    fun carried(key: String): Boolean =
+        key != Prefs.BACKDROP && key != Prefs.BACKDROP_CROP && key != Prefs.BACKDROP_CROP_LANDSCAPE
+
     /** True when [s] can survive a round trip: no separator, no newline. */
     fun encodable(s: String): Boolean = s.none { it == '\t' || it == '\n' || it == '\r' }
 

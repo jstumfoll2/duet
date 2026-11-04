@@ -179,6 +179,17 @@ F-Droid.
   thumb and a rainbow track, and the trail colour row shows its colour too. Each slider is grayed
   out unless it does something: the accent hue needs the *Custom colour* theme, the trail hue needs
   the *Custom hue* trail, and brightness is off for the fixed presets.
+- **Exact colours (from Kinetica 2.2.0).** Next to each hue slider, an *Exact colour* row opens a
+  picker with hue, saturation and brightness sliders, swatches and a `#RRGGBB` field. A dark exact
+  theme colour dims the keys within a safe range; moving the hue slider hands control back to it.
+  The trail has an *Exact colour* option that keeps the picked saturation and brightness.
+- **Background image (from Kinetica 2.2.0).** Pick a picture from Look, sound and vibration and fit
+  a frame for portrait and one for landscape. It is copied into app storage through the system
+  picker, so no storage permission is needed, and it is not part of backups. Separate sliders set
+  the image's opacity and the keys' opacity over it.
+- **Swipe and press effects.** Trail styles (classic, glow, dots, comet), key press effects
+  (burst, ripple, sparks, pulse, none), keys that light up as a swipe crosses them, and optional key
+  borders.
 - **Settings in three groups.** *Typing* (typing and correction, suggestion bar, languages, words
   and learning), *Keyboard* (look, sound and vibration; size and layout; keys; shortcuts and
   gestures) and *Help and backup* (Learn Duet, backup, about). Inside each screen, rows sit under
