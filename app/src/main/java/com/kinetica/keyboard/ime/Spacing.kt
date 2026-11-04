@@ -183,6 +183,10 @@ internal fun joinsPrecedingToken(before: CharSequence): Boolean {
  * `automaticop` cannot. Over 67 captured word pairs it refuses 70% of would-be fusions, and
  * no first word of six letters or more fuses, the class that produced empty decodes. Short
  * words stay ambiguous, which the window covers.
+ *
+ * [swipeStartedFirst]: the other thumb was already swiping when this tap landed, so the tap is
+ * the second token of a new word that swipe began, not more of the word before (upstream 2.1.3:
+ * `I` + space, then `noticed` with n-o-i swiped while the left thumb tapped t, read `It`).
  */
 internal fun retractsAutospace(
     fromTappedWord: Boolean,
@@ -190,7 +194,8 @@ internal fun retractsAutospace(
     elapsedMs: Long,
     windowMs: Long,
     fusedIsPrefix: Boolean,
-): Boolean = fromTappedWord && tentativeLength == 0 && elapsedMs <= windowMs && fusedIsPrefix
+    swipeStartedFirst: Boolean = false,
+): Boolean = fromTappedWord && tentativeLength == 0 && elapsedMs <= windowMs && fusedIsPrefix && !swipeStartedFirst
 
 /**
  * The word an automatic space would be taken back into: the letter run right before the space

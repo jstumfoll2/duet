@@ -495,4 +495,14 @@ class TapAutospaceTest {
         assertEquals(600L, singleLetterDelayMs(tapDelayMs = 600, floorMs = 300))
         assertEquals(800L, singleLetterDelayMs(tapDelayMs = 800, floorMs = 300))
     }
+
+    @Test
+    fun aTapUnderASwipeThatBeganFirstKeepsTheSpace() {
+        assertFalse(
+            retractsAutospace(
+                fromTappedWord = true, tentativeLength = 0, elapsedMs = 120, windowMs = 600,
+                fusedIsPrefix = true, swipeStartedFirst = true,
+            ),
+        )
+    }
 }

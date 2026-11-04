@@ -186,6 +186,13 @@ class GestureEngine(private val listener: Listener) {
     fun otherSwipeCommitted(pointerId: Int): Boolean =
         streams.any { it != null && it.pointerId != pointerId && it.isSwipeCommitted }
 
+    /**
+     * Whether a thumb still down landed before [t] and is drawing a swipe: a tap lifting now is
+     * then the second token of a word that swipe began (upstream Kinetica 2.1.3).
+     */
+    fun swipeHeldSince(t: Long): Boolean =
+        streams.any { it != null && it.isSwipeCommitted && it.downTime < t }
+
     /** Whether a pointer other than [pointerId] holds a stream. */
     fun otherTracking(pointerId: Int): Boolean =
         streams.any { it != null && it.pointerId != pointerId }

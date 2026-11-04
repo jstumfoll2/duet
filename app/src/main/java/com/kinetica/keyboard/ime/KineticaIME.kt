@@ -445,6 +445,23 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
     }
 
+    // A parsed dictionary waiting for the word in progress to end (see loadDictionaryAsync),
+    // checked again every HELD_INSTALL_POLL_MS until it installs. Main thread only, the same
+    // thread touches arrive on, so no word can start between the check and the install.
+    private val heldInstall = HeldInstall()
+    private val heldInstallRunnable: Runnable = object : Runnable {
+        override fun run() {
+            if (heldInstall.release(installWaits())) {
+                DecodeTrace.log { "  userdict install run" }
+            } else if (heldInstall.isHeld) {
+                mainHandler.postDelayed(this, HELD_INSTALL_POLL_MS)
+            }
+        }
+    }
+
+    private fun installWaits(): Boolean =
+        holdsDictionaryInstall(tentativeLength, composer?.hasPendingWord == true)
+
     // Clears the spacebar's shortcut notice; the label has no timer of its own. See
     // showSpacebarNotice.
     private val spacebarNoticeRunnable = Runnable { keyboardView?.spacebarNotice = null }
@@ -830,73 +847,82 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
                 mainHandler.post {
                     blockedSpellings = allBlocked
-                    // The user may have toggled languages again mid-parse.
-                    if (lang != config.language) return@post
-                    otherLexicon = SpellLexicon(others)
-                    languageStreak.reset()
-                    val counts = ConcurrentHashMap<String, Int>(userRows.size * 2)
-                    for (row in userRows) counts[row.word] = row.frequency
-                    personalCounts = counts
-                    blockedLoaded = blocked.isNotEmpty()
-                    learnedCases[lang] = ConcurrentHashMap(casesOf(userRows))
-                    detectLang?.let { learnedCases[it] = ConcurrentHashMap(casesOf(altRows)) }
-                    extraLang?.let { learnedCases[it] = ConcurrentHashMap(casesOf(extraRows)) }
-                    val pairs = pairMap(pairRows)
-                    personalPairs = pairs
-                    val p = NeuralRerank.primary { reranker, depth ->
-                        WordPredictor(
-                            dict.trie, bigrams, currentGeometry, dict.forms, counts, pairs, lang,
-                            reranker = reranker, rerankDepth = depth,
+                    // Installing replaces the composer, so a word typed while the parse ran would
+                    // lose its tokens and fuse with the next one: wait for it to end (upstream 2.1.3).
+                    val held = heldInstall.offer(installWaits()) install@{
+                        // The user may have toggled languages again mid-parse, or while it was held.
+                        if (lang != config.language) return@install
+                        otherLexicon = SpellLexicon(others)
+                        languageStreak.reset()
+                        val counts = ConcurrentHashMap<String, Int>(userRows.size * 2)
+                        for (row in userRows) counts[row.word] = row.frequency
+                        personalCounts = counts
+                        blockedLoaded = blocked.isNotEmpty()
+                        learnedCases[lang] = ConcurrentHashMap(casesOf(userRows))
+                        detectLang?.let { learnedCases[it] = ConcurrentHashMap(casesOf(altRows)) }
+                        extraLang?.let { learnedCases[it] = ConcurrentHashMap(casesOf(extraRows)) }
+                        val pairs = pairMap(pairRows)
+                        personalPairs = pairs
+                        val p = NeuralRerank.primary { reranker, depth ->
+                            WordPredictor(
+                                dict.trie, bigrams, currentGeometry, dict.forms, counts, pairs, lang,
+                                reranker = reranker, rerankDepth = depth,
+                            )
+                        }
+                        p.touchModel = touchModel
+                        p.trigrams = trigrams
+                        predictor = p
+                        val altCounts = ConcurrentHashMap<String, Int>(altRows.size * 2)
+                        for (row in altRows) altCounts[row.word] = row.frequency
+                        secondaryCounts = altCounts
+                        val altPairs = pairMap(altPairRows)
+                        secondaryPairs = altPairs
+                        secondaryLanguage = detectLang
+                        // WordComposer.merge tells the two lists apart by the language stamp.
+                        secondaryPredictor = alt?.let { (d, b) ->
+                            WordPredictor(
+                                d.trie, b, currentGeometry, d.forms, altCounts, altPairs,
+                                language = detectLang ?: "",
+                            )
+                        }
+                        val xCounts = ConcurrentHashMap<String, Int>(extraRows.size * 2)
+                        for (row in extraRows) xCounts[row.word] = row.frequency
+                        extraCounts = xCounts
+                        val xPairs = pairMap(extraPairRows)
+                        extraPairs = xPairs
+                        extraLanguage = if (extra != null) extraLang else null
+                        // A language that left (a switch from Polish) must not keep its standing.
+                        momentum.retain(residentLanguages())
+                        extraPredictor = extra?.let { (d, b) ->
+                            WordPredictor(d.trie, b, currentGeometry, d.forms, xCounts, xPairs, language = extraLang ?: "")
+                        }
+                        applyWordPenalties()
+                        composer = WordComposer(
+                            p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
+                        ).also {
+                            secondaryPredictor?.touchModel = touchModel
+                            extraPredictor?.touchModel = touchModel
+                            it.touchModel = touchModel
+                            it.alternatePredictor = secondaryPredictor
+                            TraceRecorder.attachComposer(it)
+                            it.extraPredictor = extraPredictor
+                            it.languageWeights = equalWeights()
+                            it.oneLetterWord = { c -> StandaloneLetters.isWord(c, config.language) }
+                        }
+                        Log.i(
+                            TAG,
+                            "dictionary ready [$lang]: ${dict.trie.wordCount} words, " +
+                                "${bigrams.size} bigrams, ${dict.forms.size} display forms" +
+                                (detectLang?.let { d -> ", auto-detect vs $d" } ?: "") +
+                                (extraLanguage?.let { x -> " and $x" } ?: "") +
+                                (if (config.noPrimary) ", no primary" else ""),
                         )
                     }
-                    p.touchModel = touchModel
-                    p.trigrams = trigrams
-                    predictor = p
-                    val altCounts = ConcurrentHashMap<String, Int>(altRows.size * 2)
-                    for (row in altRows) altCounts[row.word] = row.frequency
-                    secondaryCounts = altCounts
-                    val altPairs = pairMap(altPairRows)
-                    secondaryPairs = altPairs
-                    secondaryLanguage = detectLang
-                    // WordComposer.merge tells the two lists apart by the language stamp.
-                    secondaryPredictor = alt?.let { (d, b) ->
-                        WordPredictor(
-                            d.trie, b, currentGeometry, d.forms, altCounts, altPairs,
-                            language = detectLang ?: "",
-                        )
+                    if (held) {
+                        DecodeTrace.log { "  userdict install held lang=$lang" }
+                        mainHandler.removeCallbacks(heldInstallRunnable)
+                        mainHandler.postDelayed(heldInstallRunnable, HELD_INSTALL_POLL_MS)
                     }
-                    val xCounts = ConcurrentHashMap<String, Int>(extraRows.size * 2)
-                    for (row in extraRows) xCounts[row.word] = row.frequency
-                    extraCounts = xCounts
-                    val xPairs = pairMap(extraPairRows)
-                    extraPairs = xPairs
-                    extraLanguage = if (extra != null) extraLang else null
-                    // A language that left (a switch from Polish) must not keep its standing.
-                    momentum.retain(residentLanguages())
-                    extraPredictor = extra?.let { (d, b) ->
-                        WordPredictor(d.trie, b, currentGeometry, d.forms, xCounts, xPairs, language = extraLang ?: "")
-                    }
-                    applyWordPenalties()
-                    composer = WordComposer(
-                        p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
-                    ).also {
-                        secondaryPredictor?.touchModel = touchModel
-                        extraPredictor?.touchModel = touchModel
-                        it.touchModel = touchModel
-                        it.alternatePredictor = secondaryPredictor
-                        TraceRecorder.attachComposer(it)
-                        it.extraPredictor = extraPredictor
-                        it.languageWeights = equalWeights()
-                        it.oneLetterWord = { c -> StandaloneLetters.isWord(c, config.language) }
-                    }
-                    Log.i(
-                        TAG,
-                        "dictionary ready [$lang]: ${dict.trie.wordCount} words, " +
-                            "${bigrams.size} bigrams, ${dict.forms.size} display forms" +
-                            (detectLang?.let { d -> ", auto-detect vs $d" } ?: "") +
-                            (extraLanguage?.let { x -> " and $x" } ?: "") +
-                            (if (config.noPrimary) ", no primary" else ""),
-                    )
                 }
             } catch (e: IOException) {
                 Log.e(TAG, "dictionary load failed for $lang", e)
@@ -1511,6 +1537,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         // clock. Read from the editor, not lastLiteral, so it agrees with what
                         // reloadWordUnderCursor puts back.
                         fusedIsPrefix = fuseIsLivePrefix(fusedBase, boardAlphabet.charOf(token.code)),
+                        swipeStartedFirst = engine.swipeHeldSince(token.tStart),
                     )
                 ) {
                     // The letter that caused this: the reopened word must land before it.
@@ -3715,21 +3742,24 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // live selection is one this method made, and reading it as the user's would grow the
         // span by a unit per crossing, retractions included.
         if (stagedDeletionLength == 0) {
-            stageAnchor = selEnd
+            // Read from the editor, not the cache: the highlight below is placed by it, and
+            // the cache can lag the editor (upstream 2.2.0 fix).
+            val live = ich.liveSelection()
+            stageAnchor = live?.second ?: -1
             // A selection the user had when the slide began is the first staged unit
             // (DeleteSpan.staged); its text is captured for the chip while still readable.
-            stageSelected = selectionLength()
+            stageSelected = live?.let { it.second - it.first } ?: selectionLength()
             stageBefore = ich.textBeforeCursor(STAGE_FETCH_CHARS)?.toString() ?: ""
             stageSelectedText = if (stageSelected > 0) {
                 ich.selectedText()?.toString()?.takeIf { it.length == stageSelected }
-                    ?: "\u00b7".repeat(stageSelected)
+                    ?: UNREADABLE_CHAR.repeat(stageSelected)
             } else {
                 ""
             }
         }
         val before = stageBefore
         if (stagedDeletionLength == 0) {
-            stageJoinCut = if (chars || stageSelected > 0) 0 else joinedCommit?.cutBefore(before, stageAnchor) ?: 0
+            stageJoinCut = if (chars || stageSelected > 0) 0 else joinedCommit?.cutBefore(before, if (stageAnchor >= 0) stageAnchor else selEnd) ?: 0
         }
         val span = if (stageJoinCut > 0 && !chars && stageSelected == 0) {
             DeleteSpan.wordsFromJoin(before, units, stageJoinCut)
@@ -3777,6 +3807,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val span = stagedDeletionLength
         val anchor = stageAnchor
         val staged = stagedDeletion
+        val selectedPart = stageSelected
+        val placeholder = selectedPart > 0 && stageSelectedText.startsWith(UNREADABLE_CHAR)
         val atJoin = stageJoinCut > 0 && span == stageJoinCut
         // No cursor restore here: the span is about to go, and collapsing the selection
         // first would make the delete flicker.
@@ -3789,8 +3821,15 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val deletedAutospace = autospaceInserted && staged.endsWith(" ")
         val eating = lastCommit.retypeWord ?: backspaceTarget
         if (anchor >= span) {
-            ich.deleteEndingAt(anchor, span)
-            expectAt(anchor - span)
+            // The span is highlighted by now. What goes is the editor's live selection, and
+            // only when it is still the staged text: a selection moved meanwhile is left alone.
+            val live = ich.selectedText()?.toString()
+            if (!stagedStillSelected(live, staged, if (placeholder) selectedPart else 0)) {
+                DecodeTrace.log { "  backspace stage stale span=$span live=${live?.length}" }
+                return
+            }
+            ich.deleteLiveSelection()
+            selectionLedger.expectAny(SystemClock.uptimeMillis())
         } else {
             ich.deleteBeforeCursor(span)
             expectAfter(span, 0)
@@ -3826,14 +3865,15 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             if (after.isEmpty()) return false
             val n = DeleteSpan.wordsForward(after, 1)
             if (n <= 0) return false
-            val to = selEnd + n
+            // From the live cursor: the cached offsets lag a tap in the text.
+            val to = (ich.liveSelection() ?: return false).second + n
             ich.setSelection(to, to)
         } else {
             val before = ich.textBeforeCursor(CURSOR_WORD_WINDOW) ?: return false
             if (before.isEmpty()) return false
             val n = DeleteSpan.words(before, 1)
             if (n <= 0) return false
-            val to = (selStart - n).coerceAtLeast(0)
+            val to = ((ich.liveSelection() ?: return false).first - n).coerceAtLeast(0)
             ich.setSelection(to, to)
         }
         return true
@@ -4043,7 +4083,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val recased = want.applyToText(text)
         DecodeTrace.log { "  recase selection to=$want len=${text.length}" }
         if (recased == text) return true
-        val at = minOf(selStart, selEnd)
+        val at = ich.liveSelection()?.first ?: minOf(selStart, selEnd)
         ich.replaceSelection(at, recased)
         expectAt(at, at + recased.length)
         return true
@@ -4140,8 +4180,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             1
         }
         if (selected > 0) {
-            ich.deleteEndingAt(selEnd, selected)
-            expectAt(selEnd - selected)
+            // The editor's live selection, never the cached offsets: a cache behind the editor
+            // put this delete somewhere else in the text. An editor that cannot report its
+            // selection gets the key instead, which deletes what it holds selected itself.
+            val live = ich.deleteLiveSelection()
+            if (live == 0) ich.sendKey(KeyEvent.KEYCODE_DEL, 0)
+            DecodeTrace.log { "  selection delete cached=$selected live=$live" }
+            selectionLedger.expectAny(SystemClock.uptimeMillis())
         } else {
             ich.deleteBeforeCursor(span)
             expectAfter(span, 0)
@@ -5588,6 +5633,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // cost one parse, and still has the word usable while the user is typing the
         // thing they added it for.
         const val USER_DICT_RELOAD_DELAY_MS = 1500L
+
+        /** How often a held dictionary install checks whether the word under it has ended. */
+        const val HELD_INSTALL_POLL_MS = 200L
         // How long a shortcut's notice stays on the spacebar. Chosen, not measured: long
         // enough to read two words, gone before the next word is typed.
         const val SPACEBAR_NOTICE_MS = 1500L
