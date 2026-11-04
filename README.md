@@ -456,9 +456,21 @@ are listed in THIRD_PARTY_NOTICES (the swipe decoder itself stays in-house), tun
 
 ### Releases
 
-Merging to `main` releases automatically once CI is green (`.github/workflows/auto-release.yml`):
-a patch bump by default, or label the pull request `release:minor`, `release:major` or
-`release:skip`.
+Merging to `main` releases automatically once CI is green (`.github/workflows/auto-release.yml`).
+The version follows [semantic versioning](https://semver.org), read from the
+[Conventional Commit](https://www.conventionalcommits.org) prefix on each pull request title
+merged since the last release:
+
+| Title starts with | Release |
+|---|---|
+| `feat:` | minor (2.1.x to 2.2.0) |
+| `fix:`, `perf:`, `refactor:`, `build:`, `revert:`, or no prefix | patch |
+| `feat!:` or any `type!:`, or a `BREAKING CHANGE:` line in the body | major |
+| `docs:`, `chore:`, `ci:`, `test:`, `style:` | none |
+
+The biggest step among the merged pull requests wins. A `release:skip`, `release:patch`,
+`release:minor` or `release:major` label overrides the title. CI's `release-step` job shows the
+step a pull request will cause, and warns when its title has no prefix.
 
 ## Architecture
 

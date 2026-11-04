@@ -45,6 +45,19 @@ the PR description, with exact steps and the expected result for each.
   the build file: keep that conditional. `tools/compare_apks.py` checks it:
   two builds of one commit differ only in the signature.
 
+## Pull request titles
+
+Titles drive the release version, so start each one with a
+[Conventional Commit](https://www.conventionalcommits.org) type, an optional
+scope, and a colon: `feat(theme): exact colour picker`,
+`fix: h taps read as j`. `feat` releases a minor version; `fix`, `perf`,
+`refactor`, `build` and `revert` a patch; `docs`, `chore`, `ci`, `test` and
+`style` nothing. A `!` before the colon (`feat!:`) or a body line starting
+`BREAKING CHANGE:` releases a major version: use it when an update loses
+settings, learned words or saved traces. A pull request that mixes a feature
+and fixes is a `feat`. A `release:*` label overrides the title.
+`tools/release/release_level.sh` is the rule; the README has the table.
+
 ## Tests
 
 - Every bug fix ships with a named regression test that fails on the

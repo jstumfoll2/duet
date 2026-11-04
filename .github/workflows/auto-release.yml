@@ -5,10 +5,14 @@ name: Auto release
 # publishes a GitHub release with the APKs and notes generated from the merged
 # pull requests.
 #
-# The bump is a patch by default. Label the pull request `release:minor` or
-# `release:major` for a bigger step, or `release:skip` to merge without a
-# release. Run it by hand (Actions > Auto release > Run workflow) to pick the
-# step yourself.
+# The step follows semantic versioning, read from the Conventional Commit
+# prefix on each pull request title merged since the last release tag
+# (tools/release/release_level.sh): feat -> minor; fix, perf, refactor or no
+# prefix -> patch; "!" before the colon or a "BREAKING CHANGE:" line in the
+# body -> major; docs, chore, ci, test, style -> no release. The biggest step
+# among the merged pull requests wins. A `release:skip|patch|minor|major` label
+# on a pull request overrides its title. Run it by hand (Actions > Auto
+# release > Run workflow) to pick the step yourself.
 #
 # No loop: the bump commit and tag are pushed with GITHUB_TOKEN, and GitHub
 # never starts workflows (CI included) from a GITHUB_TOKEN push. Even so, a run
@@ -53,7 +57,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: write        # push the bump commit and tag, create the release
-      pull-requests: read    # read the merged pull request's labels
+      pull-requests: read    # read the merged pull requests' titles and labels
     steps:
       # The tip of main, not the commit CI ran on: a later merge or an earlier
       # release's bump commit may already be on top of it.
@@ -68,7 +72,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           INPUT_BUMP: ${{ inputs.bump }}
-          MERGED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           subject=$(git log -1 --format=%s)
@@ -80,15 +83,39 @@ jobs:
           if [ "$EVENT" = workflow_dispatch ]; then
             bump="$INPUT_BUMP"
           else
-            labels=$(gh api "repos/$GITHUB_REPOSITORY/commits/$MERGED_SHA/pulls" \
-              --jq '.[0].labels[]?.name' 2>/dev/null || true)
-            echo "pull request labels: ${labels:-none}"
-            if grep -qx 'release:skip' <<<"$labels"; then bump="none"
-            elif grep -qx 'release:major' <<<"$labels"; then bump="major"
-            elif grep -qx 'release:minor' <<<"$labels"; then bump="minor"
-            else bump="patch"
-            fi
+            # Every change since the last release, not only the merge that
+            # started this run: a run that stepped aside for a newer merge left
+            # its changes for this one. One record per pull request (its label,
+            # title and body), or the commit message for a direct push.
+            prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+            range=${prev:+$prev..}HEAD
+            : > records
+            seen=" "
+            for sha in $(git rev-list --first-parent "$range"); do
+              subject=$(git log -1 --format=%s "$sha")
+              if [[ "$subject" =~ ^Release\ v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then continue; fi
+              # gh prints the error body on stdout when a call fails, so drop it.
+              pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls" \
+                --jq "[.[] | select(.merge_commit_sha == \"$sha\")][0] // empty" 2>/dev/null) || pr=""
+              if [ -n "$pr" ]; then
+                num=$(jq -r .number <<<"$pr")
+                case "$seen" in *" $num "*) continue ;; esac
+                seen="$seen$num "
+                label=$(jq -r '[.labels[]?.name | select(test("^release:(skip|patch|minor|major)$"))][0] // empty' <<<"$pr")
+                title=$(jq -r .title <<<"$pr")
+                echo "#$num ${label:+[$label] }$title"
+                { [ -n "$label" ] && printf '%s\n' "$label"
+                  jq -r '.title + "\n" + (.body // "")' <<<"$pr"
+                  printf '\0'; } >> records
+              else
+                echo "${sha:0:7} $subject (no pull request)"
+                { git log -1 --format=%B "$sha"; printf '\0'; } >> records
+              fi
+            done
+            bump=$(tools/release/release_level.sh < records)
+            rm -f records
           fi
+          echo "step: $bump"
           echo "bump=$bump" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1

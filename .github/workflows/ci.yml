@@ -76,3 +76,29 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
 
       - run: ./gradlew -p tools/replay test
+
+  # The release step a pull request will cause once merged (see auto-release.yml),
+  # read from its title the same way, plus the classifier's own checks.
+  release-step:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: tools/release/test_release_level.sh
+
+      - name: Show this pull request's release step
+        if: github.event_name == 'pull_request'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, '\n') }}
+        run: |
+          set -euo pipefail
+          label=$(printf '%b\n' "$LABELS" | grep -xE 'release:(skip|patch|minor|major)' | head -1 || true)
+          step=$({ [ -n "$label" ] && printf '%s\n' "$label"; printf '%s\n%s\0' "$TITLE" "$BODY"; } \
+            | tools/release/release_level.sh)
+          echo "Merging this releases: **$step**${label:+ (label $label)}" >> "$GITHUB_STEP_SUMMARY"
+          echo "release step: $step"
+          if [ -z "$label" ] && ! [[ "$TITLE" =~ ^[A-Za-z]+(\([^\)]*\))?!?:\  ]]; then
+            echo "::warning title=No Conventional Commit prefix::'$TITLE' has no type prefix, so it releases as a patch. Start it with feat:, fix:, perf:, docs:, chore:, ci: or test: (add ! for a breaking change)."
+          fi
