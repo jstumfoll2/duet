@@ -2805,7 +2805,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.RETYPE, EditorAction.EXPANDIFY, EditorAction.SETTINGS,
             EditorAction.NEXT_LANGUAGE, EditorAction.TOGGLE_AUTOSPACE,
             EditorAction.ONE_HANDED, EditorAction.DATE, EditorAction.TIME,
-            EditorAction.ENTER, EditorAction.COPY_LINE, EditorAction.TOGGLE_NEXT_WORD,
+            EditorAction.ENTER, EditorAction.COPY_LINE, EditorAction.CLEAN_LINKS, EditorAction.TOGGLE_NEXT_WORD,
             EditorAction.TOGGLE_RECENT_WORDS, EditorAction.TOGGLE_NUMBER_ROW,
             EditorAction.TOGGLE_TIDY_SPACES, EditorAction.TOGGLE_TYPING_SPEED,
             EditorAction.TOGGLE_PECK_MODE, EditorAction.TOGGLE_INCOGNITO,
@@ -2846,6 +2846,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.TIME -> insertNow(date = false)
             EditorAction.ENTER -> onEnter()
             EditorAction.COPY_LINE -> copyLine()
+            EditorAction.CLEAN_LINKS -> cleanLinks()
             EditorAction.TOGGLE_NEXT_WORD -> togglePref(Prefs.NEXT_WORD, !config.nextWord)
             EditorAction.TOGGLE_RECENT_WORDS -> togglePref(Prefs.RECENT_WORDS, !config.recentWords)
             EditorAction.TOGGLE_NUMBER_ROW -> togglePref(Prefs.NUMBER_ROW, !config.numberRow)
@@ -2964,6 +2965,42 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         getSystemService(ClipboardManager::class.java)
             ?.setPrimaryClip(ClipData.newPlainText(getString(R.string.clip_label_line), line))
+    }
+
+    /**
+     * Tracking parameters out of the selection's links, or out of the link just before the
+     * cursor, as after a paste (upstream Kinetica 2.1.2). Nothing to clean buzzes, as a refused
+     * line copy does. A private field is never read for it.
+     */
+    private fun cleanLinks() {
+        cancelAutospace()
+        finalizePendingWord()
+        if (editorState.privateMode) return
+        if (selectionLength() > 0) {
+            val text = ich.selectedText()?.toString() ?: return
+            val cleaned = if (text.length > CLEAN_LINKS_READ_CHARS) text else LinkCleaner.clean(text)
+            DecodeTrace.log { "  clean links src=selection len=${text.length}->${cleaned.length}" }
+            if (cleaned == text) {
+                vibrateForKeyPress()
+                return
+            }
+            val at = ich.liveSelection()?.first ?: minOf(selStart, selEnd)
+            ich.replaceSelection(at, cleaned)
+            // The length changes, unlike a re-case: the words recorded after it move.
+            commitHistory.onEdit(at + text.length, text.length, cleaned.length)
+            expectAt(at, at + cleaned.length)
+            return
+        }
+        val before = ich.textBeforeCursor(CLEAN_LINKS_READ_CHARS) ?: return
+        val found = LinkCleaner.cleanLastLink(before)
+        DecodeTrace.log { "  clean links src=cursor changed=${found != null}" }
+        if (found == null) {
+            vibrateForKeyPress()
+            return
+        }
+        ich.replaceBeforeCursor(found.span, found.text)
+        expectAfter(found.span, found.text.length)
+        updateAutoShift()
     }
 
     // ------------------------------------------------------------------ clipboard, voice, codes
@@ -5687,6 +5724,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // How far each way COPY_LINE reads for the line's ends. A longer line is refused,
         // not half copied.
         const val COPY_LINE_READ_CHARS = 2000
+
+        // How far back the clean-links action reads for the link before the cursor.
+        const val CLEAN_LINKS_READ_CHARS = 4000
 
         /** ClipDescription.EXTRA_IS_SENSITIVE, which Android 13 added and password managers set. */
         const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"

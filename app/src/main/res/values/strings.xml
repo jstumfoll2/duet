@@ -308,6 +308,7 @@
     <string name="action_time">Time</string>
     <string name="action_enter">Enter</string>
     <string name="action_copy_line">Copy the line</string>
+    <string name="action_clean_links">Clean links</string>
     <string name="notice_undo">Undo</string>
     <string name="notice_redo">Redo</string>
     <string name="notice_paste">Paste</string>
@@ -365,6 +366,7 @@
     <string name="notice_time">Time</string>
     <string name="notice_enter">Enter</string>
     <string name="notice_copy_line">Copy line</string>
+    <string name="notice_clean_links">Clean links</string>
     <string name="notice_tab">Tab</string>
     <string name="notice_backspace">Backspace</string>
     <string name="notice_name_ctrl">Ctrl</string>

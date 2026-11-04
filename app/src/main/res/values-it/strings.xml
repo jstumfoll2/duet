@@ -269,6 +269,7 @@
     <string name="action_time">Ora</string>
     <string name="action_enter">Invio</string>
     <string name="action_copy_line">Copia la riga</string>
+    <string name="action_clean_links">Pulisci i link</string>
     <string name="notice_undo">Annulla</string>
     <string name="notice_redo">Ripeti</string>
     <string name="notice_paste">Incolla</string>
@@ -326,6 +327,7 @@
     <string name="notice_time">Ora</string>
     <string name="notice_enter">Invio</string>
     <string name="notice_copy_line">Riga copiata</string>
+    <string name="notice_clean_links">Link puliti</string>
     <string name="notice_tab">Tab</string>
     <string name="notice_backspace">Cancella</string>
     <string name="notice_name_ctrl">Ctrl</string>
