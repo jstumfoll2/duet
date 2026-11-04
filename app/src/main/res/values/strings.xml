@@ -564,6 +564,8 @@
     <string name="pref_backspace_char_slide_title">Backspace slide deletes letters</string>
     <string name="pref_backspace_whole_word_title">Backspace deletes a swiped word</string>
     <string name="pref_backspace_whole_word_summary">Right after a swiped word, one tap on backspace deletes the whole word and its space, and the bar offers the other readings. Holding backspace still deletes letters</string>
+    <string name="pref_backspace_undo_title">Backspace undoes the last tap or swipe</string>
+    <string name="pref_backspace_undo_summary">While a word is being typed, a tap on backspace takes back its last tap or swipe, and the bar shows what it showed before it. Holding backspace still deletes letters, and so does a tap once the word is finished</string>
     <string name="pref_backspace_step_title">Backspace slide distance</string>
     <string name="pref_backspace_step_summary">How far you slide left from backspace to mark one more word (a letter takes about half). Higher is calmer</string>
     <string name="pref_backspace_char_slide_summary">Sliding left from backspace marks one letter at a time instead of a word. Nothing is deleted until you lift; sliding back undoes it</string>

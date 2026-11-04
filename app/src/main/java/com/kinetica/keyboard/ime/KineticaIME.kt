@@ -503,6 +503,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // armed the autospace timer like a thumb's and put a second space in.
     private var seededWithoutTokens = false
 
+    // The word as it stood before each of its gestures, for Prefs.BACKSPACE_UNDO.
+    private val gestureUndo = GestureUndo()
+
     private var autospacePending = false
     private val autospaceRunnable = Runnable {
         autospacePending = false
@@ -1544,6 +1547,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     // The letter that caused this: the reopened word must land before it.
                     retractAutospace(token.tStart)
                 }
+                rememberWordBeforeGesture()
                 if (tentativeLength == 0) wordShift = shift.state
                 val ch = shift.apply(boardAlphabet.charOf(token.code))
                 commitTracked(ch.toString())
@@ -1571,6 +1575,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     Log.w(TAG, "swipe before dictionary ready, dropped")
                     return
                 }
+                rememberWordBeforeGesture()
                 seededWithoutTokens = false
                 comp.peckSplit = comp.hasPendingWord && peckSplitAllowed()
                 comp.onToken(token)
@@ -1580,6 +1585,52 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
             }
         }
+    }
+
+    /** The word as it stands before the gesture about to join it; see [undoLastGesture]. */
+    private fun rememberWordBeforeGesture() {
+        if (!config.backspaceUndo) return
+        val comp = composer ?: return
+        gestureUndo.push(
+            GestureUndo.State(tentativeWord, comp.tokenCount, shift.state, wordShift, swipeDecodeEmpty),
+        )
+    }
+
+    /**
+     * Takes the word's last tap or swipe back (upstream Kinetica 2.1.2): the editor shows the
+     * word as it stood before it and the composer decodes the tokens before it again, so the
+     * bar comes back as it was. Until the next gesture the word stays open: no automatic space
+     * arms on the decode.
+     */
+    private fun undoLastGesture(): Boolean {
+        val comp = composer ?: return false
+        val state = gestureUndo.pop() ?: return false
+        val from = comp.tokenCount
+        if (state.tokens >= from) {
+            gestureUndo.clear()
+            return false
+        }
+        DecodeTrace.log { "  backspace undo tokens=$from->${state.tokens} text=${state.text}" }
+        replaceTentative(state.text)
+        if (state.tokens == 0) {
+            abandonWord()
+        } else {
+            wordShift = state.wordShift
+            swipeDecodeEmpty = state.decodeEmpty
+            seededWithoutTokens = true
+            lastCandidates = emptyList()
+            lastTentative = null
+            lastLiteral = ""
+            suggestionBar?.clearSuggestions()
+            comp.truncate(state.tokens)
+            updateBarWordPending()
+        }
+        // A capital the undone letter spent comes back with it.
+        if (state.shift == ShiftState.State.SHIFT && shift.state == ShiftState.State.NONE) {
+            shift.autoShift(true)
+            keyboardView?.setShiftUppercase(shift.isShifted)
+        }
+        return true
     }
 
     override fun onKeyTransition(streamId: StreamId, code: Int) {
@@ -3727,6 +3778,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (code < 0 || !g.hasKey(code)) return false
         if (comp.tokenCount >= KineticaConstants.MAX_WORD_LEN) return false
         clearCorrection()
+        rememberWordBeforeGesture()
         if (tentativeLength == 0) wordShift = shift.state
         // The popup already applied the layout's case to its cells, so the glyph goes in
         // as chosen, not through shift.apply again.
@@ -4203,6 +4255,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         cancelAutospace()
         if (undoAutoFix()) return
         if (undoAutocorrect()) return
+        if (undoesGesture(tap, config.backspaceUndo, tentativeLength, selectionLength(), gestureUndo.size) &&
+            undoLastGesture()
+        ) {
+            return
+        }
         if (splitJoinedCommit()) return
         if (tap && config.backspaceWholeWord && deleteSwipedWord(armedStart)) return
         val eating = lastCommit.retypeWord ?: backspaceTarget
@@ -4295,6 +4352,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         tentativeLength = fragment.length
         tentativeWord = fragment
         reloadedWord = fragment
+        gestureUndo.clear()
         reloadedByHand = byHand
         // The word this keyboard committed here, if it is still that word: its bar comes back.
         reloadHistory = commitHistory.at(cursorExpected() - fragment.length, fragment)
@@ -4341,6 +4399,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // The decode follows the word before this one, not the commits made since, which can
         // include the word itself.
         comp.reset()
+        gestureUndo.clear()
         wordBefore(before, word.head)?.let { comp.anchorContext(it) }
         comp.seed(taps)
         seededWithoutTokens = true
@@ -5279,6 +5338,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         reloadedWord = null
         reloadedByHand = false
         reloadHistory = null
+        gestureUndo.clear()
         updateBarWordPending()
         autoFixGrammar(word)
     }
@@ -5527,6 +5587,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         reloadedWord = null
         reloadedByHand = false
         reloadHistory = null
+        gestureUndo.clear()
         seededWithoutTokens = false
         tentativeLength = 0
         tentativeWord = ""
@@ -5559,6 +5620,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         reloadedWord = null
         reloadedByHand = false
         reloadHistory = null
+        gestureUndo.clear()
         seededWithoutTokens = false
         tentativeLength = 0
         tentativeWord = ""

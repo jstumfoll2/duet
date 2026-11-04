@@ -335,6 +335,13 @@ object Prefs {
     const val BACKSPACE_WHOLE_WORD = "pref_backspace_whole_word"
 
     /**
+     * While a word is being typed, a backspace tap takes back its last tap or swipe instead of
+     * one letter (upstream Kinetica 2.1.2). Off by default; the hold's repeat and a finished
+     * word still delete letters.
+     */
+    const val BACKSPACE_UNDO = "pref_backspace_undo"
+
+    /**
      * Reserve the suggestion bar's right edge for a retype button: one tap throws the
      * current word away so it can be gestured again in place.
      *
@@ -691,6 +698,7 @@ object Prefs {
     const val DEFAULT_ALTERNATE_SWIPES = true
     const val DEFAULT_BACKSPACE_CHAR_SLIDE = false
     const val DEFAULT_BACKSPACE_WHOLE_WORD = false
+    const val DEFAULT_BACKSPACE_UNDO = false
     /** Must match DeleteSpan.DEFAULT_WORD_STEP_DP and keyboard_prefs.xml. */
     const val DEFAULT_BACKSPACE_STEP_DP = 56
     const val DEFAULT_RETYPE_BUTTON = false

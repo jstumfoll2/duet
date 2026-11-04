@@ -86,6 +86,10 @@ F-Droid.
   Shortcuts and gestures > Swipes and slides), one backspace tap right after a swiped word deletes
   the whole word and its space, and the bar offers the swipe's other readings. Holding backspace,
   tapped words and anything typed after the word still delete letter by letter. Off by default.
+- **Gesture undo (optional, from Kinetica 2.1.2).** With "Backspace undoes the last tap or swipe"
+  on (same screen), a backspace tap while a word is still being typed takes back that word's last
+  tap or swipe, so one bad thumb's stroke doesn't cost the whole word. The bar goes back to what
+  it showed before. Off by default.
 - **A left-out space.** Tapped letters that are no word but a common pair with the space left out
   (`tofeel`) become the two words; backspace right after puts back what you typed.
 - **Words started from the spacebar.** A thumb that lands on the spacebar and rises onto the
@@ -137,6 +141,9 @@ F-Droid.
   row (paste, undo, clipboard and the rest) in the middle of a sentence, over the last word's
   alternatives. A shortcut, a second tap or the next word puts the suggestions back. Turn it off in
   Settings > Suggestion bar.
+- **Clean links shortcut** (from Kinetica 2.1.2). Takes tracking parts (`utm_*`, click ids, share
+  ids such as YouTube's `si`) out of the selected links, or out of the link just before the cursor.
+  In email and web-address fields, the period key's menu opens on `.com`, `.net` and `.org`.
 - **Voice typing key.** An action that hands the field to the phone's voice input: a voice typing
   keyboard (FUTO Voice Input, Google voice typing) if one is turned on, otherwise the phone's
   speech recognizer prompt, whose words land in the field. Duet itself never listens. Bind it to a

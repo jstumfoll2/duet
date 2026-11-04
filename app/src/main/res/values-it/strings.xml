@@ -484,6 +484,8 @@
     <string name="pref_backspace_char_slide_title">Il trascinamento di cancella toglie lettere</string>
     <string name="pref_backspace_whole_word_title">Cancella toglie una parola tracciata</string>
     <string name="pref_backspace_whole_word_summary">Subito dopo una parola tracciata, un tocco su cancella toglie tutta la parola e il suo spazio, e la barra offre le altre letture. Tenendo premuto cancella si tolgono ancora le lettere</string>
+    <string name="pref_backspace_undo_title">Cancella annulla l\'ultimo tocco o swipe</string>
+    <string name="pref_backspace_undo_summary">Mentre scrivi una parola, un tocco su cancella annulla il suo ultimo tocco o swipe, e la barra torna a mostrare quello che mostrava prima. Tenendo premuto cancella si tolgono ancora lettere, come con un tocco a parola finita</string>
     <string name="pref_backspace_step_title">Distanza di trascinamento del tasto cancella</string>
     <string name="pref_backspace_step_summary">Quanto trascinare a sinistra dal tasto cancella per segnare una parola in più (una lettera circa la metà). Più alto è più calmo</string>
     <string name="pref_backspace_char_slide_summary">Trascinando a sinistra da cancella si seleziona una lettera alla volta invece di una parola. Niente viene cancellato finché non sollevi il dito; tornando indietro si annulla</string>

@@ -157,6 +157,7 @@ object SettingsSynonyms {
         Prefs.ALTERNATE_SWIPES to listOf("flick", "up", "accent", "gesture"),
         Prefs.BACKSPACE_CHAR_SLIDE to listOf("delete", "slide", "erase"),
         Prefs.BACKSPACE_WHOLE_WORD to listOf("delete", "erase", "word", "undo"),
+        Prefs.BACKSPACE_UNDO to listOf("delete", "undo", "swipe", "tap", "gesture"),
         Prefs.BACKSPACE_STEP_DP to listOf("delete", "slide", "erase", "speed", "sensitivity"),
         Prefs.SPACEBAR_WORD_SLIDE to listOf("cursor", "slide", "move", "arrow"),
         Prefs.SPACEBAR_STEP_DP to listOf("cursor", "slide", "speed", "sensitivity"),

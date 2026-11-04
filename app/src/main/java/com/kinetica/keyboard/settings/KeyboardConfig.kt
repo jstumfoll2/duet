@@ -82,6 +82,8 @@ data class KeyboardConfig(
     val backspaceCharSlide: Boolean,
     /** One backspace tap after a swiped word deletes the whole word. */
     val backspaceWholeWord: Boolean,
+    /** A backspace tap mid-word takes back the word's last tap or swipe. */
+    val backspaceUndo: Boolean,
     /** Backspace slide travel per staged word; a letter step is a fixed share of it. */
     val backspaceStepDp: Float,
     /** Suggestion bar reserves its right edge for a retype button. */
@@ -353,6 +355,7 @@ data class KeyboardConfig(
             backspaceWholeWord = prefs.getBoolean(
                 Prefs.BACKSPACE_WHOLE_WORD, Prefs.DEFAULT_BACKSPACE_WHOLE_WORD,
             ),
+            backspaceUndo = prefs.getBoolean(Prefs.BACKSPACE_UNDO, Prefs.DEFAULT_BACKSPACE_UNDO),
             backspaceStepDp = prefs.getInt(
                 Prefs.BACKSPACE_STEP_DP, Prefs.DEFAULT_BACKSPACE_STEP_DP,
             ).coerceIn(
