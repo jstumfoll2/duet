@@ -158,4 +158,33 @@ class GestureEngineTest {
         assertTrue(down(1, 'g', 90))
         assertEquals(StreamId.RIGHT, engine.streamIdOf(1))
     }
+
+    @Test
+    fun aTapUnderASwipeThatLandedFirstSeesTheSwipeHeld() {
+        // `I`, its space, then `noticed` with the right thumb swiping n-o-i while the left
+        // tapped. The tap lifted first, under a swipe that began the word.
+        assertTrue(down(1, 'n', 0))
+        val (x, y) = at('i')
+        engine.onPointerMove(1, x, y, 100)
+        assertTrue(down(0, 't', 150))
+        up(0, 't', 160)
+        assertTrue(engine.swipeHeldSince(tokens.single().tStart))
+    }
+
+    @Test
+    fun aTapThatLandedFirstOrUnderAHeldTapSeesNoSwipe() {
+        // The tap landed before the swipe: the tap begins the word.
+        assertTrue(down(0, 'p', 0))
+        assertTrue(down(1, 'e', 50))
+        val (x, y) = at('t')
+        engine.onPointerMove(1, x, y, 100)
+        up(0, 'p', 120)
+        assertFalse(engine.swipeHeldSince(tokens.last().tStart))
+        up(1, 't', 200)
+        // A held tap is not a swipe.
+        assertTrue(down(1, 'p', 300))
+        assertTrue(down(0, 'e', 320))
+        up(0, 'e', 340)
+        assertFalse(engine.swipeHeldSince(tokens.last().tStart))
+    }
 }
