@@ -1480,6 +1480,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // -------------------------------------------------- engine listener (UI)
 
     override fun onTokenFinalized(token: InputToken) {
+        shift.onOtherKey()
         autocorrectUndo = null
         autoFixUndo = null
         cancelAutospace()
@@ -1901,6 +1902,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private val keyboardListener = object : KeyboardView.Listener {
         override fun onKeyTap(key: Key) {
+            if (key.type != KeyType.SHIFT) shift.onOtherKey()
             when (key.type) {
                 KeyType.SPACE -> "space"
                 KeyType.BACKSPACE -> "backspace"
@@ -1982,6 +1984,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
 
         override fun onKeyAlternate(key: Key, text: String) {
+            if (key.type != KeyType.SHIFT) shift.onOtherKey()
             cancelAutospace()
             if (text.isEmpty()) return
             // Shift's cells are labels, not text: the key is the command and the cell its

@@ -17,6 +17,21 @@ enum class FieldKind {
             URL -> "/"
             else -> null
         }
+
+    /**
+     * Endings the period key's menu opens on in this kind of field (upstream Kinetica 2.1.2). An
+     * address ends in one, and there is no autospace in either kind, so a cell writes straight
+     * onto the name before it.
+     */
+    val domainEndings: List<String>
+        get() = when (this) {
+            EMAIL, URL -> DOMAIN_ENDINGS
+            else -> emptyList()
+        }
+
+    private companion object {
+        val DOMAIN_ENDINGS = listOf(".com", ".net", ".org")
+    }
 }
 
 /**

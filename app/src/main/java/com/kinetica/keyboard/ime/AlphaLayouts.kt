@@ -83,6 +83,10 @@ object AlphaLayouts {
         // After the comma, so removing both keys is defined: the comma hands its emoji
         // alternate to the period, which has nowhere left to pass it.
         l = LayoutMutations.withPeriodKey(l, config.periodMode, config.periodCustom)
+        // The same rule for the period: its menu opens on domain endings only where it was kept.
+        if (config.fieldKeys && config.periodMode == KEEP_COMMA) {
+            l = LayoutMutations.withPeriodAlternatesFirst(l, field.domainEndings)
+        }
         // After the comma and period, which it moves down with the rest of the bottom row.
         l = LayoutMutations.withSpaceRowGap(l, config.spaceRowGapPct / 100f, config.bottomRowSizePct / 100f)
         // Last: it moves every key, and the mutations above find keys by row.
