@@ -2136,6 +2136,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             if (!engine.hasActivePointers()) composer?.redecode()
         }
 
+        override fun wordInProgress(): Boolean = tentativeLength > 0 || composer?.hasPendingWord == true
+
         override fun hasChord(trigger: ChordTrigger, key: Char): Boolean =
             chordMap.containsKey(ChordKey(trigger, key))
 

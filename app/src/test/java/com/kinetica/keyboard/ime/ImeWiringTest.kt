@@ -171,6 +171,48 @@ class ImeWiringTest {
     }
 
     @Test
+    fun aTapDeepInTheSpaceRowGapTypesASpaceOnlyBetweenWords() {
+        val ime = service()
+        prefs(ime).edit().putInt(Prefs.SPACE_ROW_GAP_PCT, 30).putBoolean(Prefs.AUTOSPACE, false).commit()
+        val frame = ime.onCreateInputView() as FloatingFrame
+        val kv = (frame.content as InputContainerView).keyboardView
+        val edit = bindEditor(ime, "")
+        val info = textField()
+        ime.onStartInput(info, false)
+        ime.onStartInputView(info, false)
+        kv.measure(
+            View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY),
+        )
+        kv.layout(0, 0, 1080, 800)
+        idle()
+        val (top, bottom) = kv.spaceGapSpan()
+        assertTrue("gap $top..$bottom", bottom - top > 4f)
+        val deep = top + (bottom - top) * 0.85f
+        val high = top + (bottom - top) * 0.2f
+        val b = kv.keyCenter("b")!!
+        val h = kv.keyCenter("h")!!
+        // Mid-word, a low touch under b is still b.
+        tap(kv, h.x, h.y, 0)
+        idle()
+        tap(kv, b.x, deep, 0)
+        idle()
+        assertEquals("hb", edit.text.toString())
+        // The word ended, the same touch is the space it was aimed at, not a lone b.
+        tap(kv, b.x, bottom + 20f, 0)
+        idle()
+        val ended = edit.text.toString()
+        assertTrue(ended, ended.endsWith(" "))
+        tap(kv, b.x, deep, 0)
+        idle()
+        assertFalse(edit.text.toString(), edit.text.toString().endsWith("b"))
+        // High in the gap it starts the word with b.
+        tap(kv, b.x, high, 0)
+        idle()
+        assertTrue(edit.text.toString(), edit.text.toString().endsWith("b"))
+    }
+
+    @Test
     fun aBarEmojiGoesInAfterItsWord() {
         val ime = service()
         val frame = ime.onCreateInputView() as FloatingFrame

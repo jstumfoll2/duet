@@ -136,6 +136,12 @@ class KeyboardView @JvmOverloads constructor(
 
         /** Spacebar tapped twice in quick succession: end the sentence. Sent only while the setting is on. */
         fun onDoubleSpace()
+
+        /**
+         * A word is being typed and not yet ended: a touch now adds to it. While one is, a touch
+         * deep in the space-row gap stays the letter above ([TouchRules.gapTouchTypesSpace]).
+         */
+        fun wordInProgress(): Boolean = true
     }
 
     var listener: Listener? = null
@@ -913,6 +919,27 @@ class KeyboardView @JvmOverloads constructor(
         else -> y
     }
 
+    /**
+     * The y on the space row for a touch at [touchY] deep in the space-row gap that starts a
+     * word ([TouchRules.gapTouchTypesSpace]), or null when it stays the letter above.
+     */
+    private fun spaceUnderGap(touchX: Float, touchY: Float): Float? {
+        val gap = spaceGapBottom - spaceGapTop
+        if (gap <= 0f || touchY < spaceGapTop || touchY >= spaceGapBottom) return null
+        val depth = (touchY - spaceGapTop) / gap
+        val otherOnLetters = (0 until MAX_POINTERS).any { routeByPointer[it] == ROUTE_ENGINE }
+        if (!TouchRules.gapTouchTypesSpace(depth, otherOnLetters, listener?.wordInProgress() != false)) return null
+        val y = spaceGapBottom + 0.5f
+        val l = layout ?: return null
+        val i = keyIndexAt(touchX, y)
+        if (i == -1 || l.keys[i].type != KeyType.SPACE) return null
+        DecodeTrace.log { "  touch gap-space depth=${"%.2f".format(depth)}" }
+        return y
+    }
+
+    /** The space-row gap's top and bottom in view pixels, equal when there is none; for tests. */
+    internal fun spaceGapSpan(): Pair<Float, Float> = spaceGapTop to spaceGapBottom
+
     private fun buildGeometry(l: KeyboardLayout) {
         val rects = ArrayList<FloatArray>()
         val codes = ArrayList<Int>()
@@ -1292,7 +1319,8 @@ class KeyboardView @JvmOverloads constructor(
 
     private fun handleDown(pid: Int, touchX: Float, touchY: Float, t: Long) {
         val l = layout ?: return
-        val y = letterUnderGap(touchY)
+        val spaceY = spaceUnderGap(touchX, touchY)
+        val y = spaceY ?: letterUnderGap(touchY)
         var x = touchX
         var keyIdx = keyIndexAt(x, y)
         if (keyIdx == -1) {
