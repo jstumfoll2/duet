@@ -52,6 +52,21 @@ object TouchRules {
     const val MID_WORD_SPACE_MS = 300L
 
     /**
+     * A touch in the lower part of the space-row gap, [depth] of the way from the letters down
+     * to the space bar, types a space when it would start a word: no word is in progress and no
+     * other thumb is on the letters. Mid-word, the gap stays the letter above, as it was built for.
+     *
+     * Owner traces, batch 16 (gap 30%): 17 lone b/n/v words were right-thumb taps 59-100% of
+     * the way down the gap, a space aimed a little high after a word had ended. Word-starting
+     * letters typed from the gap reach 65% (booker, my); from [GAP_SPACE_DEPTH] down, 15 of the
+     * 17 become spaces and one real letter of batches 14-16 does (`tnt`, 98% down).
+     */
+    fun gapTouchTypesSpace(depth: Float, otherOnLetters: Boolean, wordInProgress: Boolean): Boolean =
+        depth >= GAP_SPACE_DEPTH && !otherOnLetters && !wordInProgress
+
+    const val GAP_SPACE_DEPTH = 0.67f
+
+    /**
      * A touch that began on a numbers-row digit becomes a swipe once it travels past the hold
      * slop onto a letter: a word started a little high is still a word, not a digit.
      */

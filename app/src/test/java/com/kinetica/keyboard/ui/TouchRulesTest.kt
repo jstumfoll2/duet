@@ -15,6 +15,16 @@ class TouchRulesTest {
     private val rest = KineticaConstants.RESTING_FINGER_MIN_MS
 
     @Test
+    fun aTouchDeepInTheSpaceRowGapStartingAWordIsASpace() {
+        assertTrue(TouchRules.gapTouchTypesSpace(depth = 0.8f, otherOnLetters = false, wordInProgress = false))
+        // High in the gap it is still the letter above, as the gap was built for.
+        assertFalse(TouchRules.gapTouchTypesSpace(depth = 0.4f, otherOnLetters = false, wordInProgress = false))
+        // Mid-word, or with the other thumb drawing, a low letter is still a letter.
+        assertFalse(TouchRules.gapTouchTypesSpace(depth = 0.9f, otherOnLetters = false, wordInProgress = true))
+        assertFalse(TouchRules.gapTouchTypesSpace(depth = 0.9f, otherOnLetters = true, wordInProgress = false))
+    }
+
+    @Test
     fun aDigitBrushedMidSwipeIsDropped() {
         assertTrue(TouchRules.dropsDigitTap(fromNumberRow = true, otherSwiping = true, plainTap = true))
         // Typed on its own, or beside a tap, a digit is a digit.

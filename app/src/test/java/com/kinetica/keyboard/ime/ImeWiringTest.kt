@@ -13,6 +13,9 @@ import android.widget.EditText
 import androidx.preference.PreferenceManager
 import com.kinetica.keyboard.settings.Prefs
 import com.kinetica.keyboard.ui.FloatingFrame
+import com.kinetica.keyboard.layout.KeyType
+import com.kinetica.keyboard.layout.Key
+import com.kinetica.keyboard.ui.KeyboardView
 import com.kinetica.keyboard.ui.InputContainerView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -168,6 +171,52 @@ class ImeWiringTest {
         tap(kv, h.x, h.y, 0)
         idle()
         assertTrue(edit.text.toString(), edit.text.toString().startsWith("h"))
+    }
+
+    @Test
+    fun aTapDeepInTheSpaceRowGapIsASpaceOnlyBetweenWords() {
+        val ime = service()
+        prefs(ime).edit().putInt(Prefs.SPACE_ROW_GAP_PCT, 30).commit()
+        val frame = ime.onCreateInputView() as FloatingFrame
+        val kv = (frame.content as InputContainerView).keyboardView
+        bindEditor(ime, "")
+        val info = textField()
+        ime.onStartInput(info, false)
+        ime.onStartInputView(info, false)
+        kv.measure(
+            View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY),
+        )
+        kv.layout(0, 0, 1080, 800)
+        idle()
+        // The service's own listener, with the word state set by the test and space taps counted.
+        val real = kv.listener!!
+        var inWord = false
+        var spaces = 0
+        kv.listener = object : KeyboardView.Listener by real {
+            override fun wordInProgress() = inWord
+            override fun onKeyTap(key: Key) {
+                if (key.type == KeyType.SPACE) spaces++
+                real.onKeyTap(key)
+            }
+        }
+        val (top, bottom) = kv.spaceGapSpan()
+        assertTrue("gap $top..$bottom", bottom - top > 4f)
+        val b = kv.keyCenter("b")!!
+        val deep = top + (bottom - top) * 0.85f
+        val high = top + (bottom - top) * 0.2f
+        // Between words, low in the gap: the space it was aimed at.
+        tap(kv, b.x, deep, 0)
+        idle()
+        assertEquals(1, spaces)
+        // Mid-word the same touch is still the letter above, and high in the gap it always is.
+        inWord = true
+        tap(kv, b.x, deep, 0)
+        idle()
+        inWord = false
+        tap(kv, b.x, high, 0)
+        idle()
+        assertEquals(1, spaces)
     }
 
     @Test
