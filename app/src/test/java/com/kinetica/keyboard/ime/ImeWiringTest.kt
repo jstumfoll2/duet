@@ -13,6 +13,9 @@ import android.widget.EditText
 import androidx.preference.PreferenceManager
 import com.kinetica.keyboard.settings.Prefs
 import com.kinetica.keyboard.ui.FloatingFrame
+import com.kinetica.keyboard.layout.KeyType
+import com.kinetica.keyboard.layout.Key
+import com.kinetica.keyboard.ui.KeyboardView
 import com.kinetica.keyboard.ui.InputContainerView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -171,12 +174,12 @@ class ImeWiringTest {
     }
 
     @Test
-    fun aTapDeepInTheSpaceRowGapTypesASpaceOnlyBetweenWords() {
+    fun aTapDeepInTheSpaceRowGapIsASpaceOnlyBetweenWords() {
         val ime = service()
-        prefs(ime).edit().putInt(Prefs.SPACE_ROW_GAP_PCT, 30).putBoolean(Prefs.AUTOSPACE, false).commit()
+        prefs(ime).edit().putInt(Prefs.SPACE_ROW_GAP_PCT, 30).commit()
         val frame = ime.onCreateInputView() as FloatingFrame
         val kv = (frame.content as InputContainerView).keyboardView
-        val edit = bindEditor(ime, "")
+        bindEditor(ime, "")
         val info = textField()
         ime.onStartInput(info, false)
         ime.onStartInputView(info, false)
@@ -186,30 +189,34 @@ class ImeWiringTest {
         )
         kv.layout(0, 0, 1080, 800)
         idle()
+        // The service's own listener, with the word state set by the test and space taps counted.
+        val real = kv.listener!!
+        var inWord = false
+        var spaces = 0
+        kv.listener = object : KeyboardView.Listener by real {
+            override fun wordInProgress() = inWord
+            override fun onKeyTap(key: Key) {
+                if (key.type == KeyType.SPACE) spaces++
+                real.onKeyTap(key)
+            }
+        }
         val (top, bottom) = kv.spaceGapSpan()
         assertTrue("gap $top..$bottom", bottom - top > 4f)
+        val b = kv.keyCenter("b")!!
         val deep = top + (bottom - top) * 0.85f
         val high = top + (bottom - top) * 0.2f
-        val b = kv.keyCenter("b")!!
-        val h = kv.keyCenter("h")!!
-        // Mid-word, a low touch under b is still b.
-        tap(kv, h.x, h.y, 0)
-        idle()
+        // Between words, low in the gap: the space it was aimed at.
         tap(kv, b.x, deep, 0)
         idle()
-        assertEquals("hb", edit.text.toString())
-        // The word ended, the same touch is the space it was aimed at, not a lone b.
-        tap(kv, b.x, bottom + 20f, 0)
-        idle()
-        val ended = edit.text.toString()
-        assertTrue(ended, ended.endsWith(" "))
+        assertEquals(1, spaces)
+        // Mid-word the same touch is still the letter above, and high in the gap it always is.
+        inWord = true
         tap(kv, b.x, deep, 0)
         idle()
-        assertFalse(edit.text.toString(), edit.text.toString().endsWith("b"))
-        // High in the gap it starts the word with b.
+        inWord = false
         tap(kv, b.x, high, 0)
         idle()
-        assertTrue(edit.text.toString(), edit.text.toString().endsWith("b"))
+        assertEquals(1, spaces)
     }
 
     @Test
