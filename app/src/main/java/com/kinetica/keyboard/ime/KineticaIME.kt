@@ -279,6 +279,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     /** Bumped per field, so a code read for one field is not offered in the next. */
     private var codeFieldGeneration = 0
 
+    /** Codes picked from the bar this session, kept in memory only ([OneTimeCodes.offer]). */
+    private val usedCodes = HashSet<String>()
+
     /** Bumped per autofill response, so a slow inflation of an old one cannot replace a newer strip. */
     private var inlineGeneration = 0
 
@@ -3220,6 +3223,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (offer.kind == BarOffer.Kind.FRESH_CLIP) clipboardHistory.markFreshUsed()
         suggestionBar?.clearSuggestions()
         val text = offer.texts[index]
+        // A code picked once is not offered again in a field that never asked for one.
+        if (offer.kind == BarOffer.Kind.CODES) usedCodes.add(text)
         DecodeTrace.log { "  bar offer pick kind=${offer.kind} len=${text.length}" }
         // Written as is, never learned: a clip or a code is not something the user typed.
         abandonWord()
@@ -3298,26 +3303,42 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     /**
-     * In a code field, with the opt-in on, offers the codes of messages received in the last ten
-     * minutes, and again whenever a message arrives while the field is open.
+     * With the opt-in on, offers the codes of recent messages in a field that may take one, and
+     * again whenever a message arrives while the field is open. A field that asks for a code gets
+     * every code of the last ten minutes; any other plain single-line field (with
+     * [KeyboardConfig.smsCodesAnyField]) only fresh ones not picked yet, and only while empty
+     * ([OneTimeCodes.offer]).
      */
     private fun watchCodes(info: EditorInfo?) {
         val generation = ++codeFieldGeneration
         smsCodes.unwatch()
-        if (!config.smsCodes || !SmsCodes.isCodeField(info) || !smsCodes.allowed()) return
+        if (!config.smsCodes) return
+        val kind = SmsCodes.fieldKind(info, config.smsCodesAnyField)
+        if (kind == OneTimeCodes.Field.NEVER || !smsCodes.allowed()) return
         val read = {
             dbExecutor.execute {
-                val codes = smsCodes.read()
+                val now = System.currentTimeMillis()
+                val codes = smsCodes.read(now)
                 mainHandler.post {
                     if (generation != codeFieldGeneration || codes.isEmpty()) return@post
                     if (tentativeLength > 0 || composer?.hasPendingWord == true) return@post
-                    DecodeTrace.log { "  sms codes n=${codes.size}" }
-                    showBarOffer(BarOffer.Kind.CODES, codes.map { it.code })
+                    val offered = OneTimeCodes.offer(kind, codes, now, usedCodes, fieldEmpty())
+                    if (offered.isEmpty()) return@post
+                    DecodeTrace.log { "  sms codes n=${offered.size} kind=$kind" }
+                    showBarOffer(BarOffer.Kind.CODES, offered.map { it.code })
                 }
             }
         }
         read()
         smsCodes.watch { if (generation == codeFieldGeneration) read() }
+    }
+
+    /** Whether the field holds no text around the cursor; unknown counts as not empty. */
+    private fun fieldEmpty(): Boolean {
+        val ic = currentInputConnection ?: return false
+        val before = ic.getTextBeforeCursor(1, 0) ?: return false
+        val after = ic.getTextAfterCursor(1, 0) ?: return false
+        return before.isEmpty() && after.isEmpty()
     }
 
     // ------------------------------------------------------------------ inline autofill

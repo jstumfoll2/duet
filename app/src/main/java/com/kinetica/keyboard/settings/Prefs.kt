@@ -63,6 +63,13 @@ object Prefs {
     const val SMS_CODES = "pref_sms_codes"
 
     /**
+     * With [SMS_CODES] on, also offer a fresh code (last five minutes, not picked yet) in a plain
+     * single-line field that does not say it wants one, while it is empty: many sign-in pages
+     * mark their code box as plain text. Chat, search, email and web-address fields never get one.
+     */
+    const val SMS_CODES_ANY_FIELD = "pref_sms_codes_any_field"
+
+    /**
      * The last two words stay on the bar, each with the two candidates it beat, so a wrong
      * word a few words back is one tap from fixed. Off by default: it makes the
      * bar taller and takes two fifths of its width.
@@ -801,6 +808,7 @@ object Prefs {
     const val DEFAULT_CONTACT_NAMES = false
     const val DEFAULT_NEXT_WORD = true
     const val DEFAULT_SMS_CODES = false
+    const val DEFAULT_SMS_CODES_ANY_FIELD = true
     const val DEFAULT_RECENT_WORDS = false
     const val DEFAULT_NUMBER_ROW = true
     // A quarter of the digits' row: a modest margin for a thumb reaching high for the top letters.

@@ -151,7 +151,11 @@ F-Droid.
 - **Autofill chips.** On Android 11 and later, the password manager's saved logins, addresses and
   codes appear as chips in the bar. The keyboard never sees the secret behind a chip.
 - **Codes from text messages** (off by default): the one-time code from a recent text, offered in a
-  code field. Asks for `READ_SMS`.
+  code field (one whose hint or name asks for a code, or a number or PIN field). With "Codes in any
+  field" (on once codes are on), a code from the last five minutes is also offered in an empty
+  single-line text, password or phone-pad field, since many sign-in pages mark their code box as
+  plain text; a code already picked is not offered there again, and chat, search, email and web
+  address fields never get one. Asks for `READ_SMS`.
 - **Incognito** (off by default): learns nothing in any field, no new words, word pairs, recent
   emoji or clipboard history, while suggestions keep working. The spacebar shows 🕶 while it is on.
 - **Sound on key press** (off by default).
