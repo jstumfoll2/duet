@@ -298,6 +298,13 @@
                     app:singleLineTitle="false"
                     android:summary="@string/pref_sms_codes_summary"
                     android:defaultValue="false" />
+                <SwitchPreferenceCompat
+                    android:key="pref_sms_codes_any_field"
+                    android:title="@string/pref_sms_codes_any_field_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_sms_codes_any_field_summary"
+                    android:defaultValue="true"
+                    android:dependency="pref_sms_codes" />
             </PreferenceCategory>
         </PreferenceScreen>
 

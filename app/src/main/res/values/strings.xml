@@ -697,6 +697,8 @@
     <string name="voice_none">No voice typing keyboard is turned on. Turn one on here, then press the key again</string>
     <string name="pref_sms_codes_title">Codes from text messages</string>
     <string name="pref_sms_codes_summary">In a field that asks for a code, offer the code from a text message received in the last ten minutes. Needs permission to read text messages. Duet only reads them on this phone and has no internet access</string>
+    <string name="pref_sms_codes_any_field_title">Codes in any field</string>
+    <string name="pref_sms_codes_any_field_summary">Also offer a code that arrived in the last five minutes in an empty field that doesn\'t say it wants one, since many sign-in pages don\'t. Never in chat, search, email or web address fields</string>
     <string name="pref_sms_codes_denied">Duet was not allowed to read text messages, so codes stay off. To allow it later, open Duet\'s app info and go to Permissions, then SMS, then Allow</string>
     <string name="pref_sms_codes_ask_title">Let Duet read text messages?</string>
     <string name="pref_sms_codes_ask">Android will ask whether Duet may read your text messages. Duet only reads the last ten minutes of messages, on this phone, to find a code, and it has no internet access.</string>
