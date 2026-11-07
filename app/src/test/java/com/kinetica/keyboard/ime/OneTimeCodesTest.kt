@@ -1,5 +1,7 @@
 package com.kinetica.keyboard.ime
 
+import android.text.InputType
+import android.view.inputmethod.EditorInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -54,5 +56,93 @@ class OneTimeCodesTest {
         assertFalse(OneTimeCodes.isCodeField(emptyList(), null, null))
         // `zip code` is a code field to the words, which only costs an offered chip.
         assertFalse(OneTimeCodes.isCodeField(listOf("postalCode"), null, null))
+    }
+
+    private val text = InputType.TYPE_CLASS_TEXT
+    private val done = EditorInfo.IME_ACTION_DONE
+
+    private fun kind(
+        type: Int,
+        action: Int = done,
+        hint: String? = null,
+        name: String? = null,
+        anyField: Boolean = true,
+    ) = OneTimeCodes.fieldKind(type, action, hint, name, anyField)
+
+    @Test
+    fun aFieldThatAsksOrIsNumericIsACodeFieldEitherWay() {
+        for (any in listOf(true, false)) {
+            assertEquals(OneTimeCodes.Field.CODE, kind(InputType.TYPE_CLASS_NUMBER, anyField = any))
+            assertEquals(
+                OneTimeCodes.Field.CODE,
+                kind(InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD, anyField = any),
+            )
+            assertEquals(OneTimeCodes.Field.CODE, kind(text, hint = "Enter the 6-digit code", anyField = any))
+            assertEquals(OneTimeCodes.Field.CODE, kind(InputType.TYPE_CLASS_PHONE, name = "otp", anyField = any))
+        }
+    }
+
+    @Test
+    fun withAnyFieldOffAPlainFieldIsLeftAsBefore() {
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text, anyField = false))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(InputType.TYPE_CLASS_PHONE, anyField = false))
+        assertEquals(
+            OneTimeCodes.Field.NEVER,
+            kind(text or InputType.TYPE_TEXT_VARIATION_PASSWORD, anyField = false),
+        )
+    }
+
+    @Test
+    fun plainTextPasswordWebAndPhonePadFieldsMayTakeACode() {
+        assertEquals(OneTimeCodes.Field.MAYBE, kind(text))
+        assertEquals(OneTimeCodes.Field.MAYBE, kind(text or InputType.TYPE_TEXT_VARIATION_PASSWORD))
+        assertEquals(OneTimeCodes.Field.MAYBE, kind(text or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD))
+        assertEquals(OneTimeCodes.Field.MAYBE, kind(text or InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD))
+        assertEquals(OneTimeCodes.Field.MAYBE, kind(text or InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT))
+        assertEquals(OneTimeCodes.Field.MAYBE, kind(text, action = EditorInfo.IME_ACTION_GO))
+        assertEquals(OneTimeCodes.Field.MAYBE, kind(text, action = EditorInfo.IME_ACTION_NEXT))
+        assertEquals(OneTimeCodes.Field.MAYBE, kind(InputType.TYPE_CLASS_PHONE))
+    }
+
+    @Test
+    fun chatSearchEmailAndAddressFieldsNeverTakeOne() {
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text or InputType.TYPE_TEXT_FLAG_MULTI_LINE))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text or InputType.TYPE_TEXT_FLAG_IME_MULTI_LINE))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text or InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text, action = EditorInfo.IME_ACTION_SEND))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text, action = EditorInfo.IME_ACTION_SEARCH))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text or InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text or InputType.TYPE_TEXT_VARIATION_URI))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text or InputType.TYPE_TEXT_VARIATION_PERSON_NAME))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text or InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(text or InputType.TYPE_TEXT_VARIATION_FILTER))
+        assertEquals(OneTimeCodes.Field.NEVER, kind(InputType.TYPE_CLASS_DATETIME))
+        // Even a chat field named "code" asks for a code: the words win, as before.
+        assertEquals(OneTimeCodes.Field.CODE, kind(text or InputType.TYPE_TEXT_FLAG_MULTI_LINE, hint = "Code"))
+    }
+
+    @Test
+    fun aMaybeFieldGetsOnlyFreshUnusedCodesWhileEmpty() {
+        val now = 1_000_000_000L
+        val fresh = OneTimeCodes.Code("482913", now - 30_000)
+        val older = OneTimeCodes.Code("111111", now - OneTimeCodes.MAYBE_MAX_AGE_MS - 1)
+        val codes = listOf(fresh, older)
+        val maybe = OneTimeCodes.Field.MAYBE
+        assertEquals(listOf(fresh), OneTimeCodes.offer(maybe, codes, now, emptySet(), fieldEmpty = true))
+        assertEquals(emptyList<OneTimeCodes.Code>(), OneTimeCodes.offer(maybe, codes, now, setOf("482913"), true))
+        assertEquals(emptyList<OneTimeCodes.Code>(), OneTimeCodes.offer(maybe, codes, now, emptySet(), false))
+        assertEquals(emptyList<OneTimeCodes.Code>(), OneTimeCodes.offer(OneTimeCodes.Field.NEVER, codes, now, emptySet(), true))
+    }
+
+    @Test
+    fun aCodeFieldStillGetsEveryRecentCode() {
+        val now = 1_000_000_000L
+        val codes = listOf(
+            OneTimeCodes.Code("482913", now - 30_000),
+            OneTimeCodes.Code("111111", now - OneTimeCodes.MAYBE_MAX_AGE_MS - 1),
+        )
+        // Used or not, empty or not: a field that asks for a code is offered them all, as before.
+        assertEquals(codes, OneTimeCodes.offer(OneTimeCodes.Field.CODE, codes, now, setOf("482913"), fieldEmpty = false))
     }
 }

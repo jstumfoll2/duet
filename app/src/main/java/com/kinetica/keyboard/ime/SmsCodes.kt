@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.os.Handler
 import android.provider.Telephony
-import android.text.InputType
 import android.util.Log
 import android.view.inputmethod.EditorInfo
 
@@ -15,8 +14,9 @@ import android.view.inputmethod.EditorInfo
  *
  * Only with the user's opt-in ([com.kinetica.keyboard.settings.Prefs.SMS_CODES]) and the
  * READ_SMS permission, and only the inbox rows of the last [OneTimeCodes.MAX_AGE_MS]: body and
- * date, nothing else, nothing kept. While a code field is open, [watch] re-reads when a message
- * arrives, so a code that comes after the field opened still reaches the bar.
+ * date, nothing else, nothing kept. While a field that may take a code is open
+ * ([OneTimeCodes.fieldKind]), [watch] re-reads when a message arrives, so a code that comes after
+ * the field opened still reaches the bar.
  */
 class SmsCodes(private val context: Context, private val handler: Handler) {
 
@@ -74,16 +74,10 @@ class SmsCodes(private val context: Context, private val handler: Handler) {
         private const val TAG = "SmsCodes"
         private const val MAX_MESSAGES = 10
 
-        /**
-         * Whether [info] is a field to offer a code in: one whose hint or name says code
-         * ([OneTimeCodes.isCodeField]), or a number or PIN field. A number field alone is a
-         * weak sign, but only a code from the last ten minutes is ever offered, so a price field
-         * at worst shows a chip nobody taps.
-         */
-        fun isCodeField(info: EditorInfo?): Boolean {
-            info ?: return false
-            if (OneTimeCodes.isCodeField(emptyList(), info.hintText, info.fieldName)) return true
-            return info.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_NUMBER
+        /** Where [info] stands on being offered a code ([OneTimeCodes.fieldKind]). */
+        fun fieldKind(info: EditorInfo?, anyField: Boolean): OneTimeCodes.Field {
+            info ?: return OneTimeCodes.Field.NEVER
+            return OneTimeCodes.fieldKind(info.inputType, info.imeOptions, info.hintText, info.fieldName, anyField)
         }
     }
 }

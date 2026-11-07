@@ -630,6 +630,8 @@
     <string name="voice_none">Nessuna tastiera di dettatura è attiva. Attivane una qui, poi premi di nuovo il tasto</string>
     <string name="pref_sms_codes_title">Codici dagli SMS</string>
     <string name="pref_sms_codes_summary">In un campo che chiede un codice, propone il codice di un SMS ricevuto negli ultimi dieci minuti. Richiede il permesso di leggere gli SMS. Duet li legge solo su questo telefono e non ha accesso a internet</string>
+    <string name="pref_sms_codes_any_field_title">Codici in ogni campo</string>
+    <string name="pref_sms_codes_any_field_summary">Propone anche un codice arrivato negli ultimi cinque minuti in un campo vuoto che non dice di volerlo, perché molte pagine di accesso non lo dicono. Mai nei campi di chat, ricerca, email o indirizzo web</string>
     <string name="pref_sms_codes_denied">Duet non ha il permesso di leggere gli SMS, quindi i codici restano disattivati</string>
     <!-- Il menu della barra dei suggerimenti: una parola tenuta ferma circa un secondo. -->
     <string name="bar_menu_never">Mai</string>
