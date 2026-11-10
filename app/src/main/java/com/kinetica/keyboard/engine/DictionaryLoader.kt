@@ -14,6 +14,8 @@ data class WordForm(val display: String, val freqByte: Int)
 class LoadedDictionary(
     val trie: Trie,
     val forms: Map<Int, List<WordForm>>,
+    /** Lower-case learned spellings in the trie that no bundled list holds: the user's own words. */
+    val ownWords: Set<String> = emptySet(),
 )
 
 /**
@@ -80,6 +82,7 @@ object DictionaryLoader {
                 bundledCases.getOrPut(lower) { ArrayList(1) }.add(w)
             }
         }
+        val ownWords = HashSet<String>()
         for ((word, count) in extraWords) {
             val lower = word.lowercase()
             if (lower in blocked) continue
@@ -87,6 +90,7 @@ object DictionaryLoader {
             if (lower !in bundledSpellings && lower in bundledUnapostrophed) continue
             // A spelling the list lacks is a new word: it waits for [newWordMinWeight].
             if (count < newWordMinWeight && lower !in bundledSpellings) continue
+            if (lower !in bundledSpellings) ownWords.add(lower)
             val variants = bundledCases[lower].orEmpty()
             val case = cases[lower]?.takeIf {
                 it.votes >= KineticaConstants.LEARNED_CAPITAL_MIN_VOTES && it.display.lowercase() == lower
@@ -146,7 +150,7 @@ object DictionaryLoader {
                 .sortedByDescending { it.second }
                 .map { WordForm(it.first, Trie.freqByteFor(it.second, maxCount)) }
         }
-        return LoadedDictionary(trie, forms)
+        return LoadedDictionary(trie, forms, ownWords)
     }
 
     /**
