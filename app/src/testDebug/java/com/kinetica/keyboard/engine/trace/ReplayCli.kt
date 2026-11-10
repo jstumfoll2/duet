@@ -656,6 +656,7 @@ object ReplayCli {
                 }
             }
         }
+        if (retypes) report.reswiped += GoldLabels.relabelReswipes(words)
         return words
     }
 
