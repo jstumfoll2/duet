@@ -782,7 +782,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
                 val bigrams = assets.open(bigramsAsset(lang)).bufferedReader().use {
                     DictionaryLoader.loadBigrams(it, dict.trie)
-                }
+                }.let { withContextPairs(lang, it, dict.trie) }
                 // Only some languages ship a two-word table; a missing asset means none.
                 val trigrams = try {
                     assets.open("dictionaries/${lang}_trigrams.txt").bufferedReader().use {
@@ -820,7 +820,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         }
                         val b = assets.open(bigramsAsset(other)).bufferedReader().use {
                             DictionaryLoader.loadBigrams(it, d.trie)
-                        }
+                        }.let { withContextPairs(other, it, d.trie) }
                         d to b
                     } catch (e: IOException) {
                         Log.w(TAG, "secondary dictionary load failed for $other", e)
@@ -851,7 +851,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         }
                         val b = assets.open(bigramsAsset(other)).bufferedReader().use {
                             DictionaryLoader.loadBigrams(it, d.trie)
-                        }
+                        }.let { withContextPairs(other, it, d.trie) }
                         d to b
                     } catch (e: IOException) {
                         Log.w(TAG, "third dictionary load failed for $other", e)
@@ -939,7 +939,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         Log.i(
                             TAG,
                             "dictionary ready [$lang]: ${dict.trie.wordCount} words, " +
-                                "${bigrams.size} bigrams, ${dict.forms.size} display forms" +
+                                "${bigrams.size} bigrams (${bigrams.contextSize} behind the boost), ${dict.forms.size} display forms" +
                                 (detectLang?.let { d -> ", auto-detect vs $d" } ?: "") +
                                 (extraLanguage?.let { x -> " and $x" } ?: "") +
                                 (if (config.noPrimary) ", no primary" else ""),
@@ -1032,6 +1032,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private fun wordlistAsset(lang: String) = "dictionaries/${lang}_wordlist.txt"
     private fun bigramsAsset(lang: String) = "dictionaries/${lang}_bigrams.txt"
+
+    /**
+     * [table] with the language's wide pair file behind the decoder's boost, where one ships
+     * (English: a million pairs to the text table's 100,000). A language without the file,
+     * or a file that cannot be read, keeps the text table alone.
+     */
+    private fun withContextPairs(lang: String, table: com.kinetica.keyboard.engine.BigramTable, trie: com.kinetica.keyboard.engine.Trie): com.kinetica.keyboard.engine.BigramTable =
+        try {
+            assets.open("dictionaries/${lang}_pairs.bin").use { table.withContext(com.kinetica.keyboard.engine.PairFile.read(it, trie)) }
+        } catch (e: IOException) {
+            table
+        }
 
     // ------------------------------------------------------------------ views
 

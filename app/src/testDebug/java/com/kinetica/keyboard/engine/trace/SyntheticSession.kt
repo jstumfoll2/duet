@@ -51,7 +51,9 @@ class SyntheticSession(
 
     private fun predictor(lang: String): WordPredictor {
         val d = File(dir, "${lang}_wordlist.txt").bufferedReader().use { DictionaryLoader.load(it) }
+        val pairs = File(dir, "${lang}_pairs.bin")
         val b = File(dir, "${lang}_bigrams.txt").bufferedReader().use { DictionaryLoader.loadBigrams(it, d.trie) }
+            .let { t -> if (pairs.exists()) pairs.inputStream().use { t.withContext(com.kinetica.keyboard.engine.PairFile.read(it, d.trie)) } else t }
         // The two-word table where the language ships one, as the keyboard and replay load it.
         val tf = File(dir, "${lang}_trigrams.txt")
         return WordPredictor(d.trie, b, geometry, d.forms, language = lang).also { p ->

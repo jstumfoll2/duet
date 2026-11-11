@@ -336,13 +336,16 @@ and Australian word list.  It is under the following copyright:
   SUCH DAMAGE.
 
 --------------------------------------------------------------------------
-6. C4 web text counts (en_wordlist.txt additions, en_trigrams.txt)
+6. C4 web text counts (en_wordlist.txt additions, en_trigrams.txt,
+   en_pairs.bin)
 
 About 8,700 English words added to en_wordlist.txt, and most of the
 English word-triple counts in en_trigrams.txt, are derived from word
 counts over six shards (about 750 million words) of C4, the cleaned
 English Common Crawl corpus published by the Allen Institute for AI
-(tools/web_ngrams.py, tools/build_en_lexicon.py). Only counts are used;
+(tools/web_ngrams.py, tools/build_en_lexicon.py). The word-pair table
+en_pairs.bin blends the same corpus's pair counts with the Tatoeba
+counts of section 2 (tools/build_en_pairs.py). Only counts are used;
 no text from the corpus is bundled.
 
 https://huggingface.co/datasets/allenai/c4

@@ -38,6 +38,13 @@ class ReplayReport(private val deepK: Int) {
      */
     val gold = Tally()
 
+    /**
+     * Free-typed lines with a true label and a word before them: what the user retyped,
+     * re-swiped, corrected or picked from the bar, mid-sentence. The rows a context model is
+     * judged on; practice prompts carry no sentence.
+     */
+    val context = Tally()
+
     /** Practice lines that are not attempts at their prompt ([GoldLabels.isFragment]): out of [gold]. */
     var fragments = 0
     var reswiped = 0
@@ -115,6 +122,9 @@ class ReplayReport(private val deepK: Int) {
             r.word.target != null -> if (GoldLabels.isFragment(r.word)) fragments++ else gold.add(r)
             r.word.how == "retyped" || r.word.how == "reswiped" || r.word.how == "corrected" -> gold.add(r)
         }
+        if (r.word.target == null && r.word.context.isNotEmpty() &&
+            (r.word.how == "retyped" || r.word.how == "reswiped" || r.word.how == "corrected" || r.word.how == "picked")
+        ) context.add(r)
         if (source == "you typed" && (r.rank == 1 || r.typedAsIs)) asTypedHits++
     }
 
@@ -139,6 +149,7 @@ class ReplayReport(private val deepK: Int) {
             ),
         )
         if (gold.n > 0) row("gold", gold)
+        if (context.n > 0) row("context", context)
         row("all", all)
         for ((b, t) in byBucket) if (t.n > 0) row(b, t)
         appendLine()

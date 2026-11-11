@@ -130,7 +130,9 @@ class ReplayHarness(
         val d = File(dir, "${lang}_wordlist.txt").bufferedReader().use {
             DictionaryLoader.load(it, extra, spellingSwaps = swaps, newWordMinWeight = if (learner != null) DictionaryLoader.NEW_WORD_MIN_WEIGHT else 0)
         }
+        val pairs = File(dir, "${lang}_pairs.bin")
         val b = File(dir, "${lang}_bigrams.txt").bufferedReader().use { DictionaryLoader.loadBigrams(it, d.trie) }
+            .let { t -> if (pairs.exists()) pairs.inputStream().use { t.withContext(com.kinetica.keyboard.engine.PairFile.read(it, d.trie)) } else t }
         val tf = File(dir, "${lang}_trigrams.txt")
         val t = if (tf.exists()) {
             tf.bufferedReader().use { DictionaryLoader.loadTrigrams(it, d.trie) }
