@@ -32,6 +32,17 @@ class ReplayReport(private val deepK: Int) {
     val all = Tally()
 
     /**
+     * Lines whose label does not come from the keyboard's own answer: practice prompts that are
+     * attempts at the prompt, and commits the user changed afterwards (picked from the bar,
+     * retyped, or swiped again). The figure to accept or reject a decoder change on.
+     */
+    val gold = Tally()
+
+    /** Practice lines that are not attempts at their prompt ([GoldLabels.isFragment]): out of [gold]. */
+    var fragments = 0
+    var reswiped = 0
+
+    /**
      * The scorecard: lines by who chose the label. `practice` is the prompted word; `you typed`
      * is what the user committed by hand (typed, picked, accepted autocorrect, or corrected
      * later); `space commit` is a decode the space bar committed, so its label is the keyboard's
@@ -95,10 +106,15 @@ class ReplayReport(private val deepK: Int) {
         val source = when {
             r.word.target != null -> "practice"
             r.word.how == "retyped" -> "retyped"
+            r.word.how == "reswiped" -> "reswiped"
             r.word.how == "tentative" -> "space commit"
             else -> "you typed"
         }
         bySource.getValue(source).add(r)
+        when {
+            r.word.target != null -> if (GoldLabels.isFragment(r.word)) fragments++ else gold.add(r)
+            r.word.how == "retyped" || r.word.how == "reswiped" || r.word.how == "corrected" -> gold.add(r)
+        }
         if (source == "you typed" && (r.rank == 1 || r.typedAsIs)) asTypedHits++
     }
 
@@ -112,6 +128,8 @@ class ReplayReport(private val deepK: Int) {
         appendLine("exact replay: $exact/$comparable comparable lines (identical list, scores bit for bit)")
         if (duplicates > 0) appendLine("duplicates: $duplicates word lines already read from an earlier file skipped (--keepdups keeps them)")
         if (retyped + extended > 0) appendLine("retyped: $retyped commits relabelled as the word retyped, $extended mid-word commits unlabelled (--plain keeps them)")
+        if (reswiped > 0) appendLine("reswiped: $reswiped earlier tries relabelled as the word a later try of the same shape committed (--plain keeps them)")
+        if (fragments > 0) appendLine("fragments: $fragments practice lines touch under half their prompt's letters; scored below, left out of gold")
         appendLine()
         appendLine(
             String.format(
@@ -120,6 +138,7 @@ class ReplayReport(private val deepK: Int) {
                 "in@${KineticaConstants.TOP_K}", "recall@$deepK",
             ),
         )
+        if (gold.n > 0) row("gold", gold)
         row("all", all)
         for ((b, t) in byBucket) if (t.n > 0) row(b, t)
         appendLine()
@@ -177,7 +196,7 @@ class ReplayReport(private val deepK: Int) {
     }
 
     private companion object {
-        val SOURCES = listOf("practice", "you typed", "space commit", "retyped")
+        val SOURCES = listOf("practice", "you typed", "space commit", "retyped", "reswiped")
         val LENGTHS = listOf("1-2 letters", "3-6 letters", "7-9 letters", "10+ letters")
 
         const val MAX_EXAMPLES = 10

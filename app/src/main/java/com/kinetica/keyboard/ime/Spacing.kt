@@ -198,6 +198,44 @@ internal fun retractsAutospace(
 ): Boolean = fromTappedWord && tentativeLength == 0 && elapsedMs <= windowMs && fusedIsPrefix && !swipeStartedFirst
 
 /**
+ * Whether [letters] spell, or with [whole] false begin, a word the user has typed before that no
+ * bundled list holds: a name, a product, a handle. [counts] is the personal count of every
+ * committed spelling and [isBundled] the dictionary's answer.
+ *
+ * Such a word has to be pecked, and the dictionary questions that keep a pecked word together
+ * all answer no for it: `space` earned its space, `b` could not take it back because `spaceb`
+ * begins nothing, and the word ended as `space bar`. Pauses do not tell the two apart either:
+ * the next word often starts as soon after a pecked word as the next letter does inside one, so
+ * every timing rule tried joined more real pairs than it saved words. What does tell them apart
+ * is that the user wrote this spelling before.
+ *
+ * [OWN_SPELLING_MIN_COUNT] commits, not one: two words left glued by mistake (`howto`) are a
+ * spelling too, and one slip must not teach the keyboard to repeat it.
+ */
+internal fun isOwnSpelling(
+    counts: Map<String, Int>,
+    letters: String,
+    whole: Boolean,
+    isBundled: (String) -> Boolean,
+): Boolean {
+    val l = letters.lowercase()
+    if (l.length < OWN_SPELLING_MIN_LETTERS) return false
+    if (whole) return (counts[l] ?: 0) >= OWN_SPELLING_MIN_COUNT && !isBundled(l)
+    return counts.any { (word, n) -> n >= OWN_SPELLING_MIN_COUNT && word.length > l.length && word.startsWith(l) && !isBundled(word) }
+}
+
+internal const val OWN_SPELLING_MIN_COUNT = 2
+internal const val OWN_SPELLING_MIN_LETTERS = 3
+
+/**
+ * True when [typed] is a lower-case `i` that the pronoun rule turned into [cased] `I`. Such a
+ * capital belongs to the lone word: when a letter takes the automatic space back and the word
+ * goes on (`i`, a pause, `s`), it is lower-case again, or `is` reads `Is` mid-sentence. An `I`
+ * typed with shift (a sentence start) is not this and keeps its capital.
+ */
+internal fun isPronounCapital(typed: String, cased: String): Boolean = typed == "i" && cased == "I"
+
+/**
  * The word an automatic space would be taken back into: the letter run right before the space
  * at the cursor, or "" when there is no such space or word, and the retraction refuses.
  *

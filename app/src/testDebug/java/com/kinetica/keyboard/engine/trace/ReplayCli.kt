@@ -72,6 +72,8 @@ object ReplayCli {
         opt(a, "--skipfrom")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_FROM = it.toInt() }
         opt(a, "--skip")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_KW = it.toFloat() }
         forceTouch = a.remove("--touchforce")
+        // --aim S: per-key aim points learning online at strength S (0 = off); see AimModel.
+        aimModel = opt(a, "--aim")?.toFloat()?.takeIf { it > 0f }?.let { v -> com.kinetica.keyboard.engine.AimModel().also { it.strength = v } }
         // --hintz Z: how many standard deviations of a key's learned touch spread still hint it.
         opt(a, "--hintz")?.let { com.kinetica.keyboard.engine.TouchModel.HINT_Z = it.toFloat() }
         opt(a, "--hintshift")?.let { com.kinetica.keyboard.engine.TouchModel.HINT_MIN_SHIFT_KW = it.toFloat() }
@@ -103,6 +105,7 @@ object ReplayCli {
                     interleave = ilw?.let { it > 0f } ?: KineticaConstants.INTERLEAVE_ENABLED,
                     interleaveWeight = ilw ?: KineticaConstants.INTERLEAVE_WEIGHT,
                     touch = touch,
+                    aim = aimModel,
                     trigramBoost = tri,
                     edgeTapGap = edge,
                     peckSplit = split,
@@ -147,6 +150,7 @@ object ReplayCli {
                     heldDoubleBoost = hdb, heldDoubleMs = hdms, heldDoubleEndMs = hdend,
                     heldDoubleMissKeep = hdmiss,
                     touch = touch,
+                    aim = aimModel,
                     trigramBoost = tri,
                     learner = learner,
                     heldDoubleFree = hdfree,
@@ -656,6 +660,7 @@ object ReplayCli {
                 }
             }
         }
+        if (retypes) report.reswiped += GoldLabels.relabelReswipes(words)
         return words
     }
 
@@ -888,6 +893,7 @@ object ReplayCli {
     }
 
     private var forceTouch = false
+    private var aimModel: com.kinetica.keyboard.engine.AimModel? = null
 
     /**
      * --learn words|phrases: learn in trace order (see [ReplayHarness.Learner]).

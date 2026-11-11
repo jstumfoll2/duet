@@ -185,6 +185,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // reads through the predictor: concurrent map. One map per resident predictor, because
     // user_words and the boost are keyed by language.
     private var personalCounts = ConcurrentHashMap<String, Int>()
+
+    // Learned spellings the active dictionary holds only because the user typed them.
+    @Volatile
+    private var mergedOwnWords: Set<String> = emptySet()
     // Learned word pairs, keyed "prev\u0000next", same concurrent contract as the counts
     // above. Empty and never written unless the phrase setting is on.
     private var personalPairs = ConcurrentHashMap<String, Int>()
@@ -218,6 +222,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      */
     private val touchModel = com.kinetica.keyboard.engine.TouchModel()
     private var touchModelSaved = 0
+
+    // Where the thumbs aim for each key; the decoder reads touches against the board moved there.
+    private val aimModel = com.kinetica.keyboard.engine.AimModel()
+    private var aimModelSaved = 0
 
     // Language of each candidate currently on offer, keyed by its display form
     // (lowercased). The bar and the commit path work in strings, so this is how
@@ -491,6 +499,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // Only that kind is provisional: a swipe's space follows a finished gesture, so a letter
     // after it starts a new word.
     private var autospaceFromTaps = false
+
+    // True when the word committed last was a lower-case `i` the pronoun rule capitalized.
+    private var pronounCapital = false
     private var autospaceAt = 0L
 
     /**
@@ -527,7 +538,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             enabled = config.autospaceTappedWords,
             hasSwipeToken = hasSwipe,
             literal = autospaceLiteral(lastLiteral),
-            literalIsWord = predictor?.isWord(autospaceLiteral(lastLiteral)) == true,
+            literalIsWord = predictor?.isWord(autospaceLiteral(lastLiteral)) == true || ownSpelling(autospaceLiteral(lastLiteral), whole = true),
             literalIsStandaloneLetter = standaloneLetter(autospaceLiteral(lastLiteral)),
             addressField = editorState.addressField,
             // Re-read when the timer fires, not at scheduling: this site inserts the space,
@@ -580,6 +591,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         super.onCreate()
         touchModel.restore(getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).getString(TOUCH_MODEL_KEY, null))
         touchModelSaved = touchModel.learned
+        aimModel.restore(getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).getString(AIM_MODEL_KEY, null))
+        aimModelSaved = aimModel.learned
         // Decode tracing, developer build only. Two-thumb gestures cannot be reproduced on
         // the JVM, so a capture of the real token buffer is the evidence for them. The
         // release source set's TraceRecorder is a stub that installs nothing.
@@ -867,6 +880,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         val counts = ConcurrentHashMap<String, Int>(userRows.size * 2)
                         for (row in userRows) counts[row.word] = row.frequency
                         personalCounts = counts
+                        mergedOwnWords = dict.ownWords
                         blockedLoaded = blocked.isNotEmpty()
                         learnedCases[lang] = ConcurrentHashMap(casesOf(userRows))
                         detectLang?.let { learnedCases[it] = ConcurrentHashMap(casesOf(altRows)) }
@@ -880,6 +894,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                             )
                         }
                         p.touchModel = touchModel
+                        p.aimModel = aimModel
                         p.trigrams = trigrams
                         predictor = p
                         val altCounts = ConcurrentHashMap<String, Int>(altRows.size * 2)
@@ -911,7 +926,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                             p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
                         ).also {
                             secondaryPredictor?.touchModel = touchModel
+                            secondaryPredictor?.aimModel = aimModel
                             extraPredictor?.touchModel = touchModel
+                            extraPredictor?.aimModel = aimModel
                             it.touchModel = touchModel
                             it.alternatePredictor = secondaryPredictor
                             TraceRecorder.attachComposer(it)
@@ -1781,7 +1798,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     enabled = config.autospaceTappedWords,
                     hasSwipeToken = false,
                     literal = spaced,
-                    literalIsWord = predictor?.isWord(spaced) == true,
+                    literalIsWord = predictor?.isWord(spaced) == true || ownSpelling(spaced, whole = true),
                     literalIsStandaloneLetter = standaloneLetter(spaced),
                     addressField = editorState.addressField,
                     // The word's own letters are already committed, so the character
@@ -1880,6 +1897,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val p = predictor ?: return false
         if (base.isEmpty()) return false
         if (p.isLivePrefix(base + next)) return true
+        // A name the lists lack but the user has typed before is still being spelled.
+        if (ownSpelling(base + next, whole = false) || ownSpelling(base + next, whole = true)) return true
         val tail = tailAfterLastApostrophe(base)
         return tail.isNotEmpty() && p.isLivePrefix(tail + next)
     }
@@ -1893,7 +1912,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun autospaceLiteral(literal: String): String {
         val comp = composer ?: return literal
         val s = comp.split ?: return literal
+        // On the way to a word of the user's own (`googlephoto` to `googlephotos`), the letters
+        // are one word, however well the tail reads alone.
+        if (comp.rejoinHead > 0 && (ownSpelling(literal, whole = false) || ownSpelling(literal, whole = true))) return literal
         return if (comp.rejoinHead > 0 && s.head < literal.length) literal.substring(s.head) else literal
+    }
+
+    /** [isOwnSpelling] against the active language's personal counts and dictionary. */
+    private fun ownSpelling(letters: String, whole: Boolean): Boolean {
+        val p = predictor ?: return false
+        val own = mergedOwnWords
+        return isOwnSpelling(personalCounts, letters, whole) { it !in own && p.isWord(it) }
     }
 
     /** Whether [literal] is one letter that is a word by itself in the active language. */
@@ -3748,7 +3777,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         autospaceInserted = false
         autospaceFromTaps = false
         DecodeTrace.log { "  autospace retract" }
+        val pronoun = pronounCapital
         reloadWordUnderCursor(beforeTime, byHand = false)
+        // `i`, a pause, then `s`: the pronoun rule wrote `I`, and the word going on is `is`, not
+        // `Is` (20 of 59 retractions in five captures left a capital mid-sentence this way).
+        // A word that ends as `i` again gets its capital back at the commit.
+        if (pronoun && reloadedWord == "I") {
+            replaceTentative("i")
+            reloadedWord = "i"
+            wordShift = ShiftState.State.NONE
+            DecodeTrace.log { "  autospace retract pronoun lowered" }
+        }
         // The space is gone, not the question: the word and what follows are weighed against one
         // word as typing goes on, and the better reading is applied when the word ends.
         if (reloadedWord != null) composer?.markRejoin()
@@ -4713,7 +4752,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             return false
         }
 
-        if (!splitting && comp.split != null && (comp.rejoinHead > 0 || peckSplitAllowed())) finalizeSplitHead(comp)
+        // A reopened word that spells one of the user's own words stays one word.
+        val ownWord = comp.rejoinHead > 0 && !comp.hasSwipeToken() && ownSpelling(tentativeWord, whole = true)
+        if (ownWord) DecodeTrace.log { "  rejoin kept own word=$tentativeWord" }
+        if (!splitting && !ownWord && comp.split != null && (comp.rejoinHead > 0 || peckSplitAllowed())) finalizeSplitHead(comp)
 
         var finalWord = tentativeWord
         var how = if (comp.hasSwipeToken()) "tentative" else "typed"
@@ -4807,6 +4849,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // the dictionary already has. Applies to the tap path here and to
         // decoded words through displayWord.
         val cased = AutoCapitalization.forWord(finalWord, config.language, languageOf(finalWord))
+        // Remembered for retractAutospace: a lone `i` capitalized here was typed lower-case, and
+        // is only the pronoun while it stays alone.
+        pronounCapital = isPronounCapital(finalWord, cased)
         if (cased != finalWord) {
             replaceTentative(cased)
             finalWord = cased
@@ -5756,6 +5801,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** Writes the touch model to its own private file when it learned since the last write. */
     private fun saveTouchModel() {
+        if (aimModel.learned != aimModelSaved) {
+            aimModelSaved = aimModel.learned
+            getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).edit().putString(AIM_MODEL_KEY, aimModel.save()).apply()
+        }
         if (touchModel.learned == touchModelSaved) return
         touchModelSaved = touchModel.learned
         getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).edit().putString(TOUCH_MODEL_KEY, touchModel.save()).apply()
@@ -5770,6 +5819,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // Its own file, not the settings: per-key averages, kept out of a settings backup.
         const val TOUCH_MODEL_PREFS = "touch_model"
         const val TOUCH_MODEL_KEY = "model"
+        const val AIM_MODEL_KEY = "aim"
         const val USER_DICT_LIMIT = 5000
         const val USER_PAIR_LIMIT = 5000
         // Undone autocorrects remembered at once: more distinct words than one session undoes.

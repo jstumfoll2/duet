@@ -69,6 +69,13 @@ F-Droid.
 - **Per-thumb touch offsets.** Duet learns where each thumb lands relative to each key it meant
   (`TouchModel`). It moves taps back toward the key meant only once it has proved more accurate
   than the raw touches on your own recent taps, so for a precise typist it stays off.
+- **Aim points.** Thumbs do not aim at key centres (the developer's land 0.4 kw right of `a`,
+  0.3 kw left of `p`). Duet learns each key's offset from committed words (`AimModel`: the ends
+  of one-swipe words and every tap of tapped words) and reads swipes and taps against the board
+  moved there. The keys are drawn where they were. On lines with a true label, top-1 went from
+  59.3% to 63.1% over 17 trace batches (`replay --aim 1`). The averages stay on the device.
+- **Words of your own stay whole.** A pecked word no dictionary holds (`spacebar`, a name) used
+  to break at every prefix that is a word. A spelling committed twice holds together.
 - **Short slips.** A short tapped word with one letter hit beside the one meant is fixed when the
   previous word settles it (`going ti` becomes `going to`), and left alone when nothing does.
 - **A pecked word, then a swipe.** With automatic spaces on, tap `to` and swipe `help` straight
