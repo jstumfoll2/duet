@@ -2655,7 +2655,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val predictors = listOfNotNull(predictor, secondaryPredictor, extraPredictor)
         for (p in predictors) {
             val fix = ShortSlips.correction(p, g, literal, prev, standaloneLetters(p.language.ifEmpty { config.language })) ?: continue
-            if (prev != null && predictors.any { it !== p && it.pairByte(prev, w) >= KineticaConstants.SLIP_MIN_PAIR_BYTE }) return null
+            if (prev != null && predictors.any { it !== p && it.contextPairByte(prev, w) >= KineticaConstants.SLIP_MIN_PAIR_BYTE }) return null
             return fix
         }
         return null

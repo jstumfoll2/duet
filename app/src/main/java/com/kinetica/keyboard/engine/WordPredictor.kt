@@ -330,6 +330,16 @@ class WordPredictor(
             trie.nodeFor(AccentFolder.fold(next.lowercase())),
         )
 
+    /**
+     * [pairByte] in the table behind the decoder's context boost: the million web pairs where the
+     * language has them ([BigramTable.withContext]), else the bundled list. Short slips read it.
+     */
+    fun contextPairByte(prev: String, next: String): Int =
+        bigrams.contextByte(
+            trie.nodeFor(AccentFolder.fold(prev.lowercase())),
+            trie.nodeFor(AccentFolder.fold(next.lowercase())),
+        )
+
     /** The frequency byte fw is built from, of [word]'s own spelling; -1 when it is not a word. */
     fun frequencyByte(word: String): Int {
         val w = word.lowercase()

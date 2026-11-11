@@ -28,12 +28,16 @@ class BigramTable private constructor(
     }
 
     /**
-     * This table with [wide] behind the decoder's boost ([multiplier]). [boostByte] and
-     * [successors] still read this one: the rules that judge a pair by its byte (short slips,
-     * the missing-space split, the grammar pass) and the next-word bar were tuned on the
-     * curated table, and web text holds `ill be` and `it s` often enough to mislead them.
+     * This table with [wide] behind the decoder's boost ([multiplier]) and the short-slip rule
+     * ([contextByte]). [boostByte] and [successors] still read this one: the missing-space split,
+     * the grammar pass and the next-word bar. Measured on the traces (#105), the wide table's
+     * bytes split `someone` and `minigames`, and its web text holds `ill be` and `its a` often
+     * enough to rewrite `i'll` and `it's` the wrong way.
      */
     fun withContext(wide: BigramTable): BigramTable = BigramTable(keys, boosts, compact, wide)
+
+    /** The pair's boost byte in the table behind [multiplier]: the wide one when there is one. */
+    fun contextByte(prevWordId: Int, nextWordId: Int): Int = (context ?: this).boostByte(prevWordId, nextWordId)
 
     /** Pairs behind [multiplier]: the wide table's when there is one. */
     val contextSize: Int get() = (context ?: this).size

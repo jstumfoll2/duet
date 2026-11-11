@@ -508,6 +508,8 @@ object ReplayCli {
                 opt(a, "--common")?.let { KineticaConstants.SLIP_COMMON_PAIR_BYTE = it.toInt() }
                 opt(a, "--commonmax")?.let { KineticaConstants.SLIP_COMMON_MAX_TYPED_BYTE = it.toInt() }
                 opt(a, "--commongap")?.let { KineticaConstants.SLIP_COMMON_FREQ_GAP = it.toInt() }
+                opt(a, "--pair")?.let { KineticaConstants.SLIP_MIN_PAIR_BYTE = it.toInt() }
+                opt(a, "--pairgap")?.let { KineticaConstants.SLIP_MIN_PAIR_GAP = it.toInt() }
                 if (a.isEmpty()) usage()
                 val learner = ReplayHarness.Learner(phrases = true)
                 val h = ReplayHarness(assets, learner = learner)

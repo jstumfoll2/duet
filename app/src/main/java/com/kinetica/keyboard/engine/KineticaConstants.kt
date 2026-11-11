@@ -866,13 +866,20 @@ object KineticaConstants {
     // with the previous word must be at least byte 100 and 60 above the pair as typed. On Jason's
     // traces (1,643 tapped English commits) this fires 40 times, among them `going ti`, `need ti`,
     // `in tbe`, `instead og`, `but iy` and `this s`.
+    // Since #105 the pairs come from the million web pairs behind the decoder boost, whose bytes run
+    // higher (a context there has hundreds of followers, and the log scale lifts the middle ones),
+    // so the pair floor rose from 100 to 140. On 3,894 tapped English commits (17 batches): 85 -> 99
+    // retyped as the fix, 39 -> 43 left as typed (most of the new ones plain typos: `generate iy`,
+    // `happens wr`, `roll ro`; `the oop` -> `pop` is a real loss). Floors 100/120/160 gave
+    // 106/53, 102/49, 95/40 right/left as typed. The pair gap does not bind at 40-80.
+    // Vars so replay can sweep them (slips --pair, --pairgap).
     const val SLIP_MAX_LEN = 3
     const val SLIP_ROW_NEIGHBOUR_KW = 1.05f
     const val SLIP_DIAGONAL_NEIGHBOUR_KW = 0.8f
     const val SLIP_MAX_TYPED_BYTE = 125
     const val SLIP_MIN_FREQ_GAP = 60
-    const val SLIP_MIN_PAIR_BYTE = 100
-    const val SLIP_MIN_PAIR_GAP = 60
+    @JvmStatic var SLIP_MIN_PAIR_BYTE = 140
+    @JvmStatic var SLIP_MIN_PAIR_GAP = 60
     // Commits that make two or three letters a word the user means. Above the merge floor of 2:
     // until this fix shipped, every slip was committed and counted (`ti`, `tbe`).
     const val SLIP_KEEP_COUNT = 5
@@ -884,8 +891,10 @@ object KineticaConstants {
     // fix (`let's di`, `program id`, `take yo`), 8 more left as plain typos (`tried yo`, `it id`),
     // 2 doubtful (`conference id`, `our dig`). Without the byte cap it also reached `go`, `if`
     // and `or` and turned `support or` into `support of`: 30 right against 46 left as typed.
+    // On the web pairs (#105) the pair floor is 170 (was 150), as SLIP_MIN_PAIR_BYTE rose: at 150 it
+    // also made `figured id` (meant `i'd`) `figured if`; 6 right, 9 left as typed, 0 other.
     // Vars so replay can sweep them (slips --common, --commonmax, --commongap).
-    @JvmStatic var SLIP_COMMON_PAIR_BYTE = 150
+    @JvmStatic var SLIP_COMMON_PAIR_BYTE = 170
     @JvmStatic var SLIP_COMMON_MAX_TYPED_BYTE = 160
     @JvmStatic var SLIP_COMMON_FREQ_GAP = 0
 
