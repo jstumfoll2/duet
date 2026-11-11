@@ -119,6 +119,9 @@ F-Droid.
   contraction whose letters spell another word (`we're`, `were`) is offered only when you asked for
   the apostrophe, so it never competes with the plain word.
 - Word triples (`en_trigrams.txt`) for context, on top of Kinetica's word pairs.
+- A million English word pairs (`en_pairs.bin`, built by `tools/build_en_pairs.py`) behind the
+  decoder's context boost, ten times the curated list. The grammar, slip and next-word rules keep
+  reading the curated list they were tuned on.
 - A small grammar pass on the word before the one just written: `a`/`an`, `could of`, `he don't`,
   and confusion pairs such as `then`/`than` when the next word settles them (`GrammarCheck`).
 - Grammar auto-fixes as a word lands (on by default: Settings > Typing > Fix grammar slips
@@ -552,7 +555,7 @@ en, it, es, pl, cs, nl, de, fr, no, ru, uk, he and ar.
   conversational register as the word lists. Tatoeba also decides which accent-less spellings stay
   and which German nouns are capitalized.
 - English additions: SCOWL decides which entries the English list keeps; C4 web text counts add
-  words and the English word triples. Both are listed in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
+  words, the English word triples and the wide word-pair table (`en_pairs.bin`). Both are listed in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
 - Emoji: a hand-curated `assets/emoji_data.json` (478 emoji with names and keywords, up to
   Unicode 15). No ZWJ sequences, because a phone that cannot render one draws its
   parts; an emoji the phone's font cannot draw is left out. Skin tones are added when shown, not stored in the
