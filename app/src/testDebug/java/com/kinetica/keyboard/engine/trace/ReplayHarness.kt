@@ -91,6 +91,8 @@ class ReplayHarness(
         val seedWords: Map<String, List<String>> = emptyMap(),
         /** Units a word learns when the decode didn't put it first: a pick from the bar, or a retype. */
         val pickWeight: Int = com.kinetica.keyboard.engine.KineticaConstants.PICK_LEARN_UNITS,
+        /** A store read from a backup and left as it is: lines decode with it and teach nothing. */
+        val frozen: Boolean = false,
     ) {
         val counts = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
         val pairs = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
@@ -206,7 +208,7 @@ class ReplayHarness(
         val deep = deepDecode(deepActive, deepAlt, tokens, w.context, w.apostropheMark)
 
         val label = w.label?.lowercase()
-        if (learner != null && label != null) {
+        if (learner != null && !learner.frozen && label != null) {
             // A pick from the bar: on the list, but not first. A typo committed as tapped isn't one.
             val at = shipping.indexOfFirst { it.word.lowercase() == label }
             val units = if (at >= 1) learner.pickWeight else 1

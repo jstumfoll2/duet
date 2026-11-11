@@ -18,6 +18,8 @@ import java.io.File
  *       line an earlier file already had; --keepdups scores it again.
  *       With --ctc MODEL.kctc [--beta B] [--depth D] the shipping run adds the
  *       stage-A CTC rerank over a heap D deep (default 50).
+ *   replay|ranks --personal BACKUP: decode with the learned words, counts and pairs of a
+ *       settings backup (Settings > Back up), frozen unless ranks is given --learn as well.
  *   ranks [--learn words|phrases] [--pickw N] [--seed FILE] [--hdfree] TRACE.jsonl...
  *       One tab-separated row per scored line. --learn replays the files in order and learns
  *       each label after decoding it, as the keyboard does; --seed merges lang<TAB>word rows
@@ -72,6 +74,8 @@ object ReplayCli {
         opt(a, "--skipfrom")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_FROM = it.toInt() }
         opt(a, "--skip")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_KW = it.toFloat() }
         forceTouch = a.remove("--touchforce")
+        // --reuse KW: the charge for a reused letter whose key was visited once (#98); 0 = off.
+        opt(a, "--reuse")?.let { com.kinetica.keyboard.engine.Interleave.REUSE_KW = it.toFloat() }
         opt(a, "--shortarc")?.let { KineticaConstants.SHORT_READING_ARC_KW = it.toFloat() }
         // --stitch MS: join a thumb's strokes across a lift shorter than MS (0 = off).
         opt(a, "--stitch")?.let { com.kinetica.keyboard.engine.ContactRepair.STITCH_GAP_MS = it.toLong() }
@@ -102,6 +106,8 @@ object ReplayCli {
                 // --ctcilonly: that, and no rerank of one-thumb buffers.
                 val ctcilOnly = a.remove("--ctcilonly")
                 val ctcil = a.remove("--ctcil") || ctcilOnly
+                // --personal BACKUP: decode with the personal store of a settings backup (#97).
+                val personal = opt(a, "--personal")?.let { personalOf(File(it)) }
                 if (a.isEmpty()) usage()
                 val harness = ReplayHarness(
                     assets, k, ctc, beta, depth,
@@ -114,6 +120,7 @@ object ReplayCli {
                     peckSplit = split,
                     rerankOverlap = ctcil,
                     rerankOverlapOnly = ctcilOnly,
+                    learner = personal,
                 )
                 val report = run(harness, a.map { File(it) })
                 println(report.format())
@@ -140,7 +147,10 @@ object ReplayCli {
                 val hdend = opt(a, "--hdend")?.toLong() ?: KineticaConstants.HELD_DOUBLE_END_MS
                 val hdmiss = opt(a, "--hdmiss")?.toFloat() ?: 1f
                 val touch = touchModel(opt(a, "--touch"))
-                val learner = learnerOf(opt(a, "--learn"), opt(a, "--seed"), opt(a, "--pickw")?.toInt() ?: KineticaConstants.PICK_LEARN_UNITS)
+                val learner = learnerOf(
+                    opt(a, "--learn"), opt(a, "--seed"), opt(a, "--pickw")?.toInt() ?: KineticaConstants.PICK_LEARN_UNITS,
+                    opt(a, "--personal"),
+                )
                 val hdfree = a.remove("--hdfree") || KineticaConstants.HELD_DOUBLE_FREE_TIME
                 val edge = opt(a, "--edge")?.toFloat() ?: KineticaConstants.EDGE_TAP_GAP_KW
                 val split = !a.remove("--nosplit")
@@ -162,7 +172,7 @@ object ReplayCli {
                 val sink = ReplayReport(h.deepK)
                 for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
                     val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
-                    println("${f.name}\t$n\t${r.word.label}\t${r.rank}\t${r.buckets.joinToString(",")}\t${r.shipping.firstOrNull()?.word ?: ""}\t${r.micros}")
+                    println("${f.name}\t$n\t${r.word.label}\t${r.rank}\t${r.buckets.joinToString(",")}\t${r.shipping.firstOrNull()?.word ?: ""}\t${r.micros}\t${r.word.how ?: ""}\t${shape(r)}\t${r.deepRank}")
                 }
             }
             "terms" -> {
@@ -700,6 +710,15 @@ object ReplayCli {
      * then each token in time order - T for a tap (key), S for a swipe (its key
      * contacts, arc length) - with stream, start and end relative to the first.
      */
+    /** The buffer in one field: each token in time order, a tap as its letter, a swipe as (keys). */
+    private fun shape(r: ReplayHarness.Result): String = r.tokens.sortedBy { it.tStart }.joinToString("") { t ->
+        when (t) {
+            is com.kinetica.keyboard.engine.models.TapToken -> com.kinetica.keyboard.engine.Alphabet.charOf(t.code).toString()
+            is com.kinetica.keyboard.engine.models.SwipeToken -> "(" + t.keyContacts.joinToString("") { com.kinetica.keyboard.engine.Alphabet.charOf(it.code).toString() } + ")"
+            else -> "?"
+        }
+    }
+
     fun describe(lineNo: Int, r: ReplayHarness.Result): String {
         val sb = StringBuilder()
         sb.append("#$lineNo ${r.word.label} rank=${r.rank} deep=${r.deepRank} ${r.buckets.joinToString(",")}")
@@ -902,7 +921,8 @@ object ReplayCli {
      * --learn words|phrases: learn in trace order (see [ReplayHarness.Learner]).
      * --seed FILE: lang<TAB>word lines merged from the start, as an imported user dictionary.
      */
-    private fun learnerOf(mode: String?, seed: String?, pickWeight: Int): ReplayHarness.Learner? {
+    private fun learnerOf(mode: String?, seed: String?, pickWeight: Int, personal: String? = null): ReplayHarness.Learner? {
+        if (personal != null) return personalOf(File(personal), learns = mode != null, pickWeight = pickWeight)
         if (mode == null && seed == null) return null
         val words = seed?.let { f ->
             File(f).readLines().mapNotNull { l -> l.split('\t').takeIf { it.size >= 2 } }
@@ -913,6 +933,26 @@ object ReplayCli {
             seedWords = words,
             pickWeight = pickWeight,
         )
+    }
+
+    /**
+     * --personal BACKUP: the personal store of a settings backup (Settings > Back up; its
+     * `word` and `phrase` rows) as the state every line decodes with: learned words in the
+     * trie, commit counts and pairs. It is the store at export time, not at each line, so
+     * early lines see words learned after them. Frozen unless --learn is given as well.
+     */
+    fun personalOf(backup: File, learns: Boolean = false, pickWeight: Int = KineticaConstants.PICK_LEARN_UNITS): ReplayHarness.Learner {
+        val l = ReplayHarness.Learner(phrases = true, pickWeight = pickWeight, frozen = !learns)
+        backup.forEachLine { line ->
+            val f = line.split('\t')
+            when {
+                f.size >= 4 && f[0] == "word" -> f[3].toIntOrNull()?.let { l.countsOf(f[1])[f[2].lowercase()] = it }
+                f.size >= 5 && f[0] == "phrase" -> f[4].toIntOrNull()?.let {
+                    l.pairsOf(f[1])[com.kinetica.keyboard.engine.WordPredictor.pairKey(f[2].lowercase(), f[3].lowercase())] = it
+                }
+            }
+        }
+        return l
     }
 
     /** A fresh online-learning touch model at strength [s], or null when [s] is absent or 0. */

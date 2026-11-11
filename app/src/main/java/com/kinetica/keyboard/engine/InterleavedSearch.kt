@@ -53,7 +53,11 @@ class InterleavedSearch(
                 rows[depth].copyInto(next)
                 depth > 0
             } else {
-                il.step(rows[depth], code, visits[depth] == 0, next, PRUNE_MEAN_KW * (visits[depth] + 1) + CELL_SLACK_KW, visits[depth] >= Interleave.SKIP_FROM) &&
+                val reused = Interleave.REUSE_KW > 0f && usedBefore(letters, depth, code)
+                il.step(
+                    rows[depth], code, visits[depth] == 0, next, PRUNE_MEAN_KW * (visits[depth] + 1) + CELL_SLACK_KW,
+                    reused || visits[depth] >= Interleave.SKIP_FROM, if (reused) Interleave.REUSE_KW else Interleave.SKIP_KW,
+                ) &&
                     // Already too far off on average to come back: the word's
                     // remaining letters would have to sit on their keys.
                     il.lastMin <= PRUNE_MEAN_KW * (visits[depth] + 1)
@@ -76,6 +80,11 @@ class InterleavedSearch(
             cursor[depth] = 0
         }
         return hits.sortedByDescending { score(it.fw, it.cost) }.take(keep)
+    }
+
+    private fun usedBefore(letters: IntArray, depth: Int, code: Int): Boolean {
+        for (i in 0 until depth) if (letters[i] == code) return true
+        return false
     }
 
     companion object {
