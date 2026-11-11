@@ -91,6 +91,9 @@ class WordPredictor(
      */
     @Volatile var touchModel: TouchModel? = null
 
+    /** This user's aim points ([AimModel]); null decodes against the board as drawn. */
+    @Volatile var aimModel: AimModel? = null
+
     /**
      * Two-word context boosts, applied after the search to the finished list ([withTrigrams]).
      * Empty until the IME loads the language's table, which only English ships.
@@ -646,11 +649,14 @@ class WordPredictor(
     }
 
     private fun decodeRepaired(repaired: List<InputToken>, context: List<String>, beam: Boolean): List<WordCandidate> {
-        val g = geometry ?: return emptyList()
+        val drawn = geometry ?: return emptyList()
         // A board in another script, for the moment a language switch leaves them apart.
-        if (g.alphabet !== trie.alphabet) return emptyList()
+        if (drawn.alphabet !== trie.alphabet) return emptyList()
+        // The board the touches are read against: the keys moved to where the thumbs aim.
+        val g = aimModel?.aimed(drawn) ?: drawn
         // An earned model moves taps; one still checking itself only names keys they may have meant.
-        val tokens = touchModel?.let { if (it.isActive) it.apply(repaired, g) else it.hint(repaired, g) } ?: repaired
+        val touched = touchModel?.let { if (it.isActive) it.apply(repaired, drawn) else it.hint(repaired, drawn) } ?: repaired
+        val tokens = if (g === drawn) touched else AimModel.rekey(touched, g)
         if (tokens.isEmpty() || tokens.size > KineticaConstants.MAX_WORD_LEN) return emptyList()
         // Timed only under a trace sink, so a release build pays nothing for it.
         val startNs = if (DecodeTrace.enabled) System.nanoTime() else 0L

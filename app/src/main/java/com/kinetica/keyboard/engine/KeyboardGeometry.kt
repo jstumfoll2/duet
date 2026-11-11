@@ -35,6 +35,30 @@ class KeyboardGeometry private constructor(
      */
     private val apostrophe: FloatArray? = null,
 ) {
+    /**
+     * This board with each letter key moved by ([dx], [dy]) kw per code: where the user's thumbs
+     * aim ([AimModel]), not where the keys are drawn. Missing codes move by nothing. The
+     * apostrophe key and the midline stay.
+     */
+    fun shifted(dx: FloatArray, dy: FloatArray): KeyboardGeometry {
+        val n = alphabet.letterCount
+        val cx = centersX.copyOf()
+        val cy = centersY.copyOf()
+        val r = rects.copyOf()
+        for (c in 0 until n) {
+            if (!present[c]) continue
+            val x = dx.getOrElse(c) { 0f }
+            val y = dy.getOrElse(c) { 0f }
+            cx[c] += x
+            cy[c] += y
+            r[c * 4] += x
+            r[c * 4 + 2] += x
+            r[c * 4 + 1] += y
+            r[c * 4 + 3] += y
+        }
+        return KeyboardGeometry(keyWidthPx, midlinePx, alphabet, present, cx, cy, r, apostrophe)
+    }
+
     /** A copy of the apostrophe key's kw rect, or null; see [apostrophe]. */
     fun apostropheRectKw(): FloatArray? = apostrophe?.copyOf()
 

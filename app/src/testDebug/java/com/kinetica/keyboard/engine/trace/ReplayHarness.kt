@@ -58,6 +58,11 @@ class ReplayHarness(
      * taught, then teaches its own label, as the keyboard learns from each commit. Null is off.
      */
     val touch: com.kinetica.keyboard.engine.TouchModel? = null,
+    /**
+     * Per-key aim points learning online, like [touch]: each line is decoded against the board
+     * moved to where the lines before it say the thumbs aim, then teaches its own label.
+     */
+    val aim: com.kinetica.keyboard.engine.AimModel? = null,
     /** Cap of the two-word context boost; 0 decodes without the trigram table. */
     private val trigramBoost: Float = com.kinetica.keyboard.engine.KineticaConstants.TRIGRAM_BOOST_MAX,
     /**
@@ -161,6 +166,7 @@ class ReplayHarness(
             heldDoubleFreeTime = heldDoubleFree,
         ).also {
             it.touchModel = touch
+            it.aimModel = aim
             it.trigrams = d.trigrams
         }
     }
@@ -213,6 +219,10 @@ class ReplayHarness(
         if (touch != null && label != null) {
             val codes = active.alphabet.encode(com.kinetica.keyboard.engine.AccentFolder.fold(label))
             if (codes != null) touch.learn(codes, tokens, g)
+        }
+        if (aim != null && label != null) {
+            val codes = active.alphabet.encode(com.kinetica.keyboard.engine.AccentFolder.fold(label))
+            if (codes != null) aim.learn(codes, tokens, g)
         }
         val exact = if (w.comparable) sameList(shipping, w.shown.candidates) else null
         val typedAsIs = label != null && tokens.isNotEmpty() && tokens.all { it is TapToken } &&

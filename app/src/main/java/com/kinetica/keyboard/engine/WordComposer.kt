@@ -302,11 +302,15 @@ class WordComposer(
     private var seeded = 0
 
     private fun teachTouch(word: String) {
-        val m = touchModel ?: return
+        val m = touchModel
+        val aim = predictor.aimModel
+        if (m == null && aim == null) return
         if (seeded > 0 || tokens.isEmpty()) return
         val g = predictor.geometry ?: return
         val codes = predictor.alphabet.encode(AccentFolder.fold(word.lowercase())) ?: return
-        m.learn(codes, tokens, g)
+        m?.learn(codes, tokens, g)
+        // The same commit teaches where the thumbs aim, from the board as drawn.
+        aim?.learn(codes, tokens, g)
     }
 
     fun literal(): String = buildLiteral(tokens)

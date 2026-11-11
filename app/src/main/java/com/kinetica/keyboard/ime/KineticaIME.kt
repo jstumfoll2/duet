@@ -223,6 +223,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private val touchModel = com.kinetica.keyboard.engine.TouchModel()
     private var touchModelSaved = 0
 
+    // Where the thumbs aim for each key; the decoder reads touches against the board moved there.
+    private val aimModel = com.kinetica.keyboard.engine.AimModel()
+    private var aimModelSaved = 0
+
     // Language of each candidate currently on offer, keyed by its display form
     // (lowercased). The bar and the commit path work in strings, so this is how
     // a picked or committed word finds the dictionary it came from.
@@ -587,6 +591,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         super.onCreate()
         touchModel.restore(getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).getString(TOUCH_MODEL_KEY, null))
         touchModelSaved = touchModel.learned
+        aimModel.restore(getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).getString(AIM_MODEL_KEY, null))
+        aimModelSaved = aimModel.learned
         // Decode tracing, developer build only. Two-thumb gestures cannot be reproduced on
         // the JVM, so a capture of the real token buffer is the evidence for them. The
         // release source set's TraceRecorder is a stub that installs nothing.
@@ -888,6 +894,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                             )
                         }
                         p.touchModel = touchModel
+                        p.aimModel = aimModel
                         p.trigrams = trigrams
                         predictor = p
                         val altCounts = ConcurrentHashMap<String, Int>(altRows.size * 2)
@@ -919,7 +926,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                             p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
                         ).also {
                             secondaryPredictor?.touchModel = touchModel
+                            secondaryPredictor?.aimModel = aimModel
                             extraPredictor?.touchModel = touchModel
+                            extraPredictor?.aimModel = aimModel
                             it.touchModel = touchModel
                             it.alternatePredictor = secondaryPredictor
                             TraceRecorder.attachComposer(it)
@@ -5792,6 +5801,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** Writes the touch model to its own private file when it learned since the last write. */
     private fun saveTouchModel() {
+        if (aimModel.learned != aimModelSaved) {
+            aimModelSaved = aimModel.learned
+            getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).edit().putString(AIM_MODEL_KEY, aimModel.save()).apply()
+        }
         if (touchModel.learned == touchModelSaved) return
         touchModelSaved = touchModel.learned
         getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).edit().putString(TOUCH_MODEL_KEY, touchModel.save()).apply()
@@ -5806,6 +5819,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // Its own file, not the settings: per-key averages, kept out of a settings backup.
         const val TOUCH_MODEL_PREFS = "touch_model"
         const val TOUCH_MODEL_KEY = "model"
+        const val AIM_MODEL_KEY = "aim"
         const val USER_DICT_LIMIT = 5000
         const val USER_PAIR_LIMIT = 5000
         // Undone autocorrects remembered at once: more distinct words than one session undoes.

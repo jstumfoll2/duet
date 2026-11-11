@@ -122,6 +122,15 @@ object KineticaConstants {
     const val TOUCH_MODEL_STRENGTH = 1f
 
     /**
+     * Share of the learned per-key aim offset ([AimModel]) the decoder's board is moved by; 0 is
+     * off. Learning online over all 17 trace batches (2026-11-10), on the lines with a true
+     * label (practice prompts and words the user corrected): top-1 59.3% off, 61.4% at 0.5,
+     * 63.1% at 1; practice prompts alone 70.1 to 72.3%. The all-lines figure is level (81.0 to
+     * 80.9%), as it must be when three labels in four are the decoder's own commits.
+     */
+    const val AIM_MODEL_STRENGTH = 1f
+
+    /**
      * Whether two-thumb overlapped input is decoded on one timeline
      * ([Interleave]). Measured end to end on the developer's practice traces
      * (replay harness, 2026-10-02): words with two swipes overlapping in time
