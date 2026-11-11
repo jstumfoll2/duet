@@ -13,6 +13,8 @@ package com.kinetica.keyboard.engine
  * A short real word is a weak signal on its own (`ti` is a word), so the previous word decides:
  * the replacement must be a strong pair with it ([KineticaConstants.SLIP_MIN_PAIR_BYTE]) and a
  * clearly stronger pair than the letters as typed. With no previous word nothing is changed.
+ * Pairs are read from the decoder's wide table ([WordPredictor.contextPairByte]): it knows
+ * `pier or`, `flush it` and `completed and`, which the curated list lacks.
  *
  * A lone letter is different: one that is no word in the language ([correction]'s `standalone`)
  * and no chat shorthand is wrong wherever it stands, so it needs no previous word, and its
@@ -48,11 +50,11 @@ object ShortSlips {
         if (typed.length == 1) {
             if (!isStrayLetter(typed[0], standalone)) return null
             val only = neighbours(g, typed[0]).filter { it in standalone }.singleOrNull() ?: return null
-            if (before != null && p.pairByte(before, typed) >= KineticaConstants.SLIP_MIN_PAIR_BYTE) return null
+            if (before != null && p.contextPairByte(before, typed) >= KineticaConstants.SLIP_MIN_PAIR_BYTE) return null
             return only.toString()
         }
         val prev = before ?: return null
-        val typedPair = p.pairByte(prev, typed)
+        val typedPair = p.contextPairByte(prev, typed)
         if ((1 until typed.length).any { p.isWord(typed.substring(0, it) + "'" + typed.substring(it)) }) return null
         val typedByte = p.frequencyByte(typed)
         // A fairly common word (`id`, `di`, `yo`) is only wrong where it stands: see [commonSlip].
@@ -65,7 +67,7 @@ object ShortSlips {
             for (n in neighbours(g, typed[i])) {
                 val word = typed.substring(0, i) + n + typed.substring(i + 1)
                 val byte = p.frequencyByte(word)
-                val pair = p.pairByte(prev, word)
+                val pair = p.contextPairByte(prev, word)
                 if (common) {
                     if (!commonSlip(byte, typedByte, pair)) continue
                 } else {

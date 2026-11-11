@@ -86,8 +86,10 @@ class PairFileTest {
         val both = narrow.withContext(PairFile.read(ByteArrayInputStream(file()), t))
         val kind = t.nodeFor("kind")
         val of = t.nodeFor("of")
-        // The boost sees the wide table's pair; the byte the rules read does not.
+        // The boost and the slip rule see the wide table's pair; the byte the other rules read does not.
         assertEquals(2f, both.multiplier(kind, of), 0f)
+        assertEquals(255, both.contextByte(kind, of))
+        assertEquals(0, narrow.contextByte(kind, of))
         assertEquals(0, both.boostByte(kind, of))
         assertEquals(narrow.successors(t.nodeFor("the"), 10), both.successors(t.nodeFor("the"), 10))
         assertEquals(255, both.boostByte(t.nodeFor("the"), kind))
@@ -111,5 +113,9 @@ class PairFileTest {
         assertTrue(byte("kind", "of") > 200)
         assertTrue(byte("i", "agree") > 100)
         assertTrue(byte("going", "to") > 200)
+        // Contractions cut at the apostrophe are filtered out of the web counts (#105).
+        assertEquals(0, byte("it", "s"))
+        assertEquals(0, byte("don", "t"))
+        assertEquals(0, byte("you", "re"))
     }
 }

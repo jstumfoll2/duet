@@ -22,6 +22,12 @@ mid-sentence, n=989; lines with a true label, n=3,774):
     1,500,000      36.2%            67.1%
     2,830,000      36.4%            67.1%      (all of them)
 
+Fragments. Web text cut at apostrophes leaves pairs such as `it s`, `don t`, `you ll` (#105).
+They make a lone `s` look like a word after `it`, so the short-slip rule, which reads this
+table, stopped turning `for s` into `for a`. Pairs with a contraction piece (`ll`, `re`, `ve`)
+or a one-letter word other than `a` and `i` are dropped from the web counts before the cut.
+The decoder replay is level with and without them.
+
 Format: see PairFile.kt. Three bytes a pair, words named by spelling. Offline and
 deterministic: the same inputs give a byte-identical file.
 """
@@ -41,6 +47,16 @@ LOG = logging.getLogger("build_en_pairs")
 
 TATOEBA_SHARE = 0.15
 MAX_WORDS = 65_536
+
+# Pieces web tokenizers leave when they cut a contraction at its apostrophe (`it s`, `don t`,
+# `you ll`, `we re`, `i ve`), as words of their own.
+CONTRACTION_PIECES = {"ll", "re", "ve"}
+SINGLE_LETTER_WORDS = {"a", "i"}
+
+
+def fragment(word: str) -> bool:
+    """A contraction cut at its apostrophe, or a lone letter that is no word (`s`, `t`, `m`)."""
+    return word in CONTRACTION_PIECES or (len(word) == 1 and word not in SINGLE_LETTER_WORDS)
 
 
 def utf(word: str) -> bytes:
@@ -69,7 +85,7 @@ def main() -> int:
     with gzip.open(args.web / "bigrams.tsv.gz", "rt", encoding="utf-8") as f:
         for line in f:
             a, b, c = line.rstrip("\n").split("\t")
-            if a in rank and b in rank:
+            if a in rank and b in rank and not (fragment(a) or fragment(b)):
                 web[(a, b)] = int(c)
     tat: dict[tuple[str, str], int] = {}
     for line in (args.assets / "en_bigrams.txt").read_text(encoding="utf-8").splitlines():
