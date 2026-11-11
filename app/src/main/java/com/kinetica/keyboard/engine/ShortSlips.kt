@@ -52,20 +52,26 @@ object ShortSlips {
             return only.toString()
         }
         val prev = before ?: return null
-        if (p.personalCount(typed) >= KineticaConstants.SLIP_KEEP_COUNT) return null
         val typedPair = p.pairByte(prev, typed)
         if ((1 until typed.length).any { p.isWord(typed.substring(0, it) + "'" + typed.substring(it)) }) return null
         val typedByte = p.frequencyByte(typed)
-        if (typedByte > KineticaConstants.SLIP_MAX_TYPED_BYTE) return null
+        // A fairly common word (`id`, `di`, `yo`) is only wrong where it stands: see [commonSlip].
+        val common = typedByte > KineticaConstants.SLIP_MAX_TYPED_BYTE
+        if (p.personalCount(typed) >= KineticaConstants.SLIP_KEEP_COUNT) return null
+        if (common && (typedByte > KineticaConstants.SLIP_COMMON_MAX_TYPED_BYTE || typedPair > 0 || p.personalPairCount(prev, typed) > 0)) return null
         var best: String? = null
         var bestScore = -1
         for (i in typed.indices) {
             for (n in neighbours(g, typed[i])) {
                 val word = typed.substring(0, i) + n + typed.substring(i + 1)
                 val byte = p.frequencyByte(word)
-                if (byte < 0 || byte - maxOf(typedByte, 0) < KineticaConstants.SLIP_MIN_FREQ_GAP) continue
                 val pair = p.pairByte(prev, word)
-                if (!strongPair(pair, typedPair)) continue
+                if (common) {
+                    if (!commonSlip(byte, typedByte, pair)) continue
+                } else {
+                    if (byte < 0 || byte - maxOf(typedByte, 0) < KineticaConstants.SLIP_MIN_FREQ_GAP) continue
+                    if (!strongPair(pair, typedPair)) continue
+                }
                 val score = byte + pair
                 if (score > bestScore) {
                     best = word
@@ -75,6 +81,16 @@ object ShortSlips {
         }
         return best
     }
+
+    /**
+     * The bar for replacing a common word: the bundled pairs have never seen it after the
+     * previous word, nor has the user (checked by the caller), while the replacement is one of
+     * that word's likeliest continuations ([KineticaConstants.SLIP_COMMON_PAIR_BYTE]) and at
+     * least as common a word. `let's di` is `let's do`, `program id` is `program is`. Words as
+     * common as `go`, `if` and `or` are past [KineticaConstants.SLIP_COMMON_MAX_TYPED_BYTE] and stay.
+     */
+    private fun commonSlip(byte: Int, typedByte: Int, pair: Int): Boolean =
+        byte >= typedByte + KineticaConstants.SLIP_COMMON_FREQ_GAP && pair >= KineticaConstants.SLIP_COMMON_PAIR_BYTE
 
     private fun strongPair(pair: Int, typedPair: Int): Boolean =
         pair >= KineticaConstants.SLIP_MIN_PAIR_BYTE && pair - typedPair >= KineticaConstants.SLIP_MIN_PAIR_GAP

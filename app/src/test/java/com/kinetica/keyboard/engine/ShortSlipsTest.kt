@@ -34,6 +34,19 @@ class ShortSlipsTest {
     }
 
     @Test
+    fun aFairlyCommonWordIsCorrectedOnlyWhereItNeverStands() {
+        assertEquals("do", slip("di", "let's"))
+        assertEquals("is", slip("id", "program"))
+        assertEquals("to", slip("yo", "tried"))
+        // Too common to second-guess, whatever came before.
+        assertNull(slip("go", "need"))
+        assertNull(slip("if", "kind"))
+        assertNull(slip("or", "support"))
+        // The user's own: the letters committed often, or this very pair typed before.
+        assertNull(slip("id", "program", mapOf("id" to 5)))
+    }
+
+    @Test
     fun aLoneLetterBesideAOneLetterWordBecomesIt() {
         assertEquals("a", slip("s", "this"))
         assertEquals("a", slip("s", "have"))

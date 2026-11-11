@@ -876,6 +876,18 @@ object KineticaConstants {
     // Commits that make two or three letters a word the user means. Above the merge floor of 2:
     // until this fix shipped, every slip was committed and counted (`ti`, `tbe`).
     const val SLIP_KEEP_COUNT = 5
+    // A second tier for typed letters that are a fairly common word themselves (`di` 133, `id`
+    // 144, `yo` 159; above SLIP_MAX_TYPED_BYTE, at most SLIP_COMMON_MAX_TYPED_BYTE): replaced only
+    // when neither the bundled pairs nor the user's own have ever seen them after the previous
+    // word, and the replacement is at least as common and pairs with it at SLIP_COMMON_PAIR_BYTE.
+    // On 3,894 tapped English commits (17 batches) it fires 15 times: 5 the user retyped as the
+    // fix (`let's di`, `program id`, `take yo`), 8 more left as plain typos (`tried yo`, `it id`),
+    // 2 doubtful (`conference id`, `our dig`). Without the byte cap it also reached `go`, `if`
+    // and `or` and turned `support or` into `support of`: 30 right against 46 left as typed.
+    // Vars so replay can sweep them (slips --common, --commonmax, --commongap).
+    @JvmStatic var SLIP_COMMON_PAIR_BYTE = 150
+    @JvmStatic var SLIP_COMMON_MAX_TYPED_BYTE = 160
+    @JvmStatic var SLIP_COMMON_FREQ_GAP = 0
 
     // Numbers-row slips (DigitSlips): at most two digits in the run, and the word they spell as
     // letters at byte 160 or more (a corpus count near 45 000). `to` 247, `of` 237, `with` 224 and

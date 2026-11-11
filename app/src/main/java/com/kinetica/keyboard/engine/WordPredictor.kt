@@ -150,6 +150,9 @@ class WordPredictor(
     /** Commit count for [word], 0 when never committed. */
     fun personalCount(word: String): Int = personalCounts[word.lowercase()] ?: 0
 
+    /** How often the user has typed [next] right after [prev]; 0 when phrase learning holds no such pair. */
+    fun personalPairCount(prev: String, next: String): Int = personalBigrams[pairKey(prev, next)] ?: 0
+
     // The learned words a completion cannot reach under COMPLETION_MAX_EXTRA, as letter codes,
     // and the size of the count map they were read from. Decode thread only. Read again when the
     // map grows; a word reaches the trie only through a load, which builds a new predictor.

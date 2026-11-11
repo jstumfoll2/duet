@@ -172,7 +172,7 @@ object ReplayCli {
                 val sink = ReplayReport(h.deepK)
                 for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
                     val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
-                    println("${f.name}\t$n\t${r.word.label}\t${r.rank}\t${r.buckets.joinToString(",")}\t${r.shipping.firstOrNull()?.word ?: ""}\t${r.micros}\t${r.word.how ?: ""}\t${shape(r)}\t${r.deepRank}")
+                    println("${f.name}\t$n\t${r.word.label}\t${r.rank}\t${r.buckets.joinToString(",")}\t${r.shipping.firstOrNull()?.word ?: ""}\t${r.micros}\t${r.word.how ?: ""}\t${shape(r)}\t${r.deepRank}\t${r.word.context.lastOrNull() ?: ""}\t${r.shipping.take(8).joinToString(",") { it.word }}")
                 }
             }
             "terms" -> {
@@ -500,6 +500,47 @@ object ReplayCli {
                         println("lexicon\t$word\tf=${p.frequencyByte(word)}\t${cut.first} ${cut.second}\tpair=${p.pairByte(cut.first, cut.second)}")
                     }
                 }
+            }
+            "slips" -> {
+                // slips [--common BYTE] [--commongap N] FILE...: every tapped English word the short-slip
+                // rule would change, with what the user ended up with (the retyped word where
+                // there is one). Counts are learned in trace order, pairs too.
+                opt(a, "--common")?.let { KineticaConstants.SLIP_COMMON_PAIR_BYTE = it.toInt() }
+                opt(a, "--commonmax")?.let { KineticaConstants.SLIP_COMMON_MAX_TYPED_BYTE = it.toInt() }
+                opt(a, "--commongap")?.let { KineticaConstants.SLIP_COMMON_FREQ_GAP = it.toInt() }
+                if (a.isEmpty()) usage()
+                val learner = ReplayHarness.Learner(phrases = true)
+                val h = ReplayHarness(assets, learner = learner)
+                val sink = ReplayReport(h.deepK)
+                val tally = java.util.TreeMap<String, Int>()
+                var checked = 0
+                for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
+                    if (w.config.language != "en" || w.target != null) continue
+                    val label = w.label?.lowercase() ?: continue
+                    val tokens = try { SwipeTrace.replayTokens(w) } catch (e: RuntimeException) { continue }
+                    if (tokens.isEmpty() || tokens.any { it !is com.kinetica.keyboard.engine.models.TapToken }) {
+                        learner.learn("en", w.context, label); continue
+                    }
+                    val typed = tokens.sortedBy { it.tStart }.joinToString("") {
+                        com.kinetica.keyboard.engine.Alphabet.charOf((it as com.kinetica.keyboard.engine.models.TapToken).code).toString()
+                    }
+                    val p = h.predictorFor(w)
+                    checked++
+                    val prev = w.context.lastOrNull()
+                    val fix = com.kinetica.keyboard.engine.ShortSlips.correction(p, w.geometry.build(), typed, prev, setOf('a', 'i'))
+                    if (fix != null) {
+                        val kind = when {
+                            label == fix -> "right"
+                            label == typed -> "kept-as-typed"
+                            else -> "other"
+                        }
+                        val tier = if (typed.length > 1 && p.frequencyByte(typed) > KineticaConstants.SLIP_MAX_TYPED_BYTE) "common" else "rare"
+                        tally.merge("$tier $kind", 1, Int::plus)
+                        println(listOf(f.name.take(11), n, tier, kind, "${prev ?: "^"} $typed -> $fix", "label=$label", w.how ?: "-").joinToString("\t"))
+                    }
+                    learner.learn("en", w.context, label)
+                }
+                println("checked $checked $tally")
             }
             "rejoindata" -> {
                 if (a.isEmpty()) usage()
