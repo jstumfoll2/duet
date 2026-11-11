@@ -74,6 +74,8 @@ F-Droid.
   of one-swipe words and every tap of tapped words) and reads swipes and taps against the board
   moved there. The keys are drawn where they were. On lines with a true label, top-1 went from
   59.3% to 63.1% over 17 trace batches (`replay --aim 1`). The averages stay on the device.
+- **Brief lifts are joined.** A thumb that leaves the glass for under 120 ms and comes back within
+  1.5 keys did not mean to lift; the two pieces are read as one stroke (`ContactRepair.stitch`).
 - **Words of your own stay whole.** A pecked word no dictionary holds (`spacebar`, a name) used
   to break at every prefix that is a word. A spelling committed twice holds together.
 - **Short slips.** A short tapped word with one letter hit beside the one meant is fixed when the

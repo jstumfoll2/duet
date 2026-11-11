@@ -590,7 +590,7 @@ object KineticaConstants {
         return if (r >= 1f) 1f else r
     }
 
-    const val SHORT_READING_ARC_KW = 12f
+    @JvmStatic var SHORT_READING_ARC_KW = 12f
     const val SHORT_READING_FRACTION = 0.75f
 
     /**

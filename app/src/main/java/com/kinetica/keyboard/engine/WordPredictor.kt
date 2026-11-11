@@ -633,6 +633,17 @@ class WordPredictor(
     private fun decodeLetters(input: List<InputToken>, context: List<String>, beam: Boolean): List<WordCandidate> {
         // Two thumbs the touchscreen briefly merged into one contact, split back.
         val repaired = ContactRepair.repair(input)
+        // A thumb's strokes joined across a lift too brief to be meant (ContactRepair.stitch).
+        // The joined reading leads; a join that reads as nothing gives way to the strokes as drawn.
+        val stitched = ContactRepair.stitch(repaired)
+        if (stitched !== repaired) {
+            val joined = decodeStrokes(stitched, context, beam)
+            if (joined.isNotEmpty()) return joined
+        }
+        return decodeStrokes(repaired, context, beam)
+    }
+
+    private fun decodeStrokes(repaired: List<InputToken>, context: List<String>, beam: Boolean): List<WordCandidate> {
         // A merge that left no blip may have swapped which pointer is which thumb: read the
         // buffer both ways and keep each word's better score, the regrouped reading's charged
         // (ContactRepair.regrouped, REGROUP_KEEP).

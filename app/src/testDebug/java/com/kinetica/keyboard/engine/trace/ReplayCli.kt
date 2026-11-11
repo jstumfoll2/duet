@@ -72,6 +72,9 @@ object ReplayCli {
         opt(a, "--skipfrom")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_FROM = it.toInt() }
         opt(a, "--skip")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_KW = it.toFloat() }
         forceTouch = a.remove("--touchforce")
+        opt(a, "--shortarc")?.let { KineticaConstants.SHORT_READING_ARC_KW = it.toFloat() }
+        // --stitch MS: join a thumb's strokes across a lift shorter than MS (0 = off).
+        opt(a, "--stitch")?.let { com.kinetica.keyboard.engine.ContactRepair.STITCH_GAP_MS = it.toLong() }
         // --aim S: per-key aim points learning online at strength S (0 = off); see AimModel.
         aimModel = opt(a, "--aim")?.toFloat()?.takeIf { it > 0f }?.let { v -> com.kinetica.keyboard.engine.AimModel().also { it.strength = v } }
         // --hintz Z: how many standard deviations of a key's learned touch spread still hint it.
