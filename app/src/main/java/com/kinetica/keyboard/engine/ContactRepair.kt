@@ -53,6 +53,57 @@ object ContactRepair {
     /** A continuation starts this close to where its stroke stopped (thumbs keep moving through the merge: 1.75 kw in "positive"). */
     const val RESUME_KW = 2.0f
 
+    /**
+     * A thumb that left the glass for less than this and came back within [STITCH_KW] never
+     * lifted on purpose: a light stretch of a swipe the screen lost, most often across the
+     * middle of the board (issue #99). Lifts inside a word cluster under 100 ms and over 250 in
+     * the owner's traces; a deliberate new stroke takes longer than this to start. 0 is off.
+     * Variable for the replay sweeps (`--stitch`); the keyboard keeps the default.
+     */
+    @JvmStatic var STITCH_GAP_MS = 120L
+
+    /** How far the thumb may have moved while off the glass (kw). */
+    const val STITCH_KW = 1.5f
+
+    /**
+     * [tokens] with every such brief lift joined back into one stroke, when the two pieces are
+     * next to each other in that thumb's order and at least one is a swipe (a thumb that
+     * bounces at the start of a swipe leaves a tap and then the swipe). Two quick taps are a
+     * doubled letter or two letters and stay. The decoder falls back to the pieces as drawn
+     * when the joined stroke reads as nothing.
+     */
+    fun stitch(tokens: List<InputToken>): List<InputToken> {
+        if (STITCH_GAP_MS <= 0L || tokens.size < 2) return tokens
+        if (tokens.none { it is SwipeToken } || tokens.any { it is SwipeToken && it.rawPath.isEmpty() }) return tokens
+        var cur = tokens
+        while (true) {
+            cur = stitchOnce(cur) ?: return cur
+        }
+    }
+
+    private fun stitchOnce(tokens: List<InputToken>): List<InputToken>? {
+        for (a in tokens) {
+            for (b in tokens) {
+                if (a === b || a.streamId != b.streamId) continue
+                // Never two taps: quick taps are a doubled letter or two letters, not a path.
+                if (a !is SwipeToken && b !is SwipeToken) continue
+                if (a is TapToken && (a.longPress || a.apostrophe)) continue
+                if (b is TapToken && (b.longPress || b.apostrophe)) continue
+                val gap = b.tStart - a.tEnd
+                if (gap < 0L || gap >= STITCH_GAP_MS) continue
+                // Nothing else of this thumb's between them.
+                if (tokens.any { it !== a && it !== b && it.streamId == a.streamId && it.tStart >= a.tStart && it.tStart <= b.tStart }) continue
+                val (ax, ay) = endOf(a)
+                val (bx, by) = startOf(b)
+                if (dist(ax, ay, bx, by) > STITCH_KW) continue
+                DecodeTrace.log { "contact stitch: ${gap}ms lift joined" }
+                val joined = join(a, b)
+                return tokens.mapNotNull { if (it === a) joined else if (it === b) null else it }
+            }
+        }
+        return null
+    }
+
     fun repair(tokens: List<InputToken>): List<InputToken> {
         if (tokens.size < 3) return tokens
         if (tokens.any { it is SwipeToken && it.rawPath.isEmpty() }) return tokens

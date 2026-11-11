@@ -126,7 +126,10 @@ class Interleave private constructor(
      * reading survives. [first] marks the word's first letter, which has no
      * moment to follow.
      */
-    fun step(prev: FloatArray, code: Int, first: Boolean, out: FloatArray, bound: Float = INF, skip: Boolean = false): Boolean {
+    fun step(
+        prev: FloatArray, code: Int, first: Boolean, out: FloatArray, bound: Float = INF, skip: Boolean = false,
+        skipKw: Float = SKIP_KW,
+    ): Boolean {
         java.util.Arrays.fill(out, flags, rowSize, 0f)
         lastMin = INF
         if (!geometry.hasKey(code)) return false
@@ -193,13 +196,13 @@ class Interleave private constructor(
         }
         // A letter no thumb reached: the reading keeps its strokes and moment and pays SKIP_KW.
         // Long words typed fast drop a key now and then, and without this one miss kills the word.
-        if (skip && !first && SKIP_KW > 0f) {
+        if (skip && !first && skipKw > 0f) {
             for (m in 0 until masks) {
                 if (prev[flags + m] == 0f) continue
                 val base = m * grid
                 // Only the block's live moments: the rest are INF.
                 for (i in prev[spans + 2 * m].toInt()..prev[spans + 2 * m + 1].toInt()) {
-                    val v = prev[base + i] + SKIP_KW
+                    val v = prev[base + i] + skipKw
                     if (v >= INF || v > bound) continue
                     write(out, m, i, v)
                     if (v < best) best = v
@@ -252,11 +255,14 @@ class Interleave private constructor(
         var next = FloatArray(rowSize)
         var visits = 0
         var prevCode = -1
+        var seen = 0L
         for (ch in word) {
             val code = Alphabet.codeOf(ch)
             if (code < 0) return INF
             if (code == prevCode || code == Alphabet.APOSTROPHE) continue
-            if (!step(row, code, visits == 0, next, skip = visits >= SKIP_FROM)) return INF
+            val reused = REUSE_KW > 0f && code < 64 && (seen ushr code) and 1L != 0L
+            seen = seen or (if (code < 64) 1L shl code else 0L)
+            if (!step(row, code, visits == 0, next, skip = reused || visits >= SKIP_FROM, skipKw = if (reused) REUSE_KW else SKIP_KW)) return INF
             val t = row; row = next; next = t
             visits++
             prevCode = code
@@ -564,6 +570,15 @@ class Interleave private constructor(
          * Vars so replay can sweep them (--skip, --skipfrom).
          */
         @JvmField var SKIP_KW = 1.6f
+
+        /**
+         * The charge when the letter left unvisited is one the word has used already: the key
+         * was touched once for a letter that occurs twice (`o` tapped once in a word with two).
+         * Allowed from the first letters on, unlike [SKIP_KW]. 0 is off, and stays off: over 17
+         * trace batches lines with a true label read 63.8% top-1 without it, 63.6% at 0.6 and
+         * 63.8% at 1.0 (replay --reuse). Kept as a switch for a later test with other changes.
+         */
+        @JvmField var REUSE_KW = 0f
 
         /** Key visits a reading needs before it may skip one: early skips multiply the search. */
         @JvmField var SKIP_FROM = 6
