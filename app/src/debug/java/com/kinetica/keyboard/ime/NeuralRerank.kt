@@ -19,8 +19,8 @@ import java.io.IOException
  * Developer build: the neural CTC rerank, switchable on the phone.
  *
  * The release build has a stub that always builds today's decoder. Here the
- * trace screen can switch the rerank on for the active language and pick its
- * beta; off (the default) builds exactly the predictor the release build does,
+ * trace screen can switch the rerank off for the active language and pick its
+ * beta; off builds exactly the predictor the release build does,
  * no reranker and a [KineticaConstants.TOP_K] heap.
  *
  * Practice mode also decodes each finished buffer both ways, on two private
@@ -66,7 +66,9 @@ object NeuralRerank {
     private var onChange: (() -> Unit)? = null
 
     var enabled: Boolean
-        get() = prefs?.getBoolean(PREF_ENABLED, false) == true
+        // On unless switched off: over 17 trace batches lines with a true label read 63.8% top-1
+        // plain and 65.7% reranked (two-thumb words 78.1 -> 83.0%), with aim points and stroke joins on.
+        get() = prefs?.getBoolean(PREF_ENABLED, true) == true
         set(on) {
             prefs?.edit()?.putBoolean(PREF_ENABLED, on)?.apply()
             onChange?.invoke()

@@ -234,9 +234,9 @@ and recorded traces and settings carry over because the app id is unchanged.)
 - **Export**: *Export* and *Export word traces* write the traces to a file you choose through
   Android's file picker. The app itself has no network access, so sending them anywhere is up to
   you.
-- **Neural rerank** (off by default): a small CTC model, trained from scratch on FUTO's MIT swipe
-  dataset (never FUTO's weights), can reorder the bar's list. The traces screen turns it on and sets
-  its weight. Off builds exactly the release decoder.
+- **Neural rerank** (on by default in the DEV build): a small CTC model, trained from scratch on
+  FUTO's MIT swipe dataset (never FUTO's weights), reorders the bar's list when two thumbs draw at
+  once. The traces screen turns it off and sets its weight. Off builds exactly the release decoder.
 
 Traces are personal typing data: keep them out of this repository.
 
