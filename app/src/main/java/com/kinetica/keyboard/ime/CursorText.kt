@@ -67,6 +67,21 @@ internal fun wordBefore(before: CharSequence, head: String): String? {
     return if (j < i) before.subSequence(j, i).toString().lowercase() else null
 }
 
+/**
+ * Whether reloading [fragment] at the cursor reopens the composer's last commit, the last word of
+ * [context]: the fragment starts that word (a backspace took its space or its last letters), and
+ * the word before it in the text, [wordBefore], is the commit before that one. A reopened word is
+ * the word in progress again, so it must not stay the previous word of its own decode (upstream
+ * Kinetica 3.0, `WordComposer.reopenLastCommit`).
+ */
+internal fun reopensLastCommit(context: List<String>, fragment: String, wordBefore: String?): Boolean {
+    val last = context.lastOrNull() ?: return false
+    val f = fragment.lowercase().replace("'", "")
+    if (f.isEmpty() || !last.lowercase().replace("'", "").startsWith(f)) return false
+    if (context.size < 2) return true
+    return wordBefore?.lowercase()?.replace("'", "") == context[context.size - 2].lowercase().replace("'", "")
+}
+
 /** True when the word around the cursor is still the one [offer] was made for. */
 internal fun midWordStillThere(before: CharSequence, after: CharSequence, offer: WordAround): Boolean =
     wordAroundCursor(before, after, KineticaConstants.MAX_WORD_LEN) == offer

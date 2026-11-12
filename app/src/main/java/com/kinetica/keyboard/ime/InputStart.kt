@@ -109,3 +109,13 @@ internal fun opensOnNumpad(restarting: Boolean, enabled: Boolean, numeric: Boole
  */
 internal fun opensOnLetters(restarting: Boolean, enabled: Boolean, onLetters: Boolean): Boolean =
     enabled && !restarting && !onLetters
+
+/** The symbol pages a space may leave ([lettersAfterSpace]), by layout name. */
+internal val SYMBOL_PAGES = setOf("symbols", "symbols2")
+
+/**
+ * Whether a space typed on [board] brings the letters back: the setting on and a symbol page
+ * (upstream Kinetica 3.0). The number pad stays, as a phone number runs on past a space.
+ */
+internal fun lettersAfterSpace(enabled: Boolean, board: String?): Boolean =
+    enabled && board in SYMBOL_PAGES

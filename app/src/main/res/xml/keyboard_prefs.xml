@@ -909,6 +909,12 @@
                     app:singleLineTitle="false"
                     android:summary="@string/pref_letters_on_new_field_summary"
                     android:defaultValue="true" />
+                <SwitchPreferenceCompat
+                    android:key="pref_letters_after_space"
+                    android:title="@string/pref_letters_after_space_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_letters_after_space_summary"
+                    android:defaultValue="false" />
             </PreferenceCategory>
             <PreferenceCategory android:title="@string/pref_cat_holding">
                 <com.kinetica.keyboard.settings.SteppedSliderPreference
@@ -1026,6 +1032,12 @@
                     android:summary="@string/pref_backspace_char_slide_summary"
                     android:defaultValue="false" />
                 <SwitchPreferenceCompat
+                    android:key="pref_backspace_punctuation_stops"
+                    android:title="@string/pref_backspace_punctuation_stops_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_backspace_punctuation_stops_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
                     android:key="pref_backspace_whole_word"
                     android:title="@string/pref_backspace_whole_word_title"
                     app:singleLineTitle="false"
@@ -1051,6 +1063,12 @@
                     android:title="@string/pref_spacebar_word_slide_title"
                     app:singleLineTitle="false"
                     android:summary="@string/pref_spacebar_word_slide_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
+                    android:key="pref_shift_swaps_slides"
+                    android:title="@string/pref_shift_swaps_slides_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_shift_swaps_slides_summary"
                     android:defaultValue="false" />
                 <SeekBarPreference
                     android:key="pref_spacebar_step_dp"

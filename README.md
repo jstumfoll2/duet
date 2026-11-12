@@ -308,6 +308,12 @@ Everything below comes from Kinetica and works the same in Duet.
 - Backspace to the end of a word to keep working on it with taps or swipes.
 - Slide along the spacebar to move the cursor, by letter or by word.
 - Slide left from backspace to mark words for deletion; slide back to keep them, lift to delete.
+  A line break is a step of its own. *Backspace slide stops at punctuation* (Shortcuts and gestures
+  > Swipes and slides, off) takes a link a piece at a time: `example.com/path` in three steps.
+- *Hold shift to swap the slide step* (same screen, off): while shift is held, the spacebar and
+  backspace slides go by letter instead of word, or by word instead of letter.
+- A word you backspace into is no longer its own previous word: the suggestions for it follow the
+  word before it, as they did when you first typed it.
 - Swipe shift up for `ABC`, right for `Abc`, down for `abc`, or hold it for the menu: on the word at
   the cursor or on selected text. The swipes are edge swipes like any other, so they can be changed.
 - Enter searches, sends or goes where the app asks for it, and its label says which; hold it for a
@@ -315,6 +321,8 @@ Everything below comes from Kinetica and works the same in Duet.
 - Keys that fit the field: `@` on the comma in an email field, `/` in a web address, no capital at
   their start (Keys > Enter and fields, on). Number and phone fields can open on the number pad (off).
 - A new field opens on the letters, wherever the last one was left (Keys > Enter and fields, on).
+  *Letters after a space on symbols* (same screen, off) goes back to the letters after a space typed
+  on a symbols page; the number pad stays.
 - Tidy spaces: never two spaces in a row and none before a closing quote (Typing and correction > Spacing, off).
 - The marks that take back an automatic space are a list you can edit (Typing and correction > Spacing > *No space
   before*), and a band on the bar shows the wait before the space lands.
@@ -364,6 +372,8 @@ Everything below comes from Kinetica and works the same in Duet.
   Hebrew and Arabic are experimental, each with its own board. 46k to 50k words per language with
   real corpus frequencies, and up to 100k word pairs.
 - Switch with a chord without leaving the field; the active language shows on the spacebar.
+- Every enabled language's letters are on the long-press of the key they come from: enable German
+  and `ß` is on `s`, whatever the board. A long-press list you wrote yourself follows too.
 - Accented words are drawn on their base keys and come out with their accents. A spelling with the
   accents left off is offered only where written text uses it: `pojsc` corrects to `pójść`, while
   `ze` and `że` both stay.

@@ -360,6 +360,13 @@ object Prefs {
     const val BACKSPACE_CHAR_SLIDE = "pref_backspace_char_slide"
 
     /**
+     * A word on the backspace slide stops at punctuation, so a link or a path goes a piece at a
+     * time (`example.com/path` in three steps). Prose still goes a word with its comma. Off by
+     * default. Upstream Kinetica 3.0.
+     */
+    const val BACKSPACE_PUNCTUATION_STOPS = "pref_backspace_punctuation_stops"
+
+    /**
      * Travel, in dp, that stages one more word on the backspace slide. Higher is calmer. A letter
      * step is a fixed share of it (DeleteSpan.slideDpPerUnit), so one slider tunes both modes.
      */
@@ -416,6 +423,13 @@ object Prefs {
      * by default, since characters are the finer edit. Composes with [SPACEBAR_STEP_DP].
      */
     const val SPACEBAR_WORD_SLIDE = "pref_spacebar_word_slide"
+
+    /**
+     * While shift is held, the space and backspace slides step the other way: letters for words,
+     * words for letters. Coarse and fine in one slide. Off by default: a held shift opens the case
+     * menu. Upstream Kinetica 3.0.
+     */
+    const val SHIFT_SWAPS_SLIDES = "pref_shift_swaps_slides"
 
     /**
      * Left 30% of the spacebar ends the word and writes no space.
@@ -479,6 +493,9 @@ object Prefs {
 
     /** A new field opens on the letters, whatever page the last one was left on. */
     const val LETTERS_ON_NEW_FIELD = "pref_letters_on_new_field"
+
+    /** A space typed on a symbol page goes back to the letters (upstream Kinetica 3.0). */
+    const val LETTERS_AFTER_SPACE = "pref_letters_after_space"
     const val TYPING_SPEED = "pref_typing_speed"
     const val NO_PRIMARY = "pref_no_primary"
 
@@ -761,6 +778,7 @@ object Prefs {
     const val DEFAULT_POPUP_SHAPE = "row"
     const val DEFAULT_ALTERNATE_SWIPES = true
     const val DEFAULT_BACKSPACE_CHAR_SLIDE = false
+    const val DEFAULT_BACKSPACE_PUNCTUATION_STOPS = false
     const val DEFAULT_BACKSPACE_WHOLE_WORD = false
     const val DEFAULT_BACKSPACE_UNDO = false
     /** Must match DeleteSpan.DEFAULT_WORD_STEP_DP and keyboard_prefs.xml. */
@@ -772,6 +790,7 @@ object Prefs {
     // A cleaner bar: the rank shows only on the word being slid.
     const val DEFAULT_BADGES_WHILE_ADJUSTING = true
     const val DEFAULT_SPACEBAR_WORD_SLIDE = false
+    const val DEFAULT_SHIFT_SWAPS_SLIDES = false
     const val DEFAULT_SPACELESS_SPACE = false
     const val DEFAULT_DOUBLE_SPACE_PERIOD = false
     const val DEFAULT_TIDY_SPACES = false
@@ -814,6 +833,9 @@ object Prefs {
 
     /** On: what other keyboards do, and a symbols page carried into a search box is a surprise. */
     const val DEFAULT_LETTERS_ON_NEW_FIELD = true
+
+    /** Off: a run of symbols with spaces between stays on its page, as it always has. */
+    const val DEFAULT_LETTERS_AFTER_SPACE = false
 
     /** Off: a number on the spacebar is shown only to those who ask for it. */
     const val DEFAULT_TYPING_SPEED = false

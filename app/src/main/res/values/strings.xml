@@ -454,6 +454,8 @@
     <string name="pref_numpad_for_numbers_title">Number pad in number fields</string>
     <string name="pref_numpad_for_numbers_summary">A field that takes only numbers, a phone number or a date opens on the number pad. Off: the letters, so a word can still be typed and expanded there</string>
     <string name="pref_letters_on_new_field_title">Letters in every new field</string>
+    <string name="pref_letters_after_space_title">Letters after a space on symbols</string>
+    <string name="pref_letters_after_space_summary">A space typed on a symbols page goes back to the letters. The number pad stays</string>
     <string name="pref_letters_on_new_field_summary">A new field opens on the letters, not on the symbols or number page the last one was left on</string>
     <string name="pref_enter_action_summary">Enter searches, sends or goes when the field asks for it, and the key says which. Hold enter for a new line. Off: a new line in any multi-line field</string>
     <string name="enter_label_search">Search</string>
@@ -604,6 +606,10 @@
     <string name="pref_bar_menu_button_summary">A \u2630 button at the left end of the bar. One tap brings up the shortcut row (paste, undo and the rest) in the middle of a sentence; the next word puts the suggestions back</string>
     <string name="pref_retype_button_title">Retype button on the suggestion bar</string>
     <string name="pref_retype_button_summary">A \u21bb button at the right end of the bar. One tap removes the word you are writing, or the one just finished, so you can swipe it again</string>
+    <string name="pref_backspace_punctuation_stops_title">Backspace slide stops at punctuation</string>
+    <string name="pref_backspace_punctuation_stops_summary">Sliding by word marks a link or a path one piece at a time, so example.com/path takes three steps. In plain text a word still goes with its comma</string>
+    <string name="pref_shift_swaps_slides_title">Hold shift to swap the slide step</string>
+    <string name="pref_shift_swaps_slides_summary">While shift is held, the spacebar and backspace slides move by letter instead of word, or by word instead of letter. Shift does not change case after such a slide</string>
     <string name="pref_spacebar_word_slide_title">Spacebar slide moves by word</string>
     <string name="pref_spacebar_word_slide_summary">The spacebar slide moves the cursor a word at a time, as the backspace slide does. Punctuation moves with the word</string>
     <string name="backup_heading">Backup everything</string>

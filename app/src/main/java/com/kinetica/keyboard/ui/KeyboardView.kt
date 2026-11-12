@@ -33,6 +33,7 @@ import com.kinetica.keyboard.engine.models.StreamId
 import com.kinetica.keyboard.keys.ActionRow
 import com.kinetica.keyboard.keys.BackspaceController
 import com.kinetica.keyboard.keys.ChordTrigger
+import com.kinetica.keyboard.keys.DeleteSpan
 import com.kinetica.keyboard.keys.EdgeSwipeBinding
 import com.kinetica.keyboard.keys.EdgeSwipeBindings
 import com.kinetica.keyboard.keys.EdgeSwipeDetector
@@ -81,7 +82,7 @@ class KeyboardView @JvmOverloads constructor(
          * whole word otherwise. Nothing is deleted yet; the service computes the
          * span and feeds the preview back via [setDeletePreview].
          */
-        fun onStageDelete(units: Int, chars: Boolean)
+        fun onStageDelete(units: Int, granularity: DeleteSpan.Granularity)
 
         /** Backspace slide lifted with a staged span: commit its deletion. */
         fun onCommitStagedDelete()
@@ -216,6 +217,22 @@ class KeyboardView @JvmOverloads constructor(
     var backspaceCharSlide: Boolean
         get() = backspaceController.charMode
         set(value) { backspaceController.charMode = value }
+
+    /** A word on the backspace slide stops at punctuation (Prefs.BACKSPACE_PUNCTUATION_STOPS). */
+    var backspacePunctuationStops: Boolean
+        get() = backspaceController.stopsAtPunctuation
+        set(value) { backspaceController.stopsAtPunctuation = value }
+
+    /**
+     * A held shift swaps the space and backspace slide steps (Prefs.SHIFT_SWAPS_SLIDES, upstream
+     * Kinetica 3.0). Once a step ran under it, the shift is spent: no case menu, and its lift
+     * changes no case.
+     */
+    var shiftSwapsSlides = false
+        set(value) {
+            field = value
+            applySlideFlip()
+        }
 
     /** Travel per staged word on the backspace slide; lower is more sensitive. */
     var backspaceStepDp: Float
@@ -456,13 +473,17 @@ class KeyboardView @JvmOverloads constructor(
     private val keyOfCode = IntArray(Alphabet.MAX_SIZE) { -1 }
 
     private val spaceController = SpacebarCursorController(density) { dir, byWord ->
+        spendShift()
         listener?.onCursorMove(dir, byWord)
     }
     private val backspaceController = BackspaceController(
         density,
         Handler(Looper.getMainLooper()),
         onDeleteChar = { repeat -> listener?.onDeleteChar(repeat) },
-        onStageUnits = { units, chars -> listener?.onStageDelete(units, chars) },
+        onStageUnits = { units, granularity ->
+            if (units > 0) spendShift()
+            listener?.onStageDelete(units, granularity)
+        },
         onCommitStaged = { listener?.onCommitStagedDelete() },
     )
     private var spacePointer = -1
@@ -473,6 +494,9 @@ class KeyboardView @JvmOverloads constructor(
     private var repeatKey: Key? = null
     private var repeatLeft = false
     private val keyRepeat = HoldRepeat(Handler(Looper.getMainLooper())) { repeatKey?.let { listener?.onKeyTap(it) } }
+
+    // The shift held while shiftSwapsSlides is on, or -1.
+    private var shiftPointer = -1
 
     private val bgPaint = Paint()
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -1365,6 +1389,11 @@ class KeyboardView @JvmOverloads constructor(
                 val r = keyRects[keyIdx]
                 x = x.coerceIn(r.left, r.right - 1f)
                 DecodeTrace.log { "  touch edge-start key=${l.keys[keyIdx].output} gap=${((touchX - x) / letterWidthPx).fmtKw()}kw" }
+            } else if (engineActive) {
+                // Upstream 3.0 snaps a touch in the split gap or a row's open end to the nearest
+                // letter; Duet drops it. Logged so a batch can count how often that happens (#114).
+                val near = engine?.letterNear(x, y) ?: -1
+                if (near != -1) DecodeTrace.log { "  touch nokey near=${keyOfCode.getOrNull(near)?.let { l.keys.getOrNull(it)?.output }}" }
             }
         }
         downKeyByPointer[pid] = keyIdx
@@ -1458,6 +1487,10 @@ class KeyboardView @JvmOverloads constructor(
                 ROUTE_REPEAT
             }
             else -> ROUTE_SPECIAL
+        }
+        if (shiftSwapsSlides && key?.type == KeyType.SHIFT && routeByPointer[pid] == ROUTE_SPECIAL && shiftPointer == -1) {
+            shiftPointer = pid
+            applySlideFlip()
         }
         // A second thumb landing mid-hold means the first is parked inside a word, not asking
         // for its accents: the menu would cancel that thumb's letters.
@@ -2187,6 +2220,10 @@ class KeyboardView @JvmOverloads constructor(
             modeChordFired = false
             dropChordLabels(ChordTrigger.MODE)
         }
+        if (pid == shiftPointer) {
+            shiftPointer = -1
+            applySlideFlip()
+        }
         routeByPointer[pid] = ROUTE_NONE
         chordTriggerByPointer[pid] = null
         downKeyByPointer[pid] = -1
@@ -2312,6 +2349,10 @@ class KeyboardView @JvmOverloads constructor(
             modeChordFired = false
             dropChordLabels(ChordTrigger.MODE)
         }
+        if (pid == shiftPointer) {
+            shiftPointer = -1
+            applySlideFlip()
+        }
         routeByPointer[pid] = ROUTE_NONE
         chordTriggerByPointer[pid] = null
         downKeyByPointer[pid] = -1
@@ -2347,6 +2388,8 @@ class KeyboardView @JvmOverloads constructor(
         spaceRolled = false
         spaceSlideLocked = false
         backspacePointer = -1
+        shiftPointer = -1
+        applySlideFlip()
         java.util.Arrays.fill(routeByPointer, ROUTE_NONE)
         java.util.Arrays.fill(chordTriggerByPointer, null)
         java.util.Arrays.fill(downKeyByPointer, -1)
@@ -2376,6 +2419,25 @@ class KeyboardView @JvmOverloads constructor(
     }
 
     private fun Float.fmtKw(): String = "%.2f".format(this)
+
+    /** Both slides step the other way while the shift slot is held. */
+    private fun applySlideFlip() {
+        val flipped = shiftSwapsSlides && shiftPointer != -1
+        spaceController.flipped = flipped
+        backspaceController.flipped = flipped
+    }
+
+    /**
+     * A slide stepped while shift was held: the shift was a modifier, not a case key. Its case
+     * menu is cancelled or closed and its lift does nothing.
+     */
+    private fun spendShift() {
+        val pid = shiftPointer
+        if (pid == -1 || routeByPointer[pid] == ROUTE_NONE) return
+        if (pid == pendingHoldPid) cancelHold()
+        if (pid == popupPointer) dismissPopup()
+        routeByPointer[pid] = ROUTE_NONE
+    }
 
     private fun keyIndexAt(x: Float, y: Float): Int {
         for (i in keyRects.indices) {
