@@ -841,8 +841,10 @@ class KeyboardView @JvmOverloads constructor(
         val w = width.toFloat()
         val h = height.toFloat()
         val sidePad = LayoutTransforms.sidePadPx(sidePadDp, density, w)
+        // Split mode leaves the numpad whole (upstream Kinetica 3.0).
+        val mode = LayoutTransforms.modeFor(layoutMode, l.name)
         val arrangement = landscapeArrangement
-            ?.takeIf { it != LandscapeArrangement.STRETCH && layoutMode == LayoutMode.FULL }
+            ?.takeIf { it != LandscapeArrangement.STRETCH && mode == LayoutMode.FULL }
         val letter = l.keys.firstOrNull { it.isLetter }
         val minKeyPx = LayoutTransforms.LANDSCAPE_MIN_KEY_DP * density
         val blockPx = when {
@@ -856,7 +858,7 @@ class KeyboardView @JvmOverloads constructor(
             val rect = if (arrangement != null && blockPx > 0f) {
                 LayoutTransforms.applyLandscape(k, w, h, sidePad, arrangement, blockPx)
             } else {
-                LayoutTransforms.apply(layoutMode, k, w, h, sidePad, splitGapPct / 100f)
+                LayoutTransforms.apply(mode, k, w, h, sidePad, splitGapPct / 100f)
             }
             keyRects.add(rect)
             keyInsets.add(insetRect(rect))

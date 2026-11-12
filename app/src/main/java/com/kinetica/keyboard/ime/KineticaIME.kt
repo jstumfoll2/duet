@@ -3869,9 +3869,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (config.peckMode || editorState.privateMode) return false
         val comp = composer ?: return false
         val g = currentGeometry ?: return false
-        val code = AccentFolder.accentedLetterCode(text, boardAlphabet)
-        if (code < 0 || !g.hasKey(code)) return false
-        if (comp.tokenCount >= KineticaConstants.MAX_WORD_LEN) return false
+        // One code for `ó`, two for `ß` (s s) and `œ` (o e): the letter stays in the word as the
+        // taps its fold spells (upstream Kinetica 3.0).
+        val codes = AccentFolder.accentedLetterCodes(text, boardAlphabet) ?: return false
+        if (codes.any { !g.hasKey(it) }) return false
+        if (comp.tokenCount + codes.size > KineticaConstants.MAX_WORD_LEN) return false
         clearCorrection()
         rememberWordBeforeGesture()
         if (tentativeLength == 0) wordShift = shift.state
@@ -3881,12 +3883,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         tentativeLength += text.length
         tentativeWord += text
         val now = SystemClock.uptimeMillis()
-        comp.onToken(
-            TapToken(
-                StreamId.LEFT, code, g.centerX(code), g.centerY(code),
-                longPress = false, tStart = now, tEnd = now + 1,
-            ),
-        )
+        for ((i, code) in codes.withIndex()) {
+            comp.onToken(
+                TapToken(
+                    StreamId.LEFT, code, g.centerX(code), g.centerY(code),
+                    longPress = false, tStart = now + i, tEnd = now + i + 1,
+                ),
+            )
+        }
         return true
     }
 
