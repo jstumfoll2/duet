@@ -26,7 +26,8 @@ class LookSetsTest {
 
     @Test
     fun aNeverWrittenNightRowFallsBackToItsDefaultNotTheDayValue() {
-        val p = MapPrefs(mapOf(Prefs.LOOK_SETS to true, Prefs.THEME_MODE to "custom"))
+        // A hue is given so the JVM test never parses a colour string (android.graphics.Color).
+        val p = MapPrefs(mapOf(Prefs.LOOK_SETS to true, Prefs.THEME_MODE to "custom", Prefs.nightTwin(Prefs.THEME_HUE) to 100))
         assertEquals(Prefs.DEFAULT_THEME_MODE, KeyboardConfig.from(p, systemNight = true).themeMode)
     }
 
