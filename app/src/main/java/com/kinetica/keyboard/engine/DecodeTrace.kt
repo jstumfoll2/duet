@@ -25,6 +25,13 @@ object DecodeTrace {
     @Volatile
     var suppressed: Boolean = false
 
+    /**
+     * Bumped when the sink's file starts over (cleared or rotated), so a line written once per
+     * board is written again where the next capture reads it.
+     */
+    @Volatile
+    var epoch: Int = 0
+
     /** This thread's held lines while it decodes beside another thread, else null. */
     @PublishedApi
     internal val heldLines = ThreadLocal<ArrayList<String>?>()

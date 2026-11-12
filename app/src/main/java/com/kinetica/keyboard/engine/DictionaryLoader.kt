@@ -16,7 +16,10 @@ class LoadedDictionary(
     val forms: Map<Int, List<WordForm>>,
     /** Lower-case learned spellings in the trie that no bundled list holds: the user's own words. */
     val ownWords: Set<String> = emptySet(),
-)
+) {
+    /** Upstream Kinetica's name for [ownWords]. */
+    val learned: Set<String> get() = ownWords
+}
 
 /**
  * Parses the bundled text assets into the runtime structures. Runs once on a

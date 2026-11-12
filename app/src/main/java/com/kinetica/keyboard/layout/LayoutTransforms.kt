@@ -134,6 +134,16 @@ object LayoutTransforms {
     /** Whether [key] belongs to the left half of a split board, judged by its centre. */
     fun inLeftHalf(key: Key): Boolean = key.x + key.w / 2f <= MIDLINE_X
 
+    /** The page split mode leaves whole (upstream Kinetica 3.0). */
+    const val NUMPAD = "numpad"
+
+    /**
+     * The arrangement page [layoutName] is drawn in. Split mode leaves the numpad whole: its digit
+     * columns centre on the middle, where the split's gap falls.
+     */
+    fun modeFor(mode: LayoutMode, layoutName: String): LayoutMode =
+        if (mode == LayoutMode.SPLIT && layoutName == NUMPAD) LayoutMode.FULL else mode
+
     /**
      * Pixel rect for [key] in a landscape block. The spacebar bridges a split: its left edge
      * stays with the left half and its right edge with the right one.

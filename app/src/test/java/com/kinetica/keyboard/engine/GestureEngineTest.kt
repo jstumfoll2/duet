@@ -102,6 +102,35 @@ class GestureEngineTest {
     }
 
     @Test
+    fun aTapUnderASwipeThatLandedFirstSeesTheSwipeHeld() {
+        // `I`, its space, then `noticed` with the right thumb swiping n-o-i while the left
+        // tapped. The tap lifted first, under a swipe that began the word.
+        assertTrue(down(1, 'n', 0))
+        val (x, y) = at('i')
+        engine.onPointerMove(1, x, y, 100)
+        assertTrue(down(0, 't', 150))
+        up(0, 't', 160)
+        assertTrue(engine.swipeHeldSince(tokens.single().tStart))
+    }
+
+    @Test
+    fun aTapThatLandedFirstOrUnderAHeldTapSeesNoSwipe() {
+        // The tap landed before the swipe: the tap begins the word.
+        assertTrue(down(0, 'p', 0))
+        assertTrue(down(1, 'e', 50))
+        val (x, y) = at('t')
+        engine.onPointerMove(1, x, y, 100)
+        up(0, 'p', 120)
+        assertFalse(engine.swipeHeldSince(tokens.last().tStart))
+        up(1, 't', 200)
+        // A held tap is not a swipe, so `car`, then `p` held under `e`, still continues `car`.
+        assertTrue(down(1, 'p', 300))
+        assertTrue(down(0, 'e', 320))
+        up(0, 'e', 340)
+        assertFalse(engine.swipeHeldSince(tokens.last().tStart))
+    }
+
+    @Test
     fun aLandingNextToTheOtherThumbIsTracedWithItsDistance() {
         val lines = ArrayList<String>()
         DecodeTrace.sink = { lines.add(it) }
@@ -160,31 +189,45 @@ class GestureEngineTest {
     }
 
     @Test
-    fun aTapUnderASwipeThatLandedFirstSeesTheSwipeHeld() {
-        // `I`, its space, then `noticed` with the right thumb swiping n-o-i while the left
-        // tapped. The tap lifted first, under a swipe that began the word.
-        assertTrue(down(1, 'n', 0))
-        val (x, y) = at('i')
-        engine.onPointerMove(1, x, y, 100)
-        assertTrue(down(0, 't', 150))
-        up(0, 't', 160)
-        assertTrue(engine.swipeHeldSince(tokens.single().tStart))
+    fun aTouchOnNoKeyGoesToTheNearestLetterWhenTheViewHasNoKeyThere() {
+        // The home row starts half a key in: x 20 is on no key, nearest `a`.
+        assertFalse("without the snap the touch is refused", engine.onPointerDown(0, 20f, 225f, 0))
+        assertTrue(engine.onPointerDown(0, 20f, 225f, 0, snap = true))
+        engine.onPointerUp(0, 20f, 225f, 40)
+        val tap = tokens.single() as TapToken
+        assertEquals('a' - 'a', tap.code)
+        // The touch point is kept for the fuzzy pass, not moved to the key.
+        assertEquals(0.2f, tap.x, 1e-4f)
     }
 
     @Test
-    fun aTapThatLandedFirstOrUnderAHeldTapSeesNoSwipe() {
-        // The tap landed before the swipe: the tap begins the word.
-        assertTrue(down(0, 'p', 0))
-        assertTrue(down(1, 'e', 50))
-        val (x, y) = at('t')
-        engine.onPointerMove(1, x, y, 100)
-        up(0, 'p', 120)
-        assertFalse(engine.swipeHeldSince(tokens.last().tStart))
-        up(1, 't', 200)
-        // A held tap is not a swipe.
-        assertTrue(down(1, 'p', 300))
-        assertTrue(down(0, 'e', 320))
-        up(0, 'e', 340)
-        assertFalse(engine.swipeHeldSince(tokens.last().tStart))
+    fun aTouchBelowTheLettersIsNeverSnapped() {
+        // Under the bottom row: the space row or the padding, not a letter.
+        assertFalse(engine.onPointerDown(0, 400f, 470f, 0, snap = true))
+        assertEquals(-1, g.letterNear(4f, 4.7f))
+    }
+
+    @Test
+    fun aTouchInTheSplitGapGoesToItsNearerHalf() {
+        // The right half moved 200 px out, as the portrait split opens a gap between g and h.
+        val rows = listOf("qwertyuiop" to 0f, "asdfghjkl" to 0.5f, "zxcvbnm" to 1.5f)
+        val rects = ArrayList<FloatArray>()
+        val codes = ArrayList<Int>()
+        for ((r, row) in rows.withIndex()) {
+            for ((i, ch) in row.first.withIndex()) {
+                val shift = if (ch in "yuiophjklbnm") 200f else 0f
+                val left = (row.second + i) * keyW + shift
+                rects.add(floatArrayOf(left, r * 150f, left + keyW, r * 150f + 150f))
+                codes.add(ch - 'a')
+            }
+        }
+        val split = KeyboardGeometry.fromPx(keyW, 600f, rects, codes.toIntArray())
+        // Home row: g ends at 550, h starts at 750.
+        assertEquals(-1, split.keyAt(6.0f, 2.25f))
+        assertEquals('g' - 'a', split.letterNear(6.0f, 2.25f))
+        assertEquals('h' - 'a', split.letterNear(7.2f, 2.25f))
+        // A key under the touch is always the one, even at a corner nearer the centre above.
+        assertEquals('j' - 'a', split.letterNear(9.0f, 2.25f))
+        assertEquals('h' - 'a', split.letterNear(7.52f, 1.52f))
     }
 }

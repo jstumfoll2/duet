@@ -34,6 +34,8 @@ class KeyboardGeometry private constructor(
      * [ApostropheExcursion]).
      */
     private val apostrophe: FloatArray? = null,
+    // The letter block, the bounding box of every letter rect, kw: left, top, right, bottom.
+    private val block: FloatArray,
 ) {
     /**
      * This board with each letter key moved by ([dx], [dy]) kw per code: where the user's thumbs
@@ -56,7 +58,7 @@ class KeyboardGeometry private constructor(
             r[c * 4 + 1] += y
             r[c * 4 + 3] += y
         }
-        return KeyboardGeometry(keyWidthPx, midlinePx, alphabet, present, cx, cy, r, apostrophe)
+        return KeyboardGeometry(keyWidthPx, midlinePx, alphabet, present, cx, cy, r, apostrophe, block)
     }
 
     /** A copy of the apostrophe key's kw rect, or null; see [apostrophe]. */
@@ -109,6 +111,18 @@ class KeyboardGeometry private constructor(
      */
     fun rectKw(code: Int): FloatArray? =
         if (!hasKey(code)) null else rects.copyOfRange(code * 4, code * 4 + 4)
+
+    /**
+     * The letter a touch at the point means: the key under it, or inside the letter block the
+     * nearest letter. The split gap and a row's open ends hold no key and dropped the touch; the
+     * one-handed strips, the insets and the rows below the letters stay outside. -1 there.
+     */
+    fun letterNear(xKw: Float, yKw: Float): Int {
+        val under = keyAt(xKw, yKw)
+        if (under != -1) return under
+        val inside = xKw >= block[0] && xKw < block[2] && yKw >= block[1] && yKw < block[3]
+        return if (inside) nearestKey(xKw, yKw) else -1
+    }
 
     /** Letter code nearest to the point by center distance, or -1 if none present. */
     fun nearestKey(xKw: Float, yKw: Float): Int {
@@ -183,7 +197,16 @@ class KeyboardGeometry private constructor(
                 cy[code] = (rects[base + 1] + rects[base + 3]) / 2f
                 present[code] = true
             }
-            return KeyboardGeometry(keyWidthPx, midlinePx, alphabet, present, cx, cy, rects, apostrophe)
+            val block = floatArrayOf(Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE)
+            for (code in 0 until n) {
+                if (!present[code]) continue
+                val base = code * 4
+                block[0] = minOf(block[0], rects[base])
+                block[1] = minOf(block[1], rects[base + 1])
+                block[2] = maxOf(block[2], rects[base + 2])
+                block[3] = maxOf(block[3], rects[base + 3])
+            }
+            return KeyboardGeometry(keyWidthPx, midlinePx, alphabet, present, cx, cy, rects, apostrophe, block)
         }
     }
 }
