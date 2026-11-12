@@ -1,7 +1,5 @@
 package com.kinetica.keyboard.ui
 
-import java.nio.file.Files
-import java.nio.file.Paths
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -63,21 +61,40 @@ class EmojiSuggestTest {
     }
 
     @Test
-    fun theShippedAssetOffersTheEverydayWords() {
-        val direct = Paths.get("src/main/assets/emoji_data.json")
-        val p = if (Files.exists(direct)) direct else Paths.get("app/src/main/assets/emoji_data.json")
-        val json = Files.newBufferedReader(p).use { it.readText() }
-        // Parsed as text, as EmojiDataTest does: the JVM test runtime stubs org.json.
-        val entries = Regex(""""ch"\s*:\s*"([^"]+)"\s*,\s*"name"\s*:\s*"([^"]*)"\s*,\s*"kw"\s*:\s*\[(.*?)]""", RegexOption.DOT_MATCHES_ALL)
-            .findAll(json)
-            .map { m ->
-                val kw = Regex(""""([^"]*)"""").findAll(m.groupValues[3]).map { it.groupValues[1] }.toList()
-                EmojiSuggest.Entry(m.groupValues[1], m.groupValues[2], kw)
-            }.toList()
-        assertTrue(entries.size > 400)
-        val shipped = EmojiSuggest.Index(entries)
+    fun accentsFoldAndBroadKeywordsAreDropped() {
+        val idx = EmojiSuggest.Index(
+            listOf(EmojiSuggest.Entry("❤️", "corazón rojo", emptyList(), listOf("corazón", "amor"))) +
+                List(EmojiSuggest.MAX_NAMES_PER_OTHER_WORD) { EmojiSuggest.Entry("f$it", "big face", emptyList(), listOf("face")) },
+        )
+        assertEquals(listOf("❤️"), idx.lookup("corazon"))
+        assertEquals(listOf("❤️"), idx.lookup("Corazón"))
+        assertEquals(emptyList<String>(), idx.lookup("face"))
+    }
+
+    private fun shipped(vararg langs: String) =
+        EmojiSuggest.fromCatalog(EmojiAssetFiles.catalog.entries, langs.map { EmojiAssetFiles.words(it) })
+
+    @Test
+    fun theShippedSetOffersTheEverydayWords() {
+        val en = shipped("en")
         for (w in listOf("pizza", "love", "happy", "coffee", "fire", "thanks", "dog", "cats")) {
-            assertTrue("$w offers nothing", shipped.lookup(w).isNotEmpty())
+            assertTrue("$w offers nothing", en.lookup(w).isNotEmpty())
         }
+        assertEquals("🍕", en.lookup("pizza").first())
+        assertEquals("🔥", en.lookup("fire").first())
+        // Too generic to offer anything.
+        for (w in listOf("the", "face", "hand", "with")) {
+            assertEquals("$w should offer nothing", emptyList<String>(), en.lookup(w))
+        }
+    }
+
+    @Test
+    fun spanishWordsOfferTheirEmojiWhenSpanishIsOn() {
+        val both = shipped("es", "en")
+        for (w in listOf("pizza", "fuego", "amor", "perro", "gato", "café")) {
+            assertTrue("$w offers nothing", both.lookup(w).isNotEmpty())
+        }
+        assertEquals("🔥", both.lookup("fuego").first())
+        assertTrue("fuego is not English", shipped("en").lookup("fuego").isEmpty())
     }
 }

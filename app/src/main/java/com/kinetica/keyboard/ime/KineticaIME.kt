@@ -1103,6 +1103,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val picker = emojiPicker ?: try {
             EmojiPickerView(
                 this,
+                assets = emojiStore.assets,
+                languages = { (listOf(config.language) + config.enabledLanguages).distinct() },
                 onEmoji = { recordEmojiUse(it); commitTracked(it) },
                 onBackspace = { onBackspace() },
                 onClose = { closeEmojiPicker() },
@@ -2290,7 +2292,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      */
     private fun refreshEmojiOffer() {
         val bar = suggestionBar ?: return
-        val index = if (config.emojiSuggestions) emojiStore.index { refreshEmojiOffer() } else null
+        val index = if (config.emojiSuggestions) emojiStore.index((listOf(config.language) + config.enabledLanguages).distinct()) { refreshEmojiOffer() } else null
         if (!config.emojiSuggestions || editorState.privateMode || index == null) {
             bar.emoji = emptyList()
             return

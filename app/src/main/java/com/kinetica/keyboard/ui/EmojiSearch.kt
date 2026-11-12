@@ -1,68 +1,105 @@
 package com.kinetica.keyboard.ui
 
-/**
- * The emoji panel's search: what a typed query ("pi", "thumbs up", "happy") finds among the
- * asset's names and keywords, best first.
- *
- * Pure, for the same reason as [EmojiSuggest]: the panel parses the asset and filters what the
- * device can draw, and hands the entries here.
- */
-class EmojiSearch(private val entries: List<EmojiSuggest.Entry>) {
+import com.kinetica.keyboard.engine.AccentFolder
 
-    // Each entry's words, lowercased once: the name split on spaces, and the keywords whole.
-    private val nameWords = entries.map { e -> e.name.lowercase().split(' ').filter { it.isNotEmpty() } }
-    private val keywords = entries.map { e -> e.keywords.map { it.lowercase() } }
+/**
+ * Ranks the emoji for a typed query. Pure, so the ranking is pinned by tests on the real assets.
+ *
+ * Every query word must start some word of the emoji's, in any searched language. A whole word
+ * beats a prefix (`lol` finds the laughing faces before the lollipop); within each, a word the
+ * project wrote beats a CLDR name word, which beats a CLDR keyword. A plural that starts no word
+ * falls back to its singular (`dogs` finds the dog, `corazones` the heart), just above a prefix.
+ *
+ * Ported from upstream Kinetica 3.0; the plural fallback is Duet's, kept from its first search.
+ */
+object EmojiSearch {
+
+    /** Cells in the panel's row: three screens of eight, enough to scroll a little. */
+    const val RESULTS = 24
+
+    private val SPLIT = Regex("[\\s\\p{Punct}\\p{IsPunctuation}]+")
+
+    private const val HAND = 3
+    private const val NAME = 2
+    private const val OTHER = 1
+
+    /** Added to a whole-word match, so the weakest whole word still beats the strongest prefix. */
+    private const val WHOLE = 3
+
+    /** The query as folded words: lowercase, accents off, punctuation dropped. */
+    fun words(query: String): List<String> =
+        AccentFolder.fold(query.lowercase()).split(SPLIT).filter { it.isNotEmpty() }
 
     /**
-     * Up to [limit] emoji for [query], best first. Every word of the query must match the
-     * entry, so "red heart" narrows "heart". A word scores most when it is a whole name word
-     * or keyword, less as the start of one, least inside a longer name; ties go to the user's
-     * most picked ([uses], emoji to count), then to the asset's order.
+     * [words] holds one list per searched language, each indexed by [EmojiCatalog.Entry.index].
+     * Ties go to the emoji this user picks more ([uses]), then the shorter name, the more
+     * generic emoji (`red heart` before `heart with arrow`), then Unicode order.
      */
-    fun find(query: String, uses: Map<String, Int> = emptyMap(), limit: Int = MAX): List<String> {
-        val words = query.lowercase().split(' ').filter { it.isNotEmpty() }
-        if (words.isEmpty()) return emptyList()
-        val scored = ArrayList<Triple<Int, Int, Int>>() // score, uses, asset index
-        for (i in entries.indices) {
-            var total = 0
-            for (w in words) {
-                val s = score(w, nameWords[i], keywords[i])
-                if (s == 0) {
-                    total = 0
-                    break
+    fun rank(
+        query: String,
+        entries: List<EmojiCatalog.Entry>,
+        words: List<List<EmojiCatalog.Words>>,
+        uses: Map<String, Int> = emptyMap(),
+        limit: Int = RESULTS,
+    ): List<EmojiCatalog.Entry> {
+        val q = words(query)
+        if (q.isEmpty()) return emptyList()
+        class Hit(val entry: EmojiCatalog.Entry, val score: Int, val nameSize: Int)
+        val hits = ArrayList<Hit>()
+        for (e in entries) {
+            var best = 0
+            var nameSize = Int.MAX_VALUE
+            for (lang in words) {
+                val w = lang.getOrNull(e.index) ?: continue
+                val s = score(q, w)
+                if (s > best || (s == best && s > 0 && w.name.size < nameSize)) {
+                    best = s
+                    nameSize = w.name.size
                 }
-                total += s
             }
-            if (total > 0) scored.add(Triple(total, uses[entries[i].ch] ?: 0, i))
+            if (best > 0) hits.add(Hit(e, best, nameSize))
         }
-        return scored
-            .sortedWith(compareByDescending<Triple<Int, Int, Int>> { it.first }.thenByDescending { it.second }.thenBy { it.third })
-            .map { entries[it.third].ch }
-            .distinct()
-            .take(limit)
+        hits.sortWith(
+            compareByDescending<Hit> { it.score }
+                .thenByDescending { uses[it.entry.ch] ?: 0 }
+                .thenBy { it.nameSize }
+                .thenBy { it.entry.index },
+        )
+        return hits.take(limit).map { it.entry }
     }
 
-    private fun score(w: String, name: List<String>, kw: List<String>): Int {
-        // "dogs" finds the dog: a plural matches as its singular, a step below the word itself.
-        val singular = if (w.length > 3 && w.endsWith('s')) w.dropLast(1) else null
-        return when {
-            w in name || w in kw -> EXACT
-            singular != null && (singular in name || singular in kw) -> PLURAL
-            name.any { it.startsWith(w) } -> NAME_PREFIX
-            kw.any { it.startsWith(w) } -> KEYWORD_PREFIX
-            w.length >= 3 && name.any { it.contains(w) } -> INSIDE
-            else -> 0
+    /** Sum over the query words of each one's best match, or 0 when any word matches nothing. */
+    private fun score(query: List<String>, w: EmojiCatalog.Words): Int {
+        var total = 0
+        for (q in query) {
+            var s = maxOf(tier(q, w.hand, HAND), tier(q, w.name, NAME), tier(q, w.other, OTHER))
+            if (s == 0) s = plural(q, w)
+            if (s == 0) return 0
+            total += s
         }
+        return total
     }
 
-    companion object {
-        /** Results shown at most; a short query like "s" matches most of the asset. */
-        const val MAX = 48
+    /** [q] as a plural of a whole word: [field] plus one, so above that field's prefix. */
+    private fun plural(q: String, w: EmojiCatalog.Words): Int {
+        if (q.length <= 3 || !q.endsWith('s')) return 0
+        var best = 0
+        for (single in listOf(q.dropLast(1), q.removeSuffix("es"))) {
+            if (single.length < 3 || single == q) continue
+            if (single in w.hand) best = maxOf(best, HAND + 1)
+            if (single in w.name) best = maxOf(best, NAME + 1)
+            if (single in w.other) best = maxOf(best, OTHER + 1)
+        }
+        return best
+    }
 
-        private const val EXACT = 8
-        private const val PLURAL = 6
-        private const val NAME_PREFIX = 4
-        private const val KEYWORD_PREFIX = 3
-        private const val INSIDE = 1
+    /** [field] plus [WHOLE] for a whole word, [field] for a word [q] only starts, 0 for none. */
+    private fun tier(q: String, list: List<String>, field: Int): Int {
+        var best = 0
+        for (word in list) {
+            if (word == q) return field + WHOLE
+            if (word.startsWith(q)) best = field
+        }
+        return best
     }
 }
