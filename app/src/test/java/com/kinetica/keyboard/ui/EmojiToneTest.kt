@@ -1,12 +1,8 @@
 package com.kinetica.keyboard.ui
 
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class EmojiToneTest {
@@ -99,11 +95,5 @@ class EmojiToneTest {
         assertTrue(c.perEmoji.size <= EmojiTone.MAX_REMEMBERED)
     }
 
-    private fun assetChars(): List<String> {
-        val direct = Paths.get("src/main/assets/emoji_data.json")
-        val p: Path = if (Files.exists(direct)) direct else Paths.get("app/src/main/assets/emoji_data.json")
-        assumeTrue("emoji_data.json not found", Files.exists(p))
-        val json = Files.newBufferedReader(p).use { it.readText() }
-        return Regex(""""ch"\s*:\s*"((?:[^"\\]|\\.)*)"""").findAll(json).map { it.groupValues[1] }.toList()
-    }
+    private fun assetChars(): List<String> = EmojiAssetFiles.catalog.entries.map { it.ch }
 }

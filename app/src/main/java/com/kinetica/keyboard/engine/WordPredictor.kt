@@ -696,7 +696,7 @@ class WordPredictor(
         // The board the touches are read against: the keys moved to where the thumbs aim.
         val g = aimModel?.aimed(drawn) ?: drawn
         // An earned model moves taps; one still checking itself only names keys they may have meant.
-        val touched = touchModel?.let { if (it.isActive) it.apply(repaired, drawn) else it.hint(repaired, drawn) } ?: repaired
+        val touched = touchModel?.takeIf { !it.off }?.let { if (it.isActive) it.apply(repaired, drawn) else it.hint(repaired, drawn) } ?: repaired
         val tokens = if (g === drawn) touched else AimModel.rekey(touched, g)
         if (tokens.isEmpty() || tokens.size > KineticaConstants.MAX_WORD_LEN) return emptyList()
         // Timed only under a trace sink, so a release build pays nothing for it.

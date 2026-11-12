@@ -425,6 +425,18 @@
                     app:singleLineTitle="false"
                     android:summary="@string/pref_delete_on_block_summary"
                     android:defaultValue="false" />
+                <SwitchPreferenceCompat
+                    android:key="pref_finger_offsets"
+                    android:title="@string/pref_finger_offsets_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_finger_offsets_summary"
+                    android:defaultValue="true" />
+                <Preference
+                    android:key="pref_finger_offsets_reset"
+                    android:title="@string/pref_finger_offsets_reset_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_finger_offsets_reset_summary"
+                    android:persistent="false" />
             </PreferenceCategory>
         </PreferenceScreen>
     </PreferenceCategory>
@@ -1025,6 +1037,16 @@
                 <intent
                     android:targetPackage="@string/app_pkg"
                     android:targetClass="com.kinetica.keyboard.settings.EdgeSwipeSettingsActivity" />
+            </Preference>
+            <!-- Its key is the stored page (Prefs.EDIT_PAGE). Upstream Kinetica 3.0. -->
+            <Preference
+                android:key="pref_edit_page"
+                android:title="@string/edit_page_title"
+                app:singleLineTitle="false"
+                android:summary="@string/edit_page_summary">
+                <intent
+                    android:targetPackage="@string/app_pkg"
+                    android:targetClass="com.kinetica.keyboard.settings.EditPageActivity" />
             </Preference>
             <Preference
                 android:key="pref_expansions_screen"

@@ -259,6 +259,20 @@ object Prefs {
     /** Set once [ChordDefaults] has turned the old reserved keys into chords. */
     const val CHORD_DEFAULTS_SEEDED = "pref_chord_defaults_seeded"
     const val RETYPE_AVOIDS_REJECTED = "pref_retype_avoids_rejected"
+
+    /** Whether the learned per-key thumb positions (AimModel, TouchModel) are used; they keep learning either way. */
+    const val FINGER_OFFSETS = "pref_finger_offsets"
+    const val DEFAULT_FINGER_OFFSETS = true
+
+    /** The settings row that clears them; not a stored preference. */
+    const val FINGER_OFFSETS_RESET_ROW = "pref_finger_offsets_reset"
+
+    /**
+     * The private file the thumb positions live in, apart from the settings so a backup never
+     * carries them, and the counter in it that Settings bumps to have the keyboard forget them.
+     */
+    const val TOUCH_MODEL_FILE = "touch_model"
+    const val TOUCH_MODEL_RESET = "reset"
     const val AUTOCORRECT_LEVEL = "pref_autocorrect_level"
 
     /**
@@ -324,6 +338,12 @@ object Prefs {
 
     /** Set once a saved [EDGE_SWIPES] has been given shift's re-case swipes where free. */
     const val SHIFT_CASE_SEEDED = "pref_shift_case_seeded"
+
+    /** Set once a saved [EDGE_SWIPES] has been given `?123`'s slide up to the editing page where free. */
+    const val EDIT_PAGE_SEEDED = "pref_edit_page_seeded"
+
+    /** The editing page's keys (EditPage); absent is the D-pad. Written only when it differs. */
+    const val EDIT_PAGE = "pref_edit_page"
 
     /**
      * Implicit directional alternate swipes: a top-row letter's up-swipe inserts its digit, a

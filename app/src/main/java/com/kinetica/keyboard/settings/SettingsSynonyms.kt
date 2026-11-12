@@ -45,6 +45,9 @@ object SettingsSynonyms {
             "expand", "expandify", "shortcut", "macro", "snippet", "abbreviation",
             "replace", "template", "autotext",
         ),
+        Prefs.EDIT_PAGE to listOf(
+            "arrow", "arrows", "cursor", "d-pad", "dpad", "navigation", "select", "selection", "home", "end",
+        ),
         // Look
         Prefs.THEME_MODE to listOf("dark", "light", "night", "colour", "color", "material"),
         Prefs.THEME_BRIGHTNESS to listOf("dark", "light", "contrast", "dim"),
@@ -165,6 +168,8 @@ object SettingsSynonyms {
         Prefs.LEARN_PHRASES to listOf("bigram", "context", "pairs", "personal"),
         Prefs.CONTACT_NAMES to listOf("contacts", "names", "people", "address book", "vocabulary"),
         Prefs.RETYPE_AVOIDS_REJECTED to listOf("retype", "again", "reject"),
+        Prefs.FINGER_OFFSETS to listOf("offset", "finger", "thumb", "aim", "touch", "calibrate", "position"),
+        Prefs.FINGER_OFFSETS_RESET_ROW to listOf("offset", "finger", "thumb", "aim", "touch", "calibrate", "clear", "forget", "reset"),
         Prefs.RETYPE_BUTTON to listOf("redo", "again", "undo", "try again"),
         Prefs.BAR_MENU_BUTTON to listOf("menu", "paste", "shortcuts", "toolbar", "actions"),
         Prefs.RETYPE_BUTTON_DP to listOf("redo", "again", "size", "width"),

@@ -70,7 +70,9 @@ import com.kinetica.keyboard.keys.ChordTrigger
 import com.kinetica.keyboard.keys.DeleteSpan
 import com.kinetica.keyboard.keys.EditorAction
 import com.kinetica.keyboard.keys.EdgeSwipeBindings
+import com.kinetica.keyboard.keys.EditPage
 import com.kinetica.keyboard.keys.KeyCombo
+import com.kinetica.keyboard.keys.SelectMode
 import com.kinetica.keyboard.keys.ShiftState
 import com.kinetica.keyboard.keys.SpecialKeys
 import com.kinetica.keyboard.keys.StandaloneLetters
@@ -314,6 +316,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private var vibrator: Vibrator? = null
     private var audioManager: AudioManager? = null
     private var prefListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+    // Held here: SharedPreferences keeps its listeners weakly.
+    private var touchResetListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     private var editorState = EditorState.DEFAULT
 
@@ -395,6 +399,19 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     // The one-shot Ctrl: set by CTRL_NEXT, spent by the next key.
     private var ctrlPending = false
+
+    // Select on the editing page: moves extend the selection (SelectMode). Lit on its key.
+    private var selecting = false
+
+    private fun setSelecting(on: Boolean) {
+        if (selecting == on) return
+        selecting = on
+        keyboardView?.selectLit = on
+        DecodeTrace.log { "  select=$on" }
+    }
+
+    // Home or End pressed again goes on a line (LineEdgeRepeat).
+    private val lineEdges = LineEdgeRepeat()
 
     // The word the cursor was parked inside when the bar was filled for it. It is not a word
     // in progress, so a letter typed there is an ordinary insertion. A pick re-reads both
@@ -594,6 +611,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         touchModelSaved = touchModel.learned
         aimModel.restore(getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).getString(AIM_MODEL_KEY, null))
         aimModelSaved = aimModel.learned
+        // Settings > Dictionary and learning > Reset learned thumb positions bumps this counter.
+        val touchFile = getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE)
+        val resetListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == Prefs.TOUCH_MODEL_RESET) forgetThumbPositions()
+        }
+        touchResetListener = resetListener
+        touchFile.registerOnSharedPreferenceChangeListener(resetListener)
         // Decode tracing, developer build only. Two-thumb gestures cannot be reproduced on
         // the JVM, so a capture of the real token buffer is the evidence for them. The
         // release source set's TraceRecorder is a stub that installs nothing.
@@ -630,6 +654,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         EdgeSwipeDefaults.applyTo(prefs)
         config = KeyboardConfig.from(prefs, systemNight())
+        applyFingerOffsets()
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
             val previous = config
             config = KeyboardConfig.from(p, systemNight())
@@ -644,6 +669,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
             }
             applyViewConfig()
+            if (config.fingerOffsets != previous.fingerOffsets) applyFingerOffsets()
             if (config.enabledLanguages != previous.enabledLanguages) syncEnabledSubtypes()
             // Its own branch: an expansion edit touches no dictionary or layout, and folding
             // it into the chain below would rebuild one.
@@ -708,6 +734,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             ) {
                 closeEmojiPicker()
                 keyboardView?.setKeyboardLayout(alphaLayout())
+            } else if (config.editPage != previous.editPage && keyboardView?.shownBoard == EditPage.NAME) {
+                keyboardView?.setKeyboardLayout(config.editPage.layout())
             }
         }
         prefListener = listener
@@ -1104,6 +1132,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val picker = emojiPicker ?: try {
             EmojiPickerView(
                 this,
+                assets = emojiStore.assets,
+                languages = { (listOf(config.language) + config.enabledLanguages).distinct() },
                 onEmoji = { recordEmojiUse(it); commitTracked(it) },
                 onBackspace = { onBackspace() },
                 onClose = { closeEmojiPicker() },
@@ -1337,8 +1367,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
-        // Ctrl held for the next key belongs to the field it was armed in.
-        if (!restarting) ctrlPending = false
+        // Ctrl held for the next key, and Select, belong to the field they were set in.
+        if (!restarting) {
+            ctrlPending = false
+            setSelecting(false)
+            lineEdges.clear()
+        }
         // An app's restartInput lands here too and clears the bar with it.
         DecodeTrace.log {
             "  start restarting=$restarting pending=${tentativeLength > 0 || composer?.hasPendingWord == true}"
@@ -1440,8 +1474,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 keyboardView?.setKeyboardLayout(layoutFor("numpad"))
                 numpadAuto = true
             }
-            // A pad a number field put up goes with it, whatever the letters setting.
-            opensOnLetters(restarting, config.lettersOnNewField || numpadAuto, onLetters) -> {
+            // A pad a number field put up goes with it, whatever the letters setting, and so does
+            // the editing page: it is for the field it was opened in.
+            opensOnLetters(
+                restarting,
+                config.lettersOnNewField || numpadAuto || keyboardView?.shownBoard == EditPage.NAME,
+                onLetters,
+            ) -> {
                 keyboardView?.setKeyboardLayout(alphaLayout())
                 numpadAuto = false
             }
@@ -1492,6 +1531,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             autocorrectUndo = null
             autoFixUndo = null
             wholeWordArmStart = -1
+            lineEdges.onUserMove(SystemClock.uptimeMillis())
         }
         if (verdict != SelectionLedger.Verdict.USER) {
             DecodeTrace.log {
@@ -2037,7 +2077,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 KeyType.SPACE -> "space"
                 KeyType.BACKSPACE -> "backspace"
                 KeyType.ENTER -> "enter"
-                KeyType.CHAR -> "punct"
+                // An editing page command is no punctuation: the trace logs typed keys only.
+                KeyType.CHAR -> "punct".takeIf { EditorAction.of(key.output) == null && KeyCombo.parse(key.output) == null }
                 else -> null
             }?.let { TraceRecorder.key(it, android.os.SystemClock.uptimeMillis()) }
             when (key.type) {
@@ -2177,6 +2218,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
         override fun onSettingsRequested() = openSettings()
 
+        // Select is the editing page's: any other board ends it.
+        override fun onBoardShown(name: String) {
+            if (name != EditPage.NAME) setSelecting(false)
+        }
+
         override fun onEditAlternates(letter: Char) {
             vibrateForKeyPress()
             openSettings(SettingsSynonyms.LONGPRESS_GROUP, Prefs.letterAlternatesKey(letter))
@@ -2221,8 +2267,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             DecodeTrace.log { "  chord missed trigger=${trigger.name.lowercase()} key=$key reason=$reason" }
         }
 
-        override fun onKeyPressFeedback() {
+        override fun onKeyPressFeedback(key: Key) {
             cancelAutospace()
+            // Any key but Home or End ends a run of them (LineEdgeRepeat).
+            if (LineEdgeRepeat.edgeOf(key.output) == null) lineEdges.clear()
             // Any key ends the offer before it acts: the word around the cursor was never in
             // progress, and a letter, a delete or a space at the cursor is not a pick.
             if (midWordOffer != null) {
@@ -2304,7 +2352,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      */
     private fun refreshEmojiOffer() {
         val bar = suggestionBar ?: return
-        val index = if (config.emojiSuggestions) emojiStore.index { refreshEmojiOffer() } else null
+        val index = if (config.emojiSuggestions) emojiStore.index((listOf(config.language) + config.enabledLanguages).distinct()) { refreshEmojiOffer() } else null
         if (!config.emojiSuggestions || editorState.privateMode || index == null) {
             bar.emoji = emptyList()
             return
@@ -2919,6 +2967,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * is what it aims at.
      */
     private fun performIfAction(text: String): Boolean {
+        val edge = LineEdgeRepeat.edgeOf(text)
+        if (lineEdges.press(edge, SystemClock.uptimeMillis()) && edge != null) stepPastLineEdge(edge)
+        // Under Select a move holds Shift, so the selection grows from the cursor.
+        if (selecting) {
+            val shifted = SelectMode.withShift(text)
+            if (shifted != text) {
+                KeyCombo.parse(shifted)?.let {
+                    sendKeyCombo(it)
+                    return true
+                }
+            }
+        }
         // A key combination is a target too, wherever an action name is.
         KeyCombo.parse(text)?.let {
             sendKeyCombo(it)
@@ -2946,7 +3006,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.ARROW_RIGHT, EditorAction.PAGE_UP, EditorAction.PAGE_DOWN,
             EditorAction.BACKSPACE, EditorAction.CTRL_NEXT, EditorAction.CLIPBOARD, EditorAction.VOICE,
             EditorAction.CASE_LOWER, EditorAction.CASE_TITLE, EditorAction.CASE_UPPER,
-            EditorAction.TOGGLE_FLOATING,
+            EditorAction.TOGGLE_FLOATING, EditorAction.CUT_LINE_AFTER, EditorAction.CUT_LINE_BEFORE,
+            EditorAction.EDIT_PAGE, EditorAction.SELECT_MODE,
             -> null
         }
         if (menuId == null) {
@@ -2956,7 +3017,37 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         finalizePendingWord()
         ich.performContextMenuAction(menuId)
         selectionLedger.expectAny(SystemClock.uptimeMillis())
+        if (SelectMode.clearsAfter(action)) setSelecting(false)
         return true
+    }
+
+    /**
+     * One arrow past the line edge the cursor sits on, so the edge sent next lands on the line
+     * before or after. Under Select it holds Shift as any move does. Not under a pending Ctrl:
+     * Ctrl+Home is the text's start, and the arrow would spend the Ctrl.
+     */
+    private fun stepPastLineEdge(edge: EditorAction) {
+        if (ctrlPending) return
+        val step = LineEdgeRepeat.stepPast(
+            edge,
+            ich.textBeforeCursor(WORD_STEP_LOOK_CHARS) ?: "",
+            ich.textAfterCursor(WORD_STEP_LOOK_CHARS) ?: "",
+        )
+        DecodeTrace.log { "  line edge again edge=${edge.name} step=${step.name}" }
+        val shifted = if (selecting) KeyCombo.parse(SelectMode.withShift(step.output)) else null
+        if (shifted != null) sendKeyCombo(shifted) else sendSpecialKey(step)
+    }
+
+    /** The editing page, or back to the letters when it is up: one action opens and closes it. */
+    private fun toggleEditPage() {
+        if (keyboardView?.shownBoard == EditPage.NAME) {
+            keyboardView?.setKeyboardLayout(alphaLayout())
+            return
+        }
+        closeEmojiPicker()
+        cancelAutospace()
+        finalizePendingWord()
+        keyboardView?.setKeyboardLayout(config.editPage.layout())
     }
 
     /**
@@ -2978,6 +3069,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.TIME -> insertNow(date = false)
             EditorAction.ENTER -> onEnter()
             EditorAction.COPY_LINE -> copyLine()
+            EditorAction.CUT_LINE_AFTER -> cutLine(newlineAfter = true)
+            EditorAction.CUT_LINE_BEFORE -> cutLine(newlineAfter = false)
+            EditorAction.EDIT_PAGE -> toggleEditPage()
+            EditorAction.SELECT_MODE -> setSelecting(!selecting)
             EditorAction.CLEAN_LINKS -> cleanLinks()
             EditorAction.TOGGLE_NEXT_WORD -> togglePref(Prefs.NEXT_WORD, !config.nextWord)
             EditorAction.TOGGLE_RECENT_WORDS -> togglePref(Prefs.RECENT_WORDS, !config.recentWords)
@@ -3097,6 +3192,60 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         getSystemService(ClipboardManager::class.java)
             ?.setPrimaryClip(ClipData.newPlainText(getString(R.string.clip_label_line), line))
+    }
+
+    /**
+     * The line the cursor is on and one newline, onto the clipboard and out of the text
+     * ([lineCut]). Placed from the editor's own selection in this call, so no remembered offset
+     * places it; refused where a line copy is, and in a private field. Upstream Kinetica 3.0.
+     *
+     * The span is selected, then written over with nothing, as the backspace on a selection
+     * does: a WebView editor dropped a surrounding delete across the line break and left the
+     * span selected. Deleted only when the editor holds exactly the cut text.
+     */
+    private fun cutLine(newlineAfter: Boolean) {
+        cancelAutospace()
+        finalizePendingWord()
+        if (editorState.privateMode) return
+        val live = ich.liveSelection() ?: return
+        val before = ich.textBeforeCursor(COPY_LINE_READ_CHARS) ?: return
+        val after = ich.textAfterCursor(COPY_LINE_READ_CHARS) ?: return
+        val selected = if (live.second > live.first) ich.selectedText() ?: return else ""
+        // A selection the editor cannot hand over whole would be cut as something else.
+        val cut = if (selected.length == live.second - live.first) {
+            lineCut(before, selected, after, COPY_LINE_READ_CHARS, newlineAfter)
+        } else {
+            null
+        }
+        DecodeTrace.log { "  cut line after=$newlineAfter len=${cut?.text?.length ?: "refused"}" }
+        if (cut == null) {
+            vibrateForKeyPress()
+            return
+        }
+        // A WebView editor snaps a span ending inside a paragraph break back one: the second
+        // newline is taken on a retry, only once the first span came back changed.
+        val taken = sequenceOf(cut) + listOfNotNull(widenedAcrossBreak(before, selected, after, cut))
+        val span = taken.firstOrNull { c ->
+            ich.setSelection(live.first - c.back, live.second + c.ahead)
+            expectAt(live.first - c.back, live.second + c.ahead)
+            ich.selectedText()?.toString() == c.text
+        }
+        if (span == null) {
+            DecodeTrace.log { "  cut line stale len=${cut.text.length}" }
+            ich.setSelection(live.first, live.second)
+            expectAt(live.first, live.second)
+            vibrateForKeyPress()
+            return
+        }
+        if (span !== cut) DecodeTrace.log { "  cut line widened len=${span.text.length}" }
+        val start = live.first - span.back
+        val end = live.second + span.ahead
+        getSystemService(ClipboardManager::class.java)
+            ?.setPrimaryClip(ClipData.newPlainText(getString(R.string.clip_label_line), cut.text))
+        ich.deleteLiveSelection()
+        commitHistory.onEdit(end, span.text.length, 0)
+        expectAt(start)
+        updateAutoShift()
     }
 
     /**
@@ -3486,6 +3635,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             incognito = config.incognito,
             floating = config.floating,
             ctrlPending = ctrlPending,
+            selecting = selecting,
         )
     }
 
@@ -5837,6 +5987,20 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         keyboardView?.setShiftUppercase(shift.isShifted)
     }
 
+    /** Both thumb-position models back to nothing learned; their file was cleared by Settings. */
+    private fun forgetThumbPositions() {
+        aimModel.reset()
+        touchModel.reset()
+        aimModelSaved = aimModel.learned
+        touchModelSaved = touchModel.learned
+    }
+
+    /** The switch: off, nothing learned moves a key or hints a tap; both models go on learning. */
+    private fun applyFingerOffsets() {
+        aimModel.strength = if (config.fingerOffsets) KineticaConstants.AIM_MODEL_STRENGTH else 0f
+        touchModel.off = !config.fingerOffsets
+    }
+
     /** Writes the touch model to its own private file when it learned since the last write. */
     private fun saveTouchModel() {
         if (aimModel.learned != aimModelSaved) {
@@ -5855,7 +6019,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val INCOGNITO_TAG = ActionRow.glyph(EditorAction.TOGGLE_INCOGNITO)
 
         // Its own file, not the settings: per-key averages, kept out of a settings backup.
-        const val TOUCH_MODEL_PREFS = "touch_model"
+        const val TOUCH_MODEL_PREFS = Prefs.TOUCH_MODEL_FILE
         const val TOUCH_MODEL_KEY = "model"
         const val AIM_MODEL_KEY = "aim"
         const val USER_DICT_LIMIT = 5000

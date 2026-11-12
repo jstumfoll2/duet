@@ -708,4 +708,23 @@
         <item quantity="other">Rimettere %1$d impostazioni al valore predefinito? Lingue, elenchi delle lettere e scorciatoie restano.</item>
         <item quantity="many">Rimettere %1$d impostazioni al valore predefinito? Lingue, elenchi delle lettere e scorciatoie restano.</item>
     </plurals>
+    <string name="action_cut_line_after">Taglia riga, invio dopo</string>
+    <string name="action_cut_line_before">Taglia riga, invio prima</string>
+    <string name="action_edit_page">Pagina di modifica</string>
+    <string name="action_select_mode">Selezione</string>
+    <string name="edit_page_title">Pagina di modifica</string>
+    <string name="edit_page_summary">Frecce, selezione e appunti in una pagina a parte, aperta scorrendo in su da ?123. Tocca per cambiarne i tasti</string>
+    <string name="edit_page_hint">Tocca un tasto per cambiarlo, + per aggiungerne uno. La riga in basso resta com\'è.</string>
+    <string name="edit_page_add_row">Aggiungi una riga</string>
+    <string name="edit_page_reset">Ripristina le frecce</string>
+    <string name="edit_page_reset_confirm">Rimettere i tasti predefiniti? Le modifiche a questa pagina vanno perse.</string>
+    <string name="edit_page_add_key">Aggiungi un tasto</string>
+    <string name="edit_page_change_key">Cambia il tasto</string>
+    <string name="edit_page_delete">Elimina</string>
+    <string name="edit_page_move_left">Sposta a sinistra</string>
+    <string name="edit_page_move_right">Sposta a destra</string>
+    <string name="edit_page_letter">Una lettera da sola va sulle lettere</string>
+    <string name="edit_page_text_hint">Testo che il tasto scrive</string>
+    <string name="notice_cut_line">Riga tagliata</string>
+    <string name="notice_name_select">Selezione</string>
 </resources>

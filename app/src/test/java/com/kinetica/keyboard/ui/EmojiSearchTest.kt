@@ -4,71 +4,123 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** The emoji search ranking, on small fixtures and on the real assets. */
 class EmojiSearchTest {
 
-    private fun entry(ch: String, name: String, vararg kw: String) = EmojiSuggest.Entry(ch, name, kw.toList())
-
-    private val search = EmojiSearch(
-        listOf(
-            entry("😀", "grinning face", "happy", "smile"),
-            entry("😃", "grinning face big eyes", "happy"),
-            entry("🐶", "dog face", "puppy"),
-            entry("🍕", "pizza", "food"),
-            entry("🥧", "pie", "dessert"),
-            entry("❤️", "red heart", "love"),
-            entry("💔", "broken heart", "sad"),
-            entry("👍", "thumbs up", "yes", "ok"),
-            entry("🦮", "guide dog", "blind"),
-        ),
-    )
-
-    @Test
-    fun aPrefixFindsAsItIsTyped() {
-        assertEquals(listOf("🍕", "🥧"), search.find("pi"))
-        assertEquals(listOf("🍕"), search.find("piz"))
-        assertEquals(listOf("👍"), search.find("thu"))
+    private fun fixture(vararg rows: Pair<String, String>): Pair<EmojiCatalog, List<EmojiCatalog.Words>> {
+        val catalog = EmojiCatalog.parse((listOf("@G\t😀") + rows.map { "${it.first}\tx" }).asSequence())
+        val words = EmojiCatalog.parseWords(rows.map { it.second }.asSequence())
+        return catalog to words
     }
+
+    private fun rank(
+        query: String,
+        f: Pair<EmojiCatalog, List<EmojiCatalog.Words>>,
+        uses: Map<String, Int> = emptyMap(),
+    ): List<String> = EmojiSearch.rank(query, f.first.entries, listOf(f.second), uses).map { it.ch }
 
     @Test
     fun aWholeWordBeatsAPrefix() {
-        // "pie" is the pie's name and only the start of nothing else.
-        assertEquals("🥧", search.find("pie").first())
-        assertEquals(listOf("🐶", "🦮"), search.find("dog"))
+        val f = fixture("🍭" to "\tlollipop\t", "😂" to "\ttears\tlol")
+        assertEquals(listOf("😂", "🍭"), rank("lol", f))
     }
 
     @Test
-    fun everyWordMustMatch() {
-        assertEquals(listOf("❤️", "💔"), search.find("heart"))
-        assertEquals(listOf("❤️"), search.find("red heart"))
-        assertEquals(listOf("❤️"), search.find("heart red"))
-        assertEquals(emptyList<String>(), search.find("red dog"))
+    fun handBeatsNameBeatsKeyword() {
+        val f = fixture("a" to "\t\tsun", "b" to "\tsun\t", "c" to "sun\t\t")
+        assertEquals(listOf("c", "b", "a"), rank("sun", f))
     }
 
     @Test
-    fun keywordsCountAndCaseDoesNot() {
-        assertEquals(listOf("😀", "😃"), search.find("Happy"))
-        assertEquals(listOf("🐶"), search.find("puppy"))
-        assertEquals(listOf("🐶", "🦮"), search.find("dogs"))
+    fun everyQueryWordMustMatch() {
+        val f = fixture("❤️" to "\tred heart\t", "🫀" to "\tanatomical heart\torgan", "🔴" to "\tred circle\t")
+        assertEquals(listOf("❤️"), rank("red heart", f))
     }
 
     @Test
-    fun theUsersFavouriteBreaksATie() {
-        assertEquals(listOf("😃", "😀"), search.find("happy", mapOf("😃" to 5)))
-        // A better match still wins over a favourite.
-        assertEquals("🥧", search.find("pie", mapOf("🍕" to 99)).first())
+    fun useCountThenShorterNameBreakATie() {
+        val f = fixture("💘" to "\theart with arrow\t", "💔" to "\tbroken heart\t", "❤️" to "\tred heart\t")
+        assertEquals(listOf("💔", "❤️", "💘"), rank("heart", f))
+        assertEquals(listOf("❤️", "💔", "💘"), rank("heart", f, mapOf("❤️" to 3)))
     }
 
     @Test
-    fun aBlankQueryFindsNothing() {
-        assertTrue(search.find("").isEmpty())
-        assertTrue(search.find("   ").isEmpty())
-        assertTrue(search.find("zzz").isEmpty())
+    fun accentsAndCaseFold() {
+        val f = fixture("☕" to "\tcaffè\t")
+        assertEquals(listOf("☕"), rank("CAFFE", f))
+        assertEquals(listOf("☕"), rank("caffè", f))
     }
 
     @Test
-    fun resultsAreCapped() {
-        val many = EmojiSearch(List(100) { entry("e$it", "sun $it", "x") })
-        assertEquals(3, many.find("sun", limit = 3).size)
-        assertEquals(EmojiSearch.MAX, many.find("sun").size)
+    fun anEmptyOrUnmatchedQueryFindsNothing() {
+        val f = fixture("☕" to "\tcoffee\t")
+        assertTrue(rank("", f).isEmpty())
+        assertTrue(rank("  ,", f).isEmpty())
+        assertTrue(rank("zzqx", f).isEmpty())
+    }
+
+    @Test
+    fun theRowIsCapped() {
+        val rows = (0 until 40).map { "e$it" to "\tsame\t" }.toTypedArray()
+        assertEquals(EmojiSearch.RESULTS, rank("same", fixture(*rows)).size)
+    }
+
+    // The real assets. The first screen of the row shows eight cells.
+
+    private fun firstScreen(query: String, vararg langs: String) = EmojiAssetFiles.top(query, *langs, n = 8)
+
+    @Test
+    fun theRedHeartIsOnTheFirstScreenInEveryTestedLanguage() {
+        for ((q, lang) in listOf("heart" to "en", "cuore" to "it", "herz" to "de", "serce" to "pl", "сердце" to "ru")) {
+            val top = firstScreen(q, lang, "en")
+            assertTrue("$q ($lang): $top", top.contains("❤️"))
+        }
+        assertEquals("❤️", EmojiAssetFiles.top("red heart", "en").first())
+    }
+
+    @Test
+    fun theHandWrittenWordsSurvive() {
+        val top = EmojiAssetFiles.top("lol", "en")
+        assertTrue("lol: $top", top.indexOf("😂") in 0..7)
+        assertTrue("the lollipop only after the laughing faces: $top", top.indexOf("🍭") > top.indexOf("😂"))
+    }
+
+    @Test
+    fun commonWordsLeadWithTheirEmoji() {
+        assertEquals("☕", EmojiAssetFiles.top("caffe", "it", "en").first())
+        assertEquals("🔥", EmojiAssetFiles.top("fire", "en").first())
+        assertEquals("🔥", EmojiAssetFiles.top("fuoco", "it", "en").first())
+        assertEquals("🍕", EmojiAssetFiles.top("pizza", "en").first())
+        assertEquals("🇮🇹", EmojiAssetFiles.top("italy", "en").first())
+        assertEquals("👍", EmojiAssetFiles.top("thumbs", "en").first())
+        assertTrue(EmojiAssetFiles.top("zzqx", "en", "it").isEmpty())
+    }
+
+    @Test
+    fun romanianFindsItsOwnWords() {
+        // Romanian has its own board; without kw_ro.tsv its search fell back to English words only.
+        assertTrue(firstScreen("inima", "ro", "en").contains("❤️"))
+        assertEquals("🔥", EmojiAssetFiles.top("foc", "ro", "en").first())
+        assertTrue(firstScreen("cafea", "ro", "en").contains("☕"))
+    }
+
+    // Duet: plurals, and Spanish, which Jason types.
+
+    @Test
+    fun aPluralFindsItsSingularAboveAPrefix() {
+        val f = fixture("🐶" to "\tdog\t", "🌭" to "\t\tdogsled")
+        assertEquals(listOf("🐶", "🌭"), rank("dogs", f))
+        val g = fixture("🐶" to "\tdog face\t", "🦊" to "\tfox\t")
+        assertEquals(listOf("🐶"), rank("dogs", g))
+        assertEquals(listOf("🦊"), rank("foxes", g))
+    }
+
+    @Test
+    fun spanishFindsItsOwnWordsWithoutAccents() {
+        assertTrue(firstScreen("corazon", "es", "en").contains("❤️"))
+        assertTrue(firstScreen("perros", "es", "en").contains("🐶"))
+        assertEquals("🔥", EmojiAssetFiles.top("fuego", "es", "en").first())
+        assertTrue(firstScreen("perro", "es", "en").contains("🐶"))
+        assertTrue(firstScreen("cafe", "es", "en").contains("☕"))
     }
 }
