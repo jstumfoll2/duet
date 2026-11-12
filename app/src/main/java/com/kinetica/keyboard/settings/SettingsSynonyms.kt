@@ -42,6 +42,9 @@ object SettingsSynonyms {
             "expand", "expandify", "shortcut", "macro", "snippet", "abbreviation",
             "replace", "template", "autotext",
         ),
+        Prefs.EDIT_PAGE to listOf(
+            "arrow", "arrows", "cursor", "d-pad", "dpad", "navigation", "select", "selection", "home", "end",
+        ),
         // Look
         Prefs.THEME_MODE to listOf("dark", "light", "night", "colour", "color", "material"),
         Prefs.THEME_BRIGHTNESS to listOf("dark", "light", "contrast", "dim"),

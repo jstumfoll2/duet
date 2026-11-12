@@ -82,6 +82,14 @@ enum class EditorAction(val output: String) {
     COPY_LINE("${ACTION_PREFIX}copy_line"),
 
     /**
+     * Cut the line the cursor is on onto the clipboard, with the newline after it or the one
+     * before it, so the lines either side close up. Deleted around the editor's own selection.
+     * Upstream Kinetica 3.0.
+     */
+    CUT_LINE_AFTER("${ACTION_PREFIX}cut_line_after"),
+    CUT_LINE_BEFORE("${ACTION_PREFIX}cut_line_before"),
+
+    /**
      * Take the tracking parameters out of the links in the selection, or out of the link just
      * before the cursor (upstream Kinetica 2.1.2). Done by the keyboard, since the app has no
      * such command.
@@ -152,6 +160,12 @@ enum class EditorAction(val output: String) {
 
     /** The floating keyboard on or off: a narrower keyboard the handle moves anywhere. */
     TOGGLE_FLOATING("${ACTION_PREFIX}toggle_floating"),
+
+    /** The editing page (EditPage), or back to the letters from it. Upstream Kinetica 3.0. */
+    EDIT_PAGE("${ACTION_PREFIX}edit_page"),
+
+    /** Moves extend the selection until turned off, or until a copy, cut or paste (SelectMode). */
+    SELECT_MODE("${ACTION_PREFIX}select_mode"),
     ;
 
     companion object {

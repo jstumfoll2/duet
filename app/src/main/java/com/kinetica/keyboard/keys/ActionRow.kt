@@ -41,6 +41,8 @@ object ActionRow {
         EditorAction.TIME,
         EditorAction.ENTER,
         EditorAction.COPY_LINE,
+        EditorAction.CUT_LINE_AFTER,
+        EditorAction.CUT_LINE_BEFORE,
         EditorAction.CLEAN_LINKS,
         EditorAction.TOGGLE_NEXT_WORD,
         EditorAction.TOGGLE_RECENT_WORDS,
@@ -66,6 +68,8 @@ object ActionRow {
         EditorAction.CASE_TITLE,
         EditorAction.CASE_UPPER,
         EditorAction.TOGGLE_FLOATING,
+        EditorAction.EDIT_PAGE,
+        EditorAction.SELECT_MODE,
     )
 
     /** What the row offers out of the box. */
@@ -102,6 +106,8 @@ object ActionRow {
         EditorAction.TIME -> "◷"              // a clock face with one quarter marked
         EditorAction.ENTER -> "⏎"             // the return symbol
         EditorAction.COPY_LINE -> "≡"         // lines of text
+        EditorAction.CUT_LINE_AFTER -> "✂↓"
+        EditorAction.CUT_LINE_BEFORE -> "✂↑"
         EditorAction.CLEAN_LINKS -> "⚯"       // a link with its chain broken
         EditorAction.TOGGLE_NEXT_WORD -> "⇢"  // the word that comes next
         EditorAction.TOGGLE_RECENT_WORDS -> "☰" // rows of words
@@ -131,6 +137,8 @@ object ActionRow {
         EditorAction.CASE_TITLE -> "Abc"
         EditorAction.CASE_UPPER -> "ABC"
         EditorAction.TOGGLE_FLOATING -> "❐"     // a raised window, lifted off the page
+        EditorAction.EDIT_PAGE -> "\u2725"      // four arrows out of a centre, a D-pad
+        EditorAction.SELECT_MODE -> "\u2B1A"    // a dotted square, a selection
     }
 
     /**
@@ -282,7 +290,7 @@ object ActionRow {
     fun notice(action: EditorAction, before: KeyboardState): Notice? = when (action) {
         // Settings closes the keyboard; a re-case shows in the word itself.
         EditorAction.SETTINGS, EditorAction.CASE_LOWER, EditorAction.CASE_TITLE,
-        EditorAction.CASE_UPPER,
+        EditorAction.CASE_UPPER, EditorAction.EDIT_PAGE,
         -> null
         EditorAction.TOGGLE_AUTOSPACE -> Notice.Autospace(!before.autospace)
         EditorAction.TOGGLE_NEXT_WORD -> Notice.Toggle(action, !before.nextWord)
@@ -294,6 +302,7 @@ object ActionRow {
         EditorAction.TOGGLE_INCOGNITO -> Notice.Toggle(action, !before.incognito)
         EditorAction.TOGGLE_FLOATING -> Notice.Toggle(action, !before.floating)
         EditorAction.CTRL_NEXT -> Notice.Toggle(action, !before.ctrlPending)
+        EditorAction.SELECT_MODE -> Notice.Toggle(action, !before.selecting)
         EditorAction.NEXT_LANGUAGE ->
             nextLanguage(before.languages, before.language)?.let { Notice.Language(it) }
         EditorAction.ONE_HANDED ->
@@ -303,6 +312,7 @@ object ActionRow {
         EditorAction.UNDO, EditorAction.REDO, EditorAction.PASTE, EditorAction.COPY,
         EditorAction.CUT, EditorAction.SELECT_ALL, EditorAction.RETYPE, EditorAction.EXPANDIFY,
         EditorAction.DATE, EditorAction.TIME, EditorAction.ENTER, EditorAction.COPY_LINE,
+        EditorAction.CUT_LINE_AFTER, EditorAction.CUT_LINE_BEFORE,
         EditorAction.CLEAN_LINKS,
         EditorAction.TAB, EditorAction.ESCAPE, EditorAction.FORWARD_DELETE, EditorAction.HOME,
         EditorAction.END, EditorAction.ARROW_UP, EditorAction.ARROW_DOWN, EditorAction.ARROW_LEFT,
@@ -327,6 +337,7 @@ object ActionRow {
         val incognito: Boolean = false,
         val floating: Boolean = false,
         val ctrlPending: Boolean = false,
+        val selecting: Boolean = false,
     )
 
     /** What a [notice] says; the service turns it into text. */

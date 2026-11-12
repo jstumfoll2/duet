@@ -325,6 +325,12 @@ object Prefs {
     /** Set once a saved [EDGE_SWIPES] has been given shift's re-case swipes where free. */
     const val SHIFT_CASE_SEEDED = "pref_shift_case_seeded"
 
+    /** Set once a saved [EDGE_SWIPES] has been given `?123`'s slide up to the editing page where free. */
+    const val EDIT_PAGE_SEEDED = "pref_edit_page_seeded"
+
+    /** The editing page's keys (EditPage); absent is the D-pad. Written only when it differs. */
+    const val EDIT_PAGE = "pref_edit_page"
+
     /**
      * Implicit directional alternate swipes: a top-row letter's up-swipe inserts its digit, a
      * bottom-row letter's down-swipe its symbol. On by default, though letter-key swipes share

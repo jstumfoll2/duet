@@ -96,7 +96,8 @@ class BackspaceController(
         everStaged = false
     }
 
-    private companion object {
+    companion object {
+        /** The hold's step; the editing page's held keys repeat at the same pace (HoldRepeat). */
         const val REPEAT_MS = 50L
     }
 }

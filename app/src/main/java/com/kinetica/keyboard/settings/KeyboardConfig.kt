@@ -8,6 +8,7 @@ import com.kinetica.keyboard.ime.singleLetterDelayMs
 import com.kinetica.keyboard.keys.ActionRow
 import com.kinetica.keyboard.keys.DeleteSpan
 import com.kinetica.keyboard.keys.EdgeSwipeBindings
+import com.kinetica.keyboard.keys.EditPage
 import com.kinetica.keyboard.keys.SpacebarCursorController
 import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutMode
@@ -251,6 +252,8 @@ data class KeyboardConfig(
     val floatWidthPct: Int = Prefs.DEFAULT_FLOAT_WIDTH_PCT,
     val floatLeftPct: Int = Prefs.DEFAULT_FLOAT_LEFT_PCT,
     val floatLiftDp: Int = Prefs.DEFAULT_FLOAT_LIFT_DP,
+    /** The editing page's keys, opened by a slide up on `?123` (upstream Kinetica 3.0). */
+    val editPage: EditPage = EditPage.DEFAULT,
 ) {
     companion object {
         fun from(prefs: SharedPreferences): KeyboardConfig {
@@ -532,6 +535,7 @@ data class KeyboardConfig(
             floatWidthPct = prefs.getInt(Prefs.FLOAT_WIDTH_PCT, Prefs.DEFAULT_FLOAT_WIDTH_PCT),
             floatLeftPct = prefs.getInt(Prefs.FLOAT_LEFT_PCT, Prefs.DEFAULT_FLOAT_LEFT_PCT),
             floatLiftDp = prefs.getInt(Prefs.FLOAT_LIFT_DP, Prefs.DEFAULT_FLOAT_LIFT_DP),
+            editPage = EditPage.parse(prefs.getString(Prefs.EDIT_PAGE, null)),
         )
         }
 

@@ -74,6 +74,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".settings.EditPageActivity"
+            android:label="@string/edit_page_title"
+            android:exported="false" />
+
+        <activity
             android:name=".settings.ExpansionSettingsActivity"
             android:label="@string/expansion_settings_title"
             android:exported="false" />
