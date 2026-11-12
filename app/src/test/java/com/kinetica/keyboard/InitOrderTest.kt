@@ -17,7 +17,7 @@ import org.junit.Test
  * `EmojiPickerView.glyphPaint` sat eleven lines too low and the emoji panel took the whole IME
  * down.
  *
- * Reads the source off disk, like [com.kinetica.keyboard.ui.EmojiDataTest] and
+ * Reads the source off disk, like [com.kinetica.keyboard.ui.EmojiAssetFiles] and
  * [com.kinetica.keyboard.settings.PreferenceTreeTest], so a fail-first check here needs
  * `--rerun-tasks`.
  *

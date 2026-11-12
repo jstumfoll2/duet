@@ -8,16 +8,15 @@ import com.kinetica.keyboard.settings.Prefs
 import com.kinetica.keyboard.data.KineticaDb
 import com.kinetica.keyboard.ui.EmojiRecents
 import com.kinetica.keyboard.ui.EmojiSuggest
-import com.kinetica.keyboard.ui.EmojiSuggestAsset
+import com.kinetica.keyboard.ui.EmojiAssets
 import com.kinetica.keyboard.ui.EmojiTone
-import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 /**
  * The service's emoji state: how often each emoji was picked (for the picker's first tab and
- * the bar's ranking) and the bar's keyword index. Room and the asset are read on [dbExecutor],
- * never on the main thread.
+ * the bar's ranking), the bundled emoji set the picker and the bar share, and the bar's keyword
+ * index. Room and the bar's words are read on [dbExecutor], never on the main thread.
  */
 internal class EmojiStore(
     private val context: Context,
@@ -28,9 +27,16 @@ internal class EmojiStore(
     /** Resident emoji pick counts, so the picker fills without touching Room. */
     private val uses = ConcurrentHashMap<String, EmojiRecents.Use>()
 
-    /** The bar's emoji keywords, read off the main thread the first time the setting is on. */
+    /** The set and its search words in each language, read once and shared with the picker. */
+    val assets: EmojiAssets by lazy { EmojiAssets(context) }
+
+    /**
+     * The bar's emoji keywords for [indexLanguages], read off the main thread the first time the
+     * setting is on, and again when the enabled languages change.
+     */
     @Volatile private var index: EmojiSuggest.Index? = null
-    private var indexRequested = false
+    @Volatile private var indexLanguages: List<String> = emptyList()
+    private var requestedLanguages: List<String>? = null
 
     /**
      * The user's skin tones, read once from prefs and kept here so the picker and the bar
@@ -92,10 +98,14 @@ internal class EmojiStore(
         }
     }
 
-    /** The keyword index, or null until it has loaded; asking starts the load. */
-    fun index(onLoaded: () -> Unit): EmojiSuggest.Index? {
-        index?.let { return it }
-        load(onLoaded)
+    /**
+     * The keyword index for [languages] (English is always added: the hand-written words are
+     * English), or null until it has loaded; asking starts the load.
+     */
+    fun index(languages: List<String>, onLoaded: () -> Unit): EmojiSuggest.Index? {
+        val langs = (languages + ENGLISH).distinct()
+        index?.let { if (indexLanguages == langs) return it }
+        load(langs, onLoaded)
         return null
     }
 
@@ -103,25 +113,28 @@ internal class EmojiStore(
     fun lookup(index: EmojiSuggest.Index, word: String): List<String> =
         index.lookup(word, uses.mapValues { it.value.count }).map { tones.render(it) }
 
-    private fun load(onLoaded: () -> Unit) {
-        if (indexRequested) return
-        indexRequested = true
+    private fun load(langs: List<String>, onLoaded: () -> Unit) {
+        if (requestedLanguages == langs) return
+        requestedLanguages = langs
         dbExecutor.execute {
-            index = try {
-                EmojiSuggestAsset.load(context.assets)
+            // EmojiAssets never throws: an unreadable file is an empty set, so no offers.
+            val built = try {
+                EmojiSuggest.fromCatalog(assets.catalog.entries, langs.map { assets.words(it) })
             } catch (e: RuntimeException) {
                 Log.w(TAG, "emoji keywords unusable", e)
                 null
-            } catch (e: IOException) {
-                Log.w(TAG, "emoji keywords unreadable", e)
-                null
             }
-            if (index != null) mainHandler.post { onLoaded() }
+            if (built != null) {
+                index = built
+                indexLanguages = langs
+                mainHandler.post { onLoaded() }
+            }
         }
     }
 
     private companion object {
         // The service's own tag: these lines were its own before they moved here.
         const val TAG = "KineticaIME"
+        const val ENGLISH = "en"
     }
 }

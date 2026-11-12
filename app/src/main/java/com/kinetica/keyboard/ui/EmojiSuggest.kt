@@ -1,11 +1,13 @@
 package com.kinetica.keyboard.ui
 
+import com.kinetica.keyboard.engine.AccentFolder
+
 /**
- * Emoji for the word before the cursor ("pizza" offers 🍕), from the keywords and names in
- * `emoji_data.json`.
+ * Emoji for the word before the cursor ("pizza" offers 🍕), from the names and search words of
+ * the bundled set (`assets/emoji/`, read by [EmojiAssets]) in the user's languages.
  *
- * Pure, because the JVM test runtime stubs `org.json` and has no glyph table: the service
- * parses the asset and filters what the device can draw, and hands the entries here.
+ * Pure, because the JVM test runtime has no glyph table: the service reads the set, which has
+ * already dropped what the device cannot draw, and hands it here.
  */
 object EmojiSuggest {
 
@@ -15,24 +17,46 @@ object EmojiSuggest {
     /** Longest word looked up; the tail read before the cursor is this plus slack. */
     const val MAX_WORD = 24
 
-    /** One asset entry, free of org.json. */
-    class Entry(val ch: String, val name: String, val keywords: List<String>)
+    /**
+     * A CLDR keyword ([Entry.other]) is too generic to offer when this many emoji or more are
+     * named with it: "face", "hand", "person", Spanish "de". Feelings ("happy", "amor") are
+     * keywords, rarely names, so they stay.
+     */
+    const val MAX_NAMES_PER_OTHER_WORD = 12
+
+    /** Nor when more emoji than this list it as a keyword ("love" is on 32). */
+    const val MAX_PER_OTHER_WORD = 40
+
+    /**
+     * One emoji's words in one language: its [name], the [keywords] written for this project,
+     * and the [other] CLDR keywords, which rank last and are dropped when too generic.
+     */
+    class Entry(val ch: String, val name: String, val keywords: List<String>, val other: List<String> = emptyList())
 
     class Index(entries: List<Entry>) {
         // Each word's emoji in the order they rank: an emoji named for the word first ("pizza"
-        // is 🍕's name), then the ones that only list it as a keyword, each in asset order.
+        // is 🍕's name), then the ones that list it as a hand-written keyword, then the CLDR
+        // keywords, each in the set's order. Words are folded: "corazón" is "corazon".
         private val byWord: Map<String, List<String>>
 
         init {
             val named = HashMap<String, MutableList<String>>()
             val tagged = HashMap<String, MutableList<String>>()
+            val other = HashMap<String, MutableList<String>>()
+            val inNames = HashMap<String, MutableSet<String>>()
             for (e in entries) {
-                for (w in nameWords(e.name)) named.getOrPut(w) { ArrayList() }.add(e.ch)
-                for (k in e.keywords) tagged.getOrPut(k.lowercase()) { ArrayList() }.add(e.ch)
+                for (w in e.name.split(' ')) if (w.isNotEmpty()) inNames.getOrPut(fold(w)) { HashSet() }.add(e.ch)
+                for (w in nameWords(e.name)) named.getOrPut(fold(w)) { ArrayList() }.add(e.ch)
+                for (k in e.keywords) tagged.getOrPut(fold(k)) { ArrayList() }.add(e.ch)
+                for (k in e.other) other.getOrPut(fold(k)) { ArrayList() }.add(e.ch)
             }
             val all = HashMap<String, List<String>>()
-            for (w in named.keys + tagged.keys) {
-                all[w] = (named[w].orEmpty() + tagged[w].orEmpty()).distinct()
+            for (w in named.keys + tagged.keys + other.keys) {
+                val broad = other[w].orEmpty().distinct().takeIf {
+                    it.size <= MAX_PER_OTHER_WORD && (inNames[w]?.size ?: 0) < MAX_NAMES_PER_OTHER_WORD
+                }.orEmpty()
+                val list = (named[w].orEmpty() + tagged[w].orEmpty() + broad).distinct()
+                if (list.isNotEmpty()) all[w] = list
             }
             byWord = all
         }
@@ -42,7 +66,7 @@ object EmojiSuggest {
          * then in the asset's ranking. A plural falls back to its singular: "dogs" offers 🐶.
          */
         fun lookup(word: String, uses: Map<String, Int> = emptyMap(), limit: Int = MAX): List<String> {
-            val w = word.lowercase()
+            val w = fold(word)
             val found = byWord[w]
                 ?: w.removeSuffix("s").takeIf { it != w && it.length >= 2 }?.let { byWord[it] }
                 ?: w.removeSuffix("es").takeIf { it != w && it.length >= 2 }?.let { byWord[it] }
@@ -52,6 +76,24 @@ object EmojiSuggest {
             return found.sortedByDescending { uses[it] ?: 0 }.take(limit)
         }
     }
+
+    /**
+     * The index for the bundled set: one [Entry] per emoji and language in [langs] (each list
+     * indexed by [EmojiCatalog.Entry.index], as [EmojiSearch.rank] takes them). The words come
+     * folded from [EmojiCatalog.parseWords].
+     */
+    fun fromCatalog(entries: List<EmojiCatalog.Entry>, langs: List<List<EmojiCatalog.Words>>): Index {
+        val out = ArrayList<Entry>(entries.size * langs.size)
+        for (e in entries) {
+            for (lang in langs) {
+                val w = lang.getOrNull(e.index) ?: continue
+                out.add(Entry(e.ch, w.name.joinToString(" "), w.hand, w.other))
+            }
+        }
+        return Index(out)
+    }
+
+    private fun fold(w: String): String = AccentFolder.fold(w.lowercase())
 
     /**
      * The words an entry's name offers it for: the whole name when it is one word, and the

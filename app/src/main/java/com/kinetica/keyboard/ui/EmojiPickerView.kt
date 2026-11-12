@@ -1,9 +1,7 @@
 package com.kinetica.keyboard.ui
 
 import android.content.Context
-import android.graphics.Paint
 import android.graphics.drawable.GradientDrawable
-import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -13,27 +11,29 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.kinetica.keyboard.R
-import java.io.IOException
-import org.json.JSONObject
 
 /**
- * Emoji picker: category tabs over a scrollable grid, loaded from the bundled
- * assets/emoji_data.json (no network, ever), with a search pane and skin tones. Swapped in
- * place of the KeyboardView by InputContainerView while open.
+ * Emoji picker: category tabs over a scrollable grid, from the bundled set in [EmojiAssets]
+ * (assets/emoji/, no network, ever), with a search pane and skin tones. Swapped in place of the
+ * KeyboardView by InputContainerView while open.
+ *
+ * [languages] are the languages whose search words the pane searches, besides English.
  *
  * [onEmoji] gets the emoji as it goes into the field, toned; [onTones] gets the user's new
  * tone choices to store.
  */
 class EmojiPickerView(
     context: Context,
+    private val assets: EmojiAssets,
+    private val languages: () -> List<String>,
     private val onEmoji: (String) -> Unit,
     private val onBackspace: () -> Unit,
     private val onClose: () -> Unit,
     private val onTones: (EmojiTone.Choices) -> Unit = {},
 ) : LinearLayout(context) {
 
-    /** One emoji with the metadata the asset carries; search reads [name] and [keywords]. */
-    private class Emoji(val ch: String, val name: String, val keywords: List<String>)
+    /** One emoji of the set, or a recent the set no longer carries (no words, index -1). */
+    private class Emoji(val ch: String, val index: Int)
 
     private class Category(val name: String, val icon: String, val emoji: List<Emoji>)
 
@@ -41,7 +41,6 @@ class EmojiPickerView(
     private val tabsScroll = HorizontalScrollView(context)
     private val gridScroll = ScrollView(context)
     private val bottom = LinearLayout(context).apply { orientation = HORIZONTAL }
-    private val grid = LinearLayout(context).apply { orientation = VERTICAL }
     private val density = resources.displayMetrics.density
     private val tabs = LinearLayout(context).apply { orientation = HORIZONTAL }
     private val tabViews = ArrayList<TextView>()
@@ -66,19 +65,26 @@ class EmojiPickerView(
     private val searchSpecialKeys = ArrayList<TextView>()
     private var query = StringBuilder()
     private var searching = false
-    private var search: EmojiSearch? = null
 
     /**
-     * Whether this device's font can draw [ch]. The asset carries emoji up to Unicode 15 and
-     * the system font is fixed per OS version, so an undrawable emoji is left out, not shown
-     * as a tofu box. One Paint is reused because this runs once per entry at load.
-     *
-     * Must stay above the `init` block: initializers run in declaration order, and below it
-     * the Paint is still null when `init` calls [loadCategories], which kills the keyboard.
+     * Whether this device's font can draw [ch] as one glyph. The set reaches Unicode 16 and ZWJ
+     * sequences and the system font is fixed per OS version, so an undrawable emoji is left out
+     * (by [EmojiAssets] at load), not shown as a tofu box or as its parts.
      */
-    private val glyphPaint = Paint()
+    private fun canDraw(ch: String): Boolean = assets.canDraw(ch)
 
-    private fun canDraw(ch: String): Boolean = glyphPaint.hasGlyph(ch)
+    /**
+     * Each category's grid, built on its first showing and kept: Flags and People hold
+     * hundreds of cells, too many to rebuild on every tab switch. Cleared when the colours or
+     * tones change. The recent tab is small and rebuilt each time.
+     *
+     * Must stay above the `init` block: initializers run in declaration order, and below it the
+     * map is still null when `init` shows the first tab, which kills the keyboard.
+     */
+    private val grids = HashMap<Category, LinearLayout>()
+
+    /** The text colour the kept [grids] were built in; the service pushes the theme each open. */
+    private var gridsText: Int? = null
 
     /** The asset's own entries by character, so a recorded emoji keeps its name. */
     private val byChar = HashMap<String, Emoji>()
@@ -99,7 +105,7 @@ class EmojiPickerView(
             // system update removed a font, must not come back as a tofu box. Stored plain,
             // so a recent shows in today's tone.
             recentEntries = value.map { EmojiTone.strip(it) }.distinct().filter { canDraw(it) }
-                .map { byChar[it] ?: Emoji(it, "", emptyList()) }
+                .map { byChar[it] ?: Emoji(it, -1) }
             rebuildTabs()
             showCategory(shownCategory.coerceIn(0, (panels().size - 1).coerceAtLeast(0)))
         }
@@ -107,6 +113,8 @@ class EmojiPickerView(
     /** The user's skin tones, pushed from the service's store; the grid redraws in them. */
     var tones: EmojiTone.Choices = EmojiTone.Choices()
         set(value) {
+            // Pushed on every open: the kept grids go only when a tone really changed.
+            if (value.default != field.default || value.perEmoji != field.perEmoji) grids.clear()
             field = value
             toneFooter?.text = shown(EmojiTone.SAMPLE)
             if (panels().isNotEmpty()) showCategory(shownCategory)
@@ -147,7 +155,6 @@ class EmojiPickerView(
         tabsScroll.addView(tabs)
         addView(tabsScroll, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
-        gridScroll.addView(grid)
         addView(gridScroll, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
 
         // TextViews, not Buttons: a platform Button takes its colours from the app theme and
@@ -253,6 +260,10 @@ class EmojiPickerView(
             k.setTextColor(theme.keyText)
             k.background = rounded(theme.keySpecial)
         }
+        if (gridsText != theme.keyText) {
+            grids.clear()
+            gridsText = theme.keyText
+        }
         // The grid, results and tone row are rebuilt as they change, so their cells take the
         // colour there.
         if (panels().isNotEmpty()) showCategory(shownCategory)
@@ -274,44 +285,8 @@ class EmojiPickerView(
      * Never throws: an empty picker is an inconvenience, a dead IME leaves the user unable to
      * type, and a malformed asset must not take the service down.
      */
-    private fun loadCategories(): List<Category> = try {
-        parseCategories()
-    } catch (e: RuntimeException) {
-        Log.w(TAG, "emoji asset unusable", e)
-        emptyList()
-    } catch (e: IOException) {
-        Log.w(TAG, "emoji asset unreadable", e)
-        emptyList()
-    }
-
-    private fun parseCategories(): List<Category> {
-        val json = context.assets.open("emoji_data.json").bufferedReader().use { it.readText() }
-        val root = JSONObject(json).getJSONArray("categories")
-        val out = ArrayList<Category>(root.length())
-        for (i in 0 until root.length()) {
-            val c = root.getJSONObject(i)
-            val arr = c.getJSONArray("emoji")
-            val entries = ArrayList<Emoji>(arr.length())
-            for (j in 0 until arr.length()) {
-                val e = c.getJSONArray("emoji").getJSONObject(j)
-                val kwArr = e.optJSONArray("kw")
-                val kw = if (kwArr == null) {
-                    emptyList()
-                } else {
-                    List(kwArr.length()) { kwArr.getString(it) }
-                }
-                val ch = e.getString("ch")
-                if (canDraw(ch)) entries.add(Emoji(ch, e.optString("name", ""), kw))
-            }
-            // A category with nothing drawable is dropped, not left as an empty tab, and its
-            // icon must be drawable too or the tab itself is a tofu box.
-            val icon = c.getString("icon")
-            if (entries.isNotEmpty() && canDraw(icon)) {
-                out.add(Category(c.getString("name"), icon, entries))
-            }
-        }
-        return out
-    }
+    private fun loadCategories(): List<Category> =
+        assets.catalog.groups.map { g -> Category(g.name, g.icon, g.entries.map { Emoji(it.ch, it.index) }) }
 
     /**
      * One emoji's cell, in the user's tone. A tap sends it; a long press on one that takes a
@@ -507,11 +482,15 @@ class EmojiPickerView(
      */
     private fun showResults() {
         queryView.text = query.toString()
-        val engine = search ?: EmojiSearch(
-            categories.flatMap { cat -> cat.emoji.map { EmojiSuggest.Entry(it.ch, it.name, it.keywords) } },
-        ).also { search = it }
         val uses = recentEntries.withIndex().associate { (i, e) -> e.ch to recentEntries.size - i }
-        val found = if (query.isBlank()) recentEntries.map { it.ch } else engine.find(query.toString(), uses)
+        val found = if (query.isBlank()) {
+            recentEntries.map { it.ch }
+        } else {
+            // English always: the hand-written words (lol, rofl) are English. A language's words
+            // load on its first search; most sessions never search.
+            val langs = (languages() + ENGLISH).distinct().map { assets.words(it) }
+            EmojiSearch.rank(query.toString(), assets.catalog.entries, langs, uses).map { it.ch }
+        }
         resultsRow.removeAllViews()
         resultsScroll.scrollTo(0, 0)
         if (found.isEmpty() && query.isNotBlank()) {
@@ -536,8 +515,14 @@ class EmojiPickerView(
     private fun showCategory(index: Int) {
         val shown = panels().getOrNull(index) ?: return
         shownCategory = index
-        grid.removeAllViews()
+        gridScroll.removeAllViews()
+        val grid = if (shown in categories) grids.getOrPut(shown) { buildGrid(shown) } else buildGrid(shown)
+        gridScroll.addView(grid)
         gridScroll.scrollTo(0, 0)
+    }
+
+    private fun buildGrid(shown: Category): LinearLayout {
+        val grid = LinearLayout(context).apply { orientation = VERTICAL }
         val perRow = COLUMNS
         var row: LinearLayout? = null
         for ((i, entry) in shown.emoji.withIndex()) {
@@ -554,11 +539,14 @@ class EmojiPickerView(
                 last.addView(TextView(context), LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
             }
         }
+        return grid
     }
 
     private companion object {
-        const val TAG = "EmojiPickerView"
         const val COLUMNS = 8
+
+        /** Searched beside the enabled languages: the hand-written words are English. */
+        const val ENGLISH = "en"
 
         /** Longest query typed; no name in the asset is near it. */
         const val MAX_QUERY = 32
