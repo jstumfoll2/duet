@@ -90,4 +90,14 @@ class LearnedCapitalsTest {
         assertNull(learnedCapital("Dennis", LearnedCase("Dennis", 3)))
         assertNull(learnedCapital("dennis", null))
     }
+
+    @Test
+    fun aCommonWordNeitherVotesNorTakesACapital() {
+        // A lone `i` capitalised before a letter took its space back wrote `Is` mid-sentence;
+        // two of those settled `Is` for every later `is`.
+        assertEquals(CaseVote.NONE, caseVote("Is", "is", false, mid, null, "en", common = true))
+        assertNull(learnedCapital("is", LearnedCase("Is", 5), common = true))
+        // Writing it lowercase still votes a capital learned before the rule down.
+        assertEquals(CaseVote(-1, null), caseVote("is", "Is", false, mid, "Is", "en", common = true))
+    }
 }

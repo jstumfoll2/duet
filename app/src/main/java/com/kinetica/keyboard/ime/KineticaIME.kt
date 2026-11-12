@@ -4837,7 +4837,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             } else if (threshold != null && !editorState.addressField) {
                 // A learned capital, as autocorrect gives a German noun its own: the letters
                 // spell a word, so autocorrect leaves them, and the capital is the user's.
-                learnedCapital(finalWord, casesFor(languageOf(finalWord))[finalWord.lowercase()])?.let { capital ->
+                val capLang = languageOf(finalWord)
+                learnedCapital(finalWord, casesFor(capLang)[finalWord.lowercase()], commonWord(finalWord, capLang))?.let { capital ->
                     val typed = tentativeWord
                     replaceTentative(capital)
                     finalWord = capital
@@ -5248,6 +5249,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // user_words at load and kept by learnWord, so a commit knows a capital it has learned.
     private val learnedCases = ConcurrentHashMap<String, ConcurrentHashMap<String, DictionaryLoader.LearnedCase>>()
 
+    /** Whether [word] is one of [lang]'s most common words, which never take a learned capital. */
+    private fun commonWord(word: String, lang: String): Boolean =
+        (predictorFor(lang)?.frequencyByte(word.lowercase()) ?: -1) >= KineticaConstants.LEARNED_CAPITAL_MAX_FREQ_BYTE
+
     private fun casesFor(lang: String): ConcurrentHashMap<String, DictionaryLoader.LearnedCase> =
         learnedCases.getOrPut(lang) { ConcurrentHashMap() }
 
@@ -5408,7 +5413,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 noticeWrongLanguage(word, filed)
                 lastCommitLearned = word.lowercase()
                 val held = predictorFor(filed)?.holdsExactSpelling(word) == true
-                voteCase(word, filed, caseVote(word, proposal, held, textBefore, casesFor(filed)[word.lowercase()]?.display, filed))
+                voteCase(
+                    word, filed,
+                    caseVote(word, proposal, held, textBefore, casesFor(filed)[word.lowercase()]?.display, filed, commonWord(word, filed)),
+                )
                 lastLearnedWord = word.lowercase()
                 lastLearnedWordLang = filed
                 // The pair is learned from the same evidence as the word, under the same

@@ -23,7 +23,9 @@ internal data class CaseVote(val vote: Int, val display: String?) {
  * Only mid-sentence: at a sentence start, or the start of a field, a capital is the shift's.
  * [before] is the text before the word, null when it could not be read. Neither a word written
  * in capitals, nor English `I`, nor a spelling the dictionary holds as written ([held]: German
- * `Haus`, `Sie` beside `sie`) is the user's capital.
+ * `Haus`, `Sie` beside `sie`) is the user's capital. Nor is one of the language's most common
+ * words ([common], see [KineticaConstants.LEARNED_CAPITAL_MAX_FREQ_BYTE]): `Is` mid-sentence is
+ * a slip.
  */
 internal fun caseVote(
     committed: String,
@@ -32,8 +34,10 @@ internal fun caseVote(
     before: CharSequence?,
     learned: String?,
     lang: String,
+    common: Boolean = false,
 ): CaseVote {
     if (before == null || committed.length < 2 || startsNewSentence(before)) return CaseVote.NONE
+    if (common && committed != committed.lowercase()) return CaseVote.NONE
     val lower = committed.lowercase()
     if (committed == lower) {
         return if (learned != null && proposal == learned) CaseVote(-1, null) else CaseVote.NONE
@@ -73,10 +77,12 @@ internal fun leadChanged(old: LearnedCase?, new: LearnedCase?): Boolean =
 
 /**
  * The learned capital a tapped [word] takes, or null: written all lowercase, and its capital
- * settled. A word typed with its own capital, or a capital still unsettled, keeps the letters.
+ * settled. A word typed with its own capital, or a capital still unsettled, keeps the letters,
+ * and so does one of the language's most common words ([common]), whatever votes it holds from
+ * before the rule.
  */
-internal fun learnedCapital(word: String, learned: LearnedCase?): String? {
-    if (!settled(learned) || learned == null) return null
+internal fun learnedCapital(word: String, learned: LearnedCase?, common: Boolean = false): String? {
+    if (common || !settled(learned) || learned == null) return null
     if (word != word.lowercase() || learned.display.lowercase() != word || learned.display == word) return null
     return learned.display
 }

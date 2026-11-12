@@ -814,6 +814,16 @@ object KineticaConstants {
     const val LEARNED_CAPITAL_MIN_VOTES = 2
 
     /**
+     * A word whose bundled lowercase spelling has at least this frequency byte never takes a
+     * learned capital: about the 140 most common words of a list (English `is`, `it`, `if`, `in`,
+     * `will`). Their capitals are the shift's or a slip's, never the user's spelling: a lone `i`
+     * capitalised before a letter took its space back wrote `Is` mid-sentence, and two of those
+     * settled `Is` for every later `is`. Names that are also such words (`Will`) lose their
+     * learned capital.
+     */
+    const val LEARNED_CAPITAL_MAX_FREQ_BYTE = 200
+
+    /**
      * The votes' range. A settled capital stays at most four lowercase commits from losing the
      * lead, and a word written lowercase four from gaining one, whatever came before.
      */
