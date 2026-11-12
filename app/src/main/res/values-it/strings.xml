@@ -20,6 +20,28 @@
     <string name="onboarding_test_hint">Scrivi o fai swipe qui</string>
     <string name="onboarding_open_settings">Impostazioni della tastiera</string>
     <string name="onboarding_step_done">%1$s  (fatto)</string>
+    <string name="setup_step">Passo %1$d di %2$d</string>
+    <string name="setup_enable_title">Attiva Duet</string>
+    <string name="setup_enable_note">Android scrive solo con le tastiere attive nel suo elenco. Attiva Duet lì, poi torna qui.</string>
+    <string name="setup_select_title">Scegli Duet</string>
+    <string name="setup_select_note">Scegli Duet nell\'elenco che si apre. La configurazione va avanti da sola.</string>
+    <string name="setup_languages_title">Lingue</string>
+    <string name="setup_languages_note">La lingua che scrivi di più e le altre tra cui passa il tasto lingua.</string>
+    <string name="setup_height_title">Altezza</string>
+    <string name="setup_height_note">Quanto è alta la tastiera con il telefono in verticale. L\'orizzontale ha la sua, in Dimensioni e disposizione.</string>
+    <string name="setup_spacing_title">Spazio automatico</string>
+    <string name="setup_spacing_note">Uno spazio può seguire da solo ogni parola. Qui decidi quando arriva.</string>
+    <string name="setup_theme_title">Tema</string>
+    <string name="setup_theme_note">I colori dei tasti. Un tema di notte, bordi e immagine di sfondo sono in Aspetto, suoni e vibrazione.</string>
+    <string name="setup_tutor_note">Cinque parole disegnate sulla tastiera, un colore per pollice. Scrivile con Duet.</string>
+    <string name="setup_tutor_start">Inizia</string>
+    <string name="setup_done_title">Duet è pronta</string>
+    <string name="setup_back">Indietro</string>
+    <string name="setup_next">Avanti</string>
+    <string name="setup_finish">Fine</string>
+    <string name="setup_skip">Salta la configurazione</string>
+    <string name="setup_again">Rifai la configurazione</string>
+    <string name="pref_setup_again_summary">Lingue, altezza, spazio automatico e tema, un passo alla volta</string>
     <string name="learn_group_start">Per iniziare</string>
     <string name="tip_two_thumbs_title">Dividi una parola tra i due pollici</string>
     <string name="tip_two_thumbs_summary">Ogni pollice tocca o fa swipe sulle lettere della sua metà, insieme o uno dopo l\'altro. Prova con Esercitati con due pollici</string>
@@ -663,4 +685,28 @@
     <string name="backdrop_crop_save">Salva</string>
     <string name="pref_backdrop_alpha_title">Opacità dell\'immagine (%)</string>
     <string name="pref_key_alpha_title">Opacità dei tasti sull\'immagine (%)</string>
+
+    <!-- Night theme (LookSets) and changed settings, ported from upstream 3.0. -->
+    <string name="pref_cat_night_theme">Tema di notte</string>
+    <string name="pref_look_sets_title">Un tema diverso di notte</string>
+    <string name="pref_look_sets_summary">Si vede quando il telefono è in modalità scura. Parte come copia del tema di giorno qui sopra.</string>
+    <string name="pref_theme_mode_night_title">Tema della tastiera di notte</string>
+    <string name="pref_theme_brightness_night_title">Di notte: chiaro o scuro</string>
+    <string name="pref_theme_hue_night_title">Tonalità d\'accento di notte</string>
+    <string name="pref_theme_color_hex_night_title">Colore esatto di notte</string>
+    <string name="pref_group_changed_title">Impostazioni modificate</string>
+    <string name="pref_group_changed_summary">Ogni impostazione diversa dal suo valore predefinito, ognuna con un modo per tornare indietro</string>
+    <string name="pref_changed_note_summary">Toccane una per aprirla o rimetterla com\'era. Gli elenchi delle lettere e le scorciatoie non sono qui.</string>
+    <string name="pref_changed_none">Nessuna modifica: ogni impostazione è al suo valore predefinito.</string>
+    <string name="pref_changed_reset_all_title">Ripristina tutto</string>
+    <string name="pref_changed_reset_all_summary">Le lingue restano come sono</string>
+    <string name="pref_changed_in">In %1$s</string>
+    <string name="pref_changed_open">Apri</string>
+    <string name="pref_changed_reset">Ripristina</string>
+    <string name="pref_changed_managed">La tastiera la imposta insieme alla lingua. Aprila per cambiarla.</string>
+    <plurals name="pref_changed_reset_all_message">
+        <item quantity="one">Rimettere %1$d impostazione al valore predefinito? Lingue, elenchi delle lettere e scorciatoie restano.</item>
+        <item quantity="other">Rimettere %1$d impostazioni al valore predefinito? Lingue, elenchi delle lettere e scorciatoie restano.</item>
+        <item quantity="many">Rimettere %1$d impostazioni al valore predefinito? Lingue, elenchi delle lettere e scorciatoie restano.</item>
+    </plurals>
 </resources>

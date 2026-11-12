@@ -92,7 +92,8 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         if (rootKey == SettingsSynonyms.LONGPRESS_GROUP) addLetterRows()
         wireTraceScreen()
         dropIconSpace(preferenceScreen)
-        wireThemePreview()
+        wireThemePreview(night = false)
+        wireThemePreview(night = true)
         wireBackdrop()
         wireSizePreview()
         showVersion()
@@ -578,13 +579,15 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
      * it. The change listeners take the new value from the callback: onPreferenceChange runs
      * before the value is persisted, so reading preferences here would show the previous palette.
      */
-    private fun wireThemePreview() {
-        wireTrailSwatch()
-        val preview = findPreference<ThemePreviewPreference>(PREVIEW_KEY) ?: return
-        val hue = findPreference<SeekBarPreference>(Prefs.THEME_HUE)
-        val exact = findPreference<ColorHexPreference>(Prefs.THEME_COLOR_HEX)
-        val mode = findPreference<ListPreference>(Prefs.THEME_MODE)
-        val brightness = findPreference<ListPreference>(Prefs.THEME_BRIGHTNESS)
+    private fun wireThemePreview(night: Boolean) {
+        // One trail swatch, painted with the day theme's accent.
+        if (!night) wireTrailSwatch()
+        fun key(k: String) = if (night) Prefs.nightTwin(k) else k
+        val preview = findPreference<ThemePreviewPreference>(key(PREVIEW_KEY)) ?: return
+        val hue = findPreference<SeekBarPreference>(key(Prefs.THEME_HUE))
+        val exact = findPreference<ColorHexPreference>(key(Prefs.THEME_COLOR_HEX))
+        val mode = findPreference<ListPreference>(key(Prefs.THEME_MODE))
+        val brightness = findPreference<ListPreference>(key(Prefs.THEME_BRIGHTNESS))
 
         // Repaint while the thumb moves; otherwise the swatch only catches up on release.
         hue?.updatesContinuously = true
@@ -598,7 +601,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
             val prefs = preferenceManager.sharedPreferences ?: return
             // KeyboardConfig owns the migration from the retired colour list, so going through it
             // keeps the swatch correct on first open, before the hue preference is written.
-            val config = KeyboardConfig.from(prefs)
+            val config = KeyboardConfig.from(LookSets.view(prefs, night))
             val primary = newExact
                 ?: newHue?.let { KeyboardTheme.primaryForHue(it.toFloat()) }
                 ?: config.themeColor
@@ -611,7 +614,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
                 newBrightness ?: config.themeBrightness,
             )
             // The "theme colour" trail follows the accent, so its swatch moves with the theme.
-            trailSwatch?.themeAccentHue = theme.accentHue
+            if (!night) trailSwatch?.themeAccentHue = theme.accentHue
             // Grayed out, not hidden, where the theme ignores them: the rows stay findable and
             // the preview note says why they do nothing.
             hue?.isEnabled = KeyboardTheme.hueAffects(resolvedMode)
@@ -650,7 +653,38 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
             refresh(newBrightness = value as? String)
             true
         }
+        if (night) wireLookSets(hue, exact, mode, brightness) { refresh() }
         refresh()
+    }
+
+    /**
+     * The night theme's switch. The first time it is turned on, the night rows start as a copy of
+     * the day theme ([LookSets.seed]); the rows were inflated with their defaults, so they are
+     * set again from what was stored.
+     */
+    private fun wireLookSets(
+        hue: SeekBarPreference?,
+        exact: ColorHexPreference?,
+        mode: ListPreference?,
+        brightness: ListPreference?,
+        refresh: () -> Unit,
+    ) {
+        findPreference<SwitchPreferenceCompat>(Prefs.LOOK_SETS)?.setOnPreferenceChangeListener { _, on ->
+            val prefs = preferenceManager.sharedPreferences
+            if (on == true && prefs != null && LookSets.seed(prefs)) {
+                val night = LookSets.view(prefs, true)
+                mode?.value = night.getString(Prefs.THEME_MODE, Prefs.DEFAULT_THEME_MODE)
+                brightness?.value = night.getString(Prefs.THEME_BRIGHTNESS, Prefs.DEFAULT_THEME_BRIGHTNESS)
+                // A day hue never written leaves the twin unwritten too; the slider shows the
+                // colour KeyboardConfig derives, as the day slider does.
+                hue?.value = night.getInt(Prefs.THEME_HUE, Math.round(Hsv.hueOf(KeyboardConfig.from(night).themeColor)))
+                // Setting the slider here calls no change listener, so the exact colour the
+                // seed copied stays; its row only has to show it.
+                exact?.reload()
+                refresh()
+            }
+            true
+        }
     }
 
     /**

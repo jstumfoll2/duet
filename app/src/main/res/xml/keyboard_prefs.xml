@@ -512,6 +512,55 @@
                     android:persistent="false"
                     android:selectable="false" />
             </PreferenceCategory>
+            <!-- The night theme: the theme rows above again under their night keys
+                 (Prefs.NIGHT_TWINS), drawn while the phone is in dark mode and the switch is on
+                 (LookSets). Keep the two sets in step. -->
+            <PreferenceCategory android:title="@string/pref_cat_night_theme">
+                <SwitchPreferenceCompat
+                    android:key="pref_look_sets"
+                    android:title="@string/pref_look_sets_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_look_sets_summary"
+                    android:defaultValue="false" />
+                <ListPreference
+                    android:key="pref_theme_mode_night"
+                    android:title="@string/pref_theme_mode_night_title"
+                    app:singleLineTitle="false"
+                    android:dependency="pref_look_sets"
+                    android:entries="@array/theme_mode_entries"
+                    android:entryValues="@array/theme_mode_values"
+                    android:defaultValue="default"
+                    app:useSimpleSummaryProvider="true" />
+                <ListPreference
+                    android:key="pref_theme_brightness_night"
+                    android:title="@string/pref_theme_brightness_night_title"
+                    app:singleLineTitle="false"
+                    android:dependency="pref_look_sets"
+                    android:entries="@array/theme_brightness_entries"
+                    android:entryValues="@array/theme_brightness_values"
+                    android:defaultValue="dark"
+                    app:useSimpleSummaryProvider="true" />
+                <com.kinetica.keyboard.settings.HueSliderPreference
+                    android:key="pref_theme_hue_night"
+                    android:title="@string/pref_theme_hue_night_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_theme_hue_summary"
+                    android:dependency="pref_look_sets"
+                    android:defaultValue="233"
+                    android:max="360"
+                    app:min="0"
+                    app:showSeekBarValue="true"
+                    app:updatesContinuously="true" />
+                <com.kinetica.keyboard.settings.ColorHexPreference
+                    android:key="pref_theme_color_hex_night"
+                    android:title="@string/pref_theme_color_hex_night_title"
+                    app:singleLineTitle="false"
+                    android:dependency="pref_look_sets" />
+                <com.kinetica.keyboard.settings.ThemePreviewPreference
+                    android:key="pref_theme_preview_night"
+                    android:persistent="false"
+                    android:selectable="false" />
+            </PreferenceCategory>
             <PreferenceCategory android:title="@string/pref_cat_trail">
                 <ListPreference
                     android:key="pref_trail_color"
@@ -1058,6 +1107,18 @@
                 <intent
                     android:targetPackage="@string/app_pkg"
                     android:targetClass="com.kinetica.keyboard.onboarding.TutorActivity" />
+            </Preference>
+            <!-- Starts the guided setup over from its first choice (MainActivity.EXTRA_RESTART). -->
+            <Preference
+                android:key="pref_setup_again"
+                android:title="@string/setup_again"
+                app:singleLineTitle="false"
+                android:summary="@string/pref_setup_again_summary">
+                <intent
+                    android:targetPackage="@string/app_pkg"
+                    android:targetClass="com.kinetica.keyboard.onboarding.MainActivity">
+                    <extra android:name="com.kinetica.keyboard.onboarding.RESTART" android:value="true" />
+                </intent>
             </Preference>
             <!-- DEV build only: KeyboardPrefsFragment removes it where TraceScreen finds no screen. -->
             <Preference

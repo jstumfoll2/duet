@@ -39,6 +39,28 @@
     <string name="onboarding_test_hint">Type or swipe here</string>
     <string name="onboarding_open_settings">Keyboard settings</string>
     <string name="onboarding_step_done">%1$s  (done)</string>
+    <string name="setup_step">Step %1$d of %2$d</string>
+    <string name="setup_enable_title">Turn on Duet</string>
+    <string name="setup_enable_note">Android types only with the keyboards turned on in its list. Turn Duet on there, then come back.</string>
+    <string name="setup_select_title">Choose Duet</string>
+    <string name="setup_select_note">Pick Duet in the list that opens. The setup moves on by itself.</string>
+    <string name="setup_languages_title">Languages</string>
+    <string name="setup_languages_note">The language you type most, and the others the language key cycles through.</string>
+    <string name="setup_height_title">Height</string>
+    <string name="setup_height_note">How tall the keyboard is with the phone upright. Landscape has its own, in Size and layout.</string>
+    <string name="setup_spacing_title">Automatic space</string>
+    <string name="setup_spacing_note">A space can follow each word by itself. Here is when it comes.</string>
+    <string name="setup_theme_title">Theme</string>
+    <string name="setup_theme_note">The keys\' colours. A night theme, borders and a background image are in Look, sound and vibration.</string>
+    <string name="setup_tutor_note">Five words drawn over the board, one colour per thumb. Type each one with Duet.</string>
+    <string name="setup_tutor_start">Start</string>
+    <string name="setup_done_title">Duet is ready</string>
+    <string name="setup_back">Back</string>
+    <string name="setup_next">Next</string>
+    <string name="setup_finish">Finish</string>
+    <string name="setup_skip">Skip setup</string>
+    <string name="setup_again">Run setup again</string>
+    <string name="pref_setup_again_summary">Languages, height, automatic space and theme, one step at a time</string>
 
     <string name="learn_group_start">Start here</string>
     <string name="tip_two_thumbs_title">Share a word between two thumbs</string>
@@ -739,4 +761,27 @@
     <string name="backdrop_crop_save">Save</string>
     <string name="pref_backdrop_alpha_title">Image opacity (%)</string>
     <string name="pref_key_alpha_title">Key opacity over the image (%)</string>
+
+    <!-- Night theme (LookSets) and changed settings, ported from upstream 3.0. -->
+    <string name="pref_cat_night_theme">Night theme</string>
+    <string name="pref_look_sets_title">Different theme at night</string>
+    <string name="pref_look_sets_summary">Drawn while the phone is in dark mode. Starts as a copy of the day theme above.</string>
+    <string name="pref_theme_mode_night_title">Night keyboard theme</string>
+    <string name="pref_theme_brightness_night_title">Night: light or dark</string>
+    <string name="pref_theme_hue_night_title">Night accent hue</string>
+    <string name="pref_theme_color_hex_night_title">Exact night colour</string>
+    <string name="pref_group_changed_title">Changed settings</string>
+    <string name="pref_group_changed_summary">Every setting that differs from its default, each with a way back</string>
+    <string name="pref_changed_note_summary">Tap one to open it or put it back. Letter lists and shortcuts are not listed here.</string>
+    <string name="pref_changed_none">Nothing changed: every setting is at its default.</string>
+    <string name="pref_changed_reset_all_title">Reset all to default</string>
+    <string name="pref_changed_reset_all_summary">The languages stay as they are</string>
+    <string name="pref_changed_in">In %1$s</string>
+    <string name="pref_changed_open">Open</string>
+    <string name="pref_changed_reset">Reset</string>
+    <string name="pref_changed_managed">The keyboard sets this with the language. Open it to change it.</string>
+    <plurals name="pref_changed_reset_all_message">
+        <item quantity="one">Put %1$d setting back to its default? The languages, letter lists and shortcuts stay.</item>
+        <item quantity="other">Put %1$d settings back to their default? The languages, letter lists and shortcuts stay.</item>
+    </plurals>
 </resources>

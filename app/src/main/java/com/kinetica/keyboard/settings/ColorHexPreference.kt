@@ -33,6 +33,9 @@ class ColorHexPreference @JvmOverloads constructor(
         notifyChanged()
     }
 
+    /** Shows a value written to the store from elsewhere. */
+    fun reload() = notifyChanged()
+
     override fun getSummary(): CharSequence {
         val code = hex ?: return context.getString(R.string.pref_color_hex_unset)
         // A square in the colour itself, ahead of the code: the code alone says little.

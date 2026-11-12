@@ -87,6 +87,7 @@ import com.kinetica.keyboard.settings.EdgeSwipeDefaults
 import com.kinetica.keyboard.settings.ExpansionRows
 import com.kinetica.keyboard.settings.KeyboardConfig
 import com.kinetica.keyboard.settings.KeyboardHeights
+import com.kinetica.keyboard.settings.LookSets
 import com.kinetica.keyboard.settings.Prefs
 import com.kinetica.keyboard.settings.SettingsActivity
 import com.kinetica.keyboard.settings.SettingsSynonyms
@@ -628,10 +629,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         EdgeSwipeDefaults.applyTo(prefs)
-        config = KeyboardConfig.from(prefs)
+        config = KeyboardConfig.from(prefs, systemNight())
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
             val previous = config
-            config = KeyboardConfig.from(p)
+            config = KeyboardConfig.from(p, systemNight())
             // What decides the automatic space, whenever any of it changes and from wherever.
             if (config.autospace != previous.autospace || config.tidySpaces != previous.tidySpaces ||
                 config.wordEndsOnSpace != previous.wordEndsOnSpace ||
@@ -1302,10 +1303,23 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // The phone going into or out of dark mode switches between the day and night themes.
+        val night = LookSets.systemNight(newConfig.uiMode)
+        if (night != configNight) {
+            configNight = night
+            config = KeyboardConfig.from(PreferenceManager.getDefaultSharedPreferences(this), night)
+        }
         if (keyboardView != null) {
             setInputView(onCreateInputView())
         }
     }
+
+    /** The night state [config] was last read for. */
+    private var configNight = false
+
+    /** Whether the phone is in dark mode now; remembered, so a change of it is noticed. */
+    private fun systemNight(): Boolean =
+        LookSets.systemNight(resources.configuration.uiMode).also { configNight = it }
 
     private fun keyboardHeightPx(): Int = numberRowPx(
         KeyboardHeights.targetPx(

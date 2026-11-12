@@ -623,6 +623,36 @@ object Prefs {
     const val THEME_COLOR_HEX = "pref_theme_color_hex"
 
     /**
+     * A second theme for night: drawn while the phone is in dark mode and this is on. Off by
+     * default, so nothing changes until it is turned on ([LookSets]).
+     */
+    const val LOOK_SETS = "pref_look_sets"
+    const val DEFAULT_LOOK_SETS = false
+
+    /** Set once the night theme has been started as a copy of the day one ([LookSets.seed]). */
+    const val LOOK_NIGHT_SEEDED = "pref_look_night_seeded"
+
+    /**
+     * What the night theme holds, each under its key plus [NIGHT_SUFFIX]. The theme only: the
+     * background image, keys, trail and effects stay one setting, shared by day and night.
+     */
+    val NIGHT_TWINS: List<String> = listOf(THEME_MODE, THEME_BRIGHTNESS, THEME_HUE, THEME_COLOR_HEX)
+    const val NIGHT_SUFFIX = "_night"
+
+    fun nightTwin(key: String): String = key + NIGHT_SUFFIX
+
+    /** The day key of a night twin, or [key] itself. */
+    fun dayKey(key: String): String =
+        key.removeSuffix(NIGHT_SUFFIX).takeIf { key.endsWith(NIGHT_SUFFIX) && it in NIGHT_TWINS } ?: key
+
+    /**
+     * The guided setup's open step, by name, and whether it was finished or skipped. Not backed
+     * up: setup belongs to the install, and a restored finish would skip it on a new phone.
+     */
+    const val SETUP_STEP = "pref_setup_step"
+    const val SETUP_DONE = "pref_setup_done"
+
+    /**
      * When the background image was picked, as millis; empty for none. The image is a file in
      * app storage ([BackdropStore]); a new value tells the keyboard to read it again. Not backed
      * up, since the file is not.
