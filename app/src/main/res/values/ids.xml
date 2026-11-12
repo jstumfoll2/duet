@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The guided setup's step container: a fixed id, so a rotation finds the step it held. -->
+    <item name="setup_body" type="id" />
+</resources>

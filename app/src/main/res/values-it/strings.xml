@@ -11,7 +11,6 @@
     <string name="pref_version_title">Versione</string>
     <string name="pref_licenses_summary">Fonti dei dati e relative licenze (app GPL-3.0; dati MIT e CC BY 2.0 FR)</string>
     <string name="licenses_missing">In questa build mancano le note di licenza.</string>
-    <string name="onboarding_title">Configura Duet</string>
     <string name="onboarding_step1">1. Attiva Duet nell\'elenco delle tastiere di sistema</string>
     <string name="onboarding_step2">2. Imposta Duet come tastiera in uso</string>
     <string name="onboarding_step3">3. Provala</string>

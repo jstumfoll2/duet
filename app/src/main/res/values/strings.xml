@@ -30,7 +30,6 @@
     <string name="pref_licenses_summary">Data sources and their licenses (GPL-3.0 app; MIT and CC BY 2.0 FR data)</string>
     <string name="licenses_missing">License notices missing from this build.</string>
 
-    <string name="onboarding_title">Set up Duet</string>
     <string name="onboarding_step1">1. Turn on Duet in the system keyboard list</string>
     <string name="onboarding_step2">2. Make Duet the current keyboard</string>
     <string name="onboarding_step3">3. Try it out</string>

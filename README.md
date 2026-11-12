@@ -210,6 +210,15 @@ F-Droid.
   and learning), *Keyboard* (look, sound and vibration; size and layout; keys; shortcuts and
   gestures) and *Help and backup* (Learn Duet, backup, about). Inside each screen, rows sit under
   short headings, and settings search reaches every row.
+- **Night theme (from Kinetica 3.0).** *Different theme at night* (Look, sound and vibration) adds
+  a second theme, colour and brightness that the keyboard draws while the phone is in dark mode.
+  It starts as a copy of the day theme; the background image, trail and keys stay shared.
+- **Changed settings (from Kinetica 3.0).** The ↺ button next to settings search lists every
+  setting that differs from its default, each with *Open* and *Reset*, plus *Reset all* (the
+  languages stay as they are).
+- **Guided setup (from Kinetica 3.0).** A fresh install walks through turning Duet on, choosing it,
+  then languages, height, automatic space, theme and the two-thumb tutor, one step at a time. An
+  update skips it; *Run setup again* in Learn Duet starts it over.
 - **Word menu on the bar.** Hold a suggestion still for about a second: *Never*, *Less*, *More*,
   *Forget* and *Why?* replace the words. *Less* halves the word's score each time, so even a
   common word can drop below a rarer one (sliding only ever lowered what you had taught it);

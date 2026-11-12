@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  The project's only menu resource. Settings search needs an action-bar slot and
-  SettingsActivity already has a real action bar, so this is the whole of its chrome.
+  The project's only menu resource: settings search and the changed-settings list, on
+  SettingsActivity's real action bar.
 -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
@@ -11,4 +11,10 @@
         android:icon="@android:drawable/ic_menu_search"
         app:showAsAction="always|collapseActionView"
         app:actionViewClass="androidx.appcompat.widget.SearchView" />
+    <!-- Every setting moved from its default, with a way back (the hidden pref_group_changed). -->
+    <item
+        android:id="@+id/action_changed"
+        android:title="@string/pref_group_changed_title"
+        android:icon="@drawable/ic_settings_changed"
+        app:showAsAction="ifRoom" />
 </menu>

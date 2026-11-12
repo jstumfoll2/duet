@@ -56,4 +56,13 @@ class LookSetsTest {
         assertEquals("pref_something_night", Prefs.dayKey("pref_something_night"))
         assertTrue(Prefs.nightTwin(Prefs.THEME_MODE).endsWith(Prefs.NIGHT_SUFFIX))
     }
+
+    @Test
+    fun theSetupsProgressStaysWithTheInstall() {
+        assertFalse(Backup.carried(Prefs.SETUP_STEP))
+        assertFalse(Backup.carried(Prefs.SETUP_DONE))
+        // The night theme travels like the day one.
+        assertTrue(Backup.carried(Prefs.LOOK_SETS))
+        assertTrue(Backup.carried(Prefs.nightTwin(Prefs.THEME_MODE)))
+    }
 }

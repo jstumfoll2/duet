@@ -26,6 +26,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import java.io.IOException
+import org.xmlpull.v1.XmlPullParser
 import org.json.JSONException
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
@@ -75,7 +76,11 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
     private var smsAwaitingSettings = false
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-        setPreferencesFromResource(R.xml.keyboard_prefs, rootKey)
+        // The changed-settings screen inflates the tree to learn each row's default: rows ask the
+        // recorder for their value and write nothing.
+        if (rootKey == SettingsSynonyms.CHANGED_SCREEN) preferenceManager.preferenceDataStore = defaultsSeen
+        // The guided setup shows a few of these rows through the same wiring, from its own XML.
+        setPreferencesFromResource(arguments?.getInt(ARG_XML, 0)?.takeIf { it != 0 } ?: R.xml.keyboard_prefs, rootKey)
         findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.setOnPreferenceChangeListener { _, on ->
             if (on == true && !smsAllowed()) explainSmsPermission()
             true
@@ -112,6 +117,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         // the request is held and spent here, once, whichever way it arrived.
         applyReveal()
         refreshBackdropRow()
+        refreshChangedRows()
         if (smsAwaitingSettings) {
             smsAwaitingSettings = false
             if (smsAllowed()) findPreference<SwitchPreferenceCompat>(Prefs.SMS_CODES)?.isChecked = true
@@ -253,6 +259,132 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         )
     }
 
+
+    // ------------------------------------------------------------------ changed settings
+
+    /** Each row's default as it reported it, while the changed screen inflated the tree. */
+    private val defaultsSeen = DefaultsRecorder()
+
+    private val changedRows = ArrayList<Preference>()
+
+    /**
+     * One row per setting that differs from its default, read from the store each time the
+     * screen shows, so a reset or a change made elsewhere is already reflected. The rows the
+     * inflation built hold defaults, so only their titles and places are read.
+     */
+    private fun refreshChangedRows() {
+        if (preferenceScreen?.key != SettingsSynonyms.CHANGED_SCREEN) return
+        val ctx = context ?: return
+        val screen = preferenceScreen ?: return
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(ctx)
+        val changed = ChangedSettings.changed(wholeTree(), withXmlDefaults(ctx), prefs.all)
+        changedRows.forEach { screen.removePreference(it) }
+        changedRows.clear()
+        for ((i, entry) in changed.withIndex()) {
+            val row = Preference(ctx).apply {
+                order = i + 1
+                title = entry.title
+                summary = getString(R.string.pref_changed_in, entry.screenTitle)
+                isPersistent = false
+                isSingleLineTitle = false
+                isIconSpaceReserved = false
+                setOnPreferenceClickListener {
+                    offerReset(entry)
+                    true
+                }
+            }
+            screen.addPreference(row)
+            changedRows.add(row)
+        }
+        findPreference<Preference>(CHANGED_NOTE_KEY)?.apply {
+            order = 0
+            setSummary(if (changed.isEmpty()) R.string.pref_changed_none else R.string.pref_changed_note_summary)
+        }
+        val resettable = changed.filter { ChangedSettings.resettable(it.key) }
+        findPreference<Preference>(CHANGED_RESET_ALL_KEY)?.apply {
+            order = Int.MAX_VALUE - 1
+            isEnabled = resettable.isNotEmpty()
+            setOnPreferenceClickListener {
+                AlertDialog.Builder(ctx)
+                    .setTitle(R.string.pref_changed_reset_all_title)
+                    .setMessage(resources.getQuantityString(R.plurals.pref_changed_reset_all_message, resettable.size, resettable.size))
+                    .setPositiveButton(R.string.pref_changed_reset) { _, _ -> reset(resettable.map { it.key }) }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+                true
+            }
+        }
+    }
+
+    /** Open the setting where it lives, or put it back to its default. */
+    private fun offerReset(entry: SettingsIndex.Entry) {
+        val ctx = context ?: return
+        val dialog = AlertDialog.Builder(ctx)
+            .setTitle(entry.title)
+            .setNeutralButton(R.string.pref_changed_open) { _, _ ->
+                (activity as? SettingsActivity)?.revealSetting(entry.screenKey, entry.key)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+        if (ChangedSettings.resettable(entry.key)) {
+            dialog.setPositiveButton(R.string.pref_changed_reset) { _, _ -> reset(listOf(entry.key)) }
+        } else {
+            dialog.setMessage(R.string.pref_changed_managed)
+        }
+        dialog.show()
+    }
+
+    /** Writes each key's default in one edit, or removes the key when its default is empty. */
+    private fun reset(keys: List<String>) {
+        val ctx = context ?: return
+        val defaults = withXmlDefaults(ctx)
+        val edit = androidx.preference.PreferenceManager.getDefaultSharedPreferences(ctx).edit()
+        for (key in keys) {
+            when (val d = ChangedSettings.defaultOf(key, defaults)) {
+                is Boolean -> edit.putBoolean(key, d)
+                is Int -> edit.putInt(key, d)
+                is Long -> edit.putLong(key, d)
+                is Float -> edit.putFloat(key, d)
+                is String -> edit.putString(key, d)
+                is Set<*> -> edit.putStringSet(key, d.filterIsInstance<String>().toSet())
+                else -> edit.remove(key)
+            }
+        }
+        edit.apply()
+        refreshChangedRows()
+    }
+
+    /** The whole settings tree, reached from this screen's root: its rows, titles and screens. */
+    private fun wholeTree(): List<SettingsIndex.Entry> {
+        var top: PreferenceGroup = preferenceScreen ?: return emptyList()
+        while (true) top = top.parent ?: break
+        val out = ArrayList<SettingsIndex.Entry>()
+        collectEntries(top, null, getString(R.string.settings_title), out)
+        // The screen's own rows are not settings.
+        return out.filter { it.screenKey != SettingsSynonyms.CHANGED_SCREEN && it.key != SettingsSynonyms.CHANGED_SCREEN }
+    }
+
+    /**
+     * The recorded defaults of the rows whose XML gives one. A row with none reports its class's
+     * fallback (false, 0, empty), which is not a default the keyboard reads.
+     */
+    private fun withXmlDefaults(ctx: android.content.Context): Map<String, Any?> {
+        val keys = HashSet<String>()
+        val parser = ctx.resources.getXml(R.xml.keyboard_prefs)
+        try {
+            while (parser.next() != XmlPullParser.END_DOCUMENT) {
+                if (parser.eventType != XmlPullParser.START_TAG) continue
+                val key = parser.getAttributeValue(ANDROID_NS, "key") ?: continue
+                if (parser.getAttributeValue(ANDROID_NS, "defaultValue") != null) keys.add(key)
+            }
+        } catch (e: org.xmlpull.v1.XmlPullParserException) {
+            Log.w(TAG, "settings defaults", e)
+        } catch (e: IOException) {
+            Log.w(TAG, "settings defaults", e)
+        } finally {
+            parser.close()
+        }
+        return defaultsSeen.seen.filterKeys { it in keys }
+    }
 
     // ------------------------------------------------------------------ search
 
@@ -870,8 +1002,22 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
 
     private var revealKey: String? = null
 
-    private companion object {
+    internal companion object {
+        /** An XML other than the settings tree to inflate, for the guided setup. */
+        const val ARG_XML = "com.kinetica.keyboard.settings.XML"
+
+        /** One step of the guided setup: [screen] of setup_prefs.xml. */
+        fun forSetup(screen: String): KeyboardPrefsFragment = KeyboardPrefsFragment().apply {
+            arguments = Bundle().apply {
+                putString(PreferenceFragmentCompat.ARG_PREFERENCE_ROOT, screen)
+                putInt(ARG_XML, R.xml.setup_prefs)
+            }
+        }
+
+        const val CHANGED_NOTE_KEY = "pref_changed_note"
+        const val CHANGED_RESET_ALL_KEY = "pref_changed_reset_all"
         const val TAG = "KineticaPrefs"
+        const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
         const val RESET_LETTER_LISTS_KEY = "pref_letter_alternates_reset"
         const val LETTER_NOTE_KEY = "pref_letter_alternates_note"
         const val PREVIEW_KEY = "pref_theme_preview"

@@ -149,10 +149,22 @@ class PreferenceTreeTest {
             listOf(
                 "pref_group_typing", "pref_group_bar", "pref_group_languages", "pref_group_learning",
                 "pref_group_look", "pref_group_size", "pref_group_keys", "pref_group_gestures",
-                "pref_group_learn", "pref_backup_screen", "pref_group_about", "pref_version",
+                "pref_group_learn", "pref_backup_screen", "pref_group_about",
+                // Hidden: the toolbar and search open it, so the top level still shows 12 rows.
+                SettingsSynonyms.CHANGED_SCREEN,
+                "pref_version",
             ),
             top,
         )
+    }
+
+    @Test
+    fun theChangedSettingsScreenIsHiddenFromTheTopLevel() {
+        val xml = prefsXml()
+        val open = xml.indexOf("android:key=\"${SettingsSynonyms.CHANGED_SCREEN}\"")
+        assertTrue(open > 0)
+        val tag = xml.substring(open, xml.indexOf('>', open))
+        assertTrue("the changed screen must stay hidden", "app:isPreferenceVisible=\"false\"" in tag)
     }
 
     @Test
@@ -189,7 +201,8 @@ class PreferenceTreeTest {
     @Test
     fun theTopLevelStaysShortEnoughToScan() {
         // A flat list of 52 rows could not be navigated.
-        val top = screenOf(prefsXml()).filterValues { it == null }
+        // The changed-settings screen is hidden ([theChangedSettingsScreenIsHiddenFromTheTopLevel]).
+        val top = screenOf(prefsXml()).filter { (k, v) -> v == null && k != SettingsSynonyms.CHANGED_SCREEN }
         assertTrue("top level is ${top.size} rows: ${top.keys}", top.size <= 12)
     }
 }

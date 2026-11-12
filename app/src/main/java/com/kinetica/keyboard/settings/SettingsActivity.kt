@@ -112,9 +112,18 @@ class SettingsActivity :
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(R.id.action_search)?.isVisible =
-            supportFragmentManager.backStackEntryCount == 0
+        val top = supportFragmentManager.backStackEntryCount == 0
+        menu.findItem(R.id.action_search)?.isVisible = top
+        menu.findItem(R.id.action_changed)?.isVisible = top
         return super.onPrepareOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_changed) {
+            openScreen(SettingsSynonyms.CHANGED_SCREEN, revealKey = null)
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     private fun topFragment(): KeyboardPrefsFragment? =
@@ -197,6 +206,12 @@ class SettingsActivity :
 
     /** Opens [screenKey] (null: the top level) and flashes its row [key]; a search hit or a tip. */
     fun revealSetting(screenKey: String?, key: String) {
+        // The changed-settings screen is hidden at the top level, so its row cannot be scrolled
+        // to; it is opened instead.
+        if (key == SettingsSynonyms.CHANGED_SCREEN) {
+            openScreen(key, revealKey = null)
+            return
+        }
         if (screenKey == null) {
             supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
             supportFragmentManager.executePendingTransactions()
