@@ -77,7 +77,13 @@ class LanguageAccentsTest {
     )
 
     private fun cells(prefs: Map<String, Any>, id: String): List<String> =
-        AlphaLayouts.build(italian(), MapPrefs.config(prefs + (Prefs.NUMBER_PRIORITY to false)))
+        AlphaLayouts.build(italian(), MapPrefs.config(
+            // Duet's defaults differ from upstream's: pin the mutations that rewrite these lists.
+            prefs + mapOf(
+                Prefs.NUMBER_PRIORITY to false, Prefs.NUMBER_ROW to false,
+                Prefs.EMOJI_KEY to false, Prefs.APOSTROPHE_KEY to false,
+            ),
+        ))
             .keys.first { it.id == id }.alternates
 
     @Test
