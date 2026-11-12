@@ -775,16 +775,6 @@ class KeyboardView @JvmOverloads constructor(
     private val ghostLabel = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val ghostPath = android.graphics.Path()
 
-    init {
-        applyThemePaints()
-    }
-
-    /** Whether the board on screen is a letters page: the symbol pages and the numpad have none. */
-    val showsLetters: Boolean get() = layout?.keys?.any { it.isLetter } == true
-
-    /** The name of the board on screen: the editing page's action closes it when it is up. */
-    val shownBoard: String? get() = layout?.name
-
     /** The editing page's Select is on: its key is drawn pressed until it ends. */
     var selectLit = false
         set(value) {
@@ -794,6 +784,16 @@ class KeyboardView @JvmOverloads constructor(
                 invalidate()
             }
         }
+
+    init {
+        applyThemePaints()
+    }
+
+    /** Whether the board on screen is a letters page: the symbol pages and the numpad have none. */
+    val showsLetters: Boolean get() = layout?.keys?.any { it.isLetter } == true
+
+    /** The name of the board on screen: the editing page's action closes it when it is up. */
+    val shownBoard: String? get() = layout?.name
 
     fun setKeyboardLayout(l: KeyboardLayout) {
         cancelActivePointers()
