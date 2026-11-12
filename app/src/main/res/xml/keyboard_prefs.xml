@@ -425,6 +425,18 @@
                     app:singleLineTitle="false"
                     android:summary="@string/pref_delete_on_block_summary"
                     android:defaultValue="false" />
+                <SwitchPreferenceCompat
+                    android:key="pref_finger_offsets"
+                    android:title="@string/pref_finger_offsets_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_finger_offsets_summary"
+                    android:defaultValue="true" />
+                <Preference
+                    android:key="pref_finger_offsets_reset"
+                    android:title="@string/pref_finger_offsets_reset_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_finger_offsets_reset_summary"
+                    android:persistent="false" />
             </PreferenceCategory>
         </PreferenceScreen>
     </PreferenceCategory>

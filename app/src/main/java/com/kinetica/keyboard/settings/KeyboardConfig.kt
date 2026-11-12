@@ -81,6 +81,8 @@ data class KeyboardConfig(
     /** The spacebar's own lead-in before a tap is a spacebar chord. */
     val spaceChordArmMs: Long,
     val retypeAvoidsRejected: Boolean,
+    /** Use the learned thumb positions ([Prefs.FINGER_OFFSETS]). */
+    val fingerOffsets: Boolean,
     val autocorrectConfidence: Float?,   // null = autocorrect off
     /** Short-word and numbers-row slips are fixed too, while autocorrect is on ([Prefs.SLIP_CORRECTION]). */
     val slipCorrection: Boolean = Prefs.DEFAULT_SLIP_CORRECTION,
@@ -352,6 +354,7 @@ data class KeyboardConfig(
             retypeAvoidsRejected = prefs.getBoolean(
                 Prefs.RETYPE_AVOIDS_REJECTED, Prefs.DEFAULT_RETYPE_AVOIDS_REJECTED,
             ),
+            fingerOffsets = prefs.getBoolean(Prefs.FINGER_OFFSETS, Prefs.DEFAULT_FINGER_OFFSETS),
             autocorrectConfidence = when (
                 prefs.getString(Prefs.AUTOCORRECT_LEVEL, Prefs.DEFAULT_AUTOCORRECT_LEVEL)
             ) {

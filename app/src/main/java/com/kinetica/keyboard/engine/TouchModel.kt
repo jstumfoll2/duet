@@ -96,6 +96,9 @@ class TouchModel(private val letterCount: Int = Alphabet.MAX_SIZE) {
      * True once correction has proven itself on this user's own taps (see the class comment).
      * Off, every tap is left where it landed. [force] skips the check, for tests and sweeps.
      */
+    /** Set by the keyboard's switch: nothing learned is used, hints included, while learning goes on. */
+    @Volatile var off: Boolean = false
+
     val isActive: Boolean get() = snap.learned > 0 && (earned || force)
 
     /** Applies the offsets whether or not they have earned it. */
