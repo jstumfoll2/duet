@@ -54,6 +54,10 @@ object ActionLabels {
         EditorAction.CASE_TITLE -> R.string.action_case_title
         EditorAction.CASE_UPPER -> R.string.action_case_upper
         EditorAction.TOGGLE_FLOATING -> R.string.action_toggle_floating
+        EditorAction.CUT_LINE_AFTER -> R.string.action_cut_line_after
+        EditorAction.CUT_LINE_BEFORE -> R.string.action_cut_line_before
+        EditorAction.EDIT_PAGE -> R.string.action_edit_page
+        EditorAction.SELECT_MODE -> R.string.action_select_mode
     }
 
     /** The setting a toggle flips, as the spacebar names it. Null for anything else. */
@@ -67,6 +71,7 @@ object ActionLabels {
         EditorAction.TOGGLE_INCOGNITO -> R.string.notice_name_incognito
         EditorAction.TOGGLE_FLOATING -> R.string.notice_name_floating
         EditorAction.CTRL_NEXT -> R.string.notice_name_ctrl
+        EditorAction.SELECT_MODE -> R.string.notice_name_select
         else -> null
     }
 
@@ -88,6 +93,7 @@ object ActionLabels {
         EditorAction.TIME -> R.string.notice_time
         EditorAction.ENTER -> R.string.notice_enter
         EditorAction.COPY_LINE -> R.string.notice_copy_line
+        EditorAction.CUT_LINE_AFTER, EditorAction.CUT_LINE_BEFORE -> R.string.notice_cut_line
         EditorAction.CLEAN_LINKS -> R.string.notice_clean_links
         EditorAction.TAB -> R.string.notice_tab
         EditorAction.ESCAPE -> R.string.notice_escape
@@ -107,6 +113,7 @@ object ActionLabels {
         EditorAction.TOGGLE_TYPING_SPEED, EditorAction.TOGGLE_PECK_MODE, EditorAction.CTRL_NEXT,
         EditorAction.TOGGLE_INCOGNITO, EditorAction.TOGGLE_FLOATING, EditorAction.CLIPBOARD, EditorAction.VOICE,
         EditorAction.CASE_LOWER, EditorAction.CASE_TITLE, EditorAction.CASE_UPPER,
+        EditorAction.EDIT_PAGE, EditorAction.SELECT_MODE,
         -> null
     }
 }

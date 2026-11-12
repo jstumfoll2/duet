@@ -989,6 +989,16 @@
                     android:targetPackage="@string/app_pkg"
                     android:targetClass="com.kinetica.keyboard.settings.EdgeSwipeSettingsActivity" />
             </Preference>
+            <!-- Its key is the stored page (Prefs.EDIT_PAGE). Upstream Kinetica 3.0. -->
+            <Preference
+                android:key="pref_edit_page"
+                android:title="@string/edit_page_title"
+                app:singleLineTitle="false"
+                android:summary="@string/edit_page_summary">
+                <intent
+                    android:targetPackage="@string/app_pkg"
+                    android:targetClass="com.kinetica.keyboard.settings.EditPageActivity" />
+            </Preference>
             <Preference
                 android:key="pref_expansions_screen"
                 android:title="@string/expansion_settings_title"

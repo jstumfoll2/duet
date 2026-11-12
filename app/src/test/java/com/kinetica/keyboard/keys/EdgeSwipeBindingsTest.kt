@@ -274,4 +274,19 @@ class EdgeSwipeBindingsTest {
         assertEquals(";", EdgeSwipeBindings.keyIdFor(';', existing = "comma"))
         assertEquals("й", EdgeSwipeBindings.keyIdFor('й', existing = null))
     }
+
+    @Test
+    fun aSlideUpOnTheModeKeyOpensTheEditingPageAndAFreeSavedSetGetsIt() {
+        assertEquals(EditorAction.EDIT_PAGE.output, EdgeSwipeBindings.DEFAULTS.outputFor("mode", Direction.UP))
+        assertNull(EdgeSwipeBindings.DEFAULTS.outputFor("mode", Direction.DOWN))
+        val other = EdgeSwipeBinding("enter", Direction.UP, "?")
+        val filled = EdgeSwipeBindings(EdgeSwipeBindings.withEditPage(listOf(other)))
+        assertEquals(EditorAction.EDIT_PAGE.output, filled.outputFor("mode", Direction.UP))
+        // The user's own slide up on ?123 stays theirs.
+        val mine = EdgeSwipeBinding("mode", Direction.UP, "x")
+        assertEquals(listOf(mine), EdgeSwipeBindings.withEditPage(listOf(mine)))
+        // Seeded twice, added once.
+        val twice = EdgeSwipeBindings.withEditPage(EdgeSwipeBindings.withEditPage(emptyList()))
+        assertEquals(1, twice.size)
+    }
 }

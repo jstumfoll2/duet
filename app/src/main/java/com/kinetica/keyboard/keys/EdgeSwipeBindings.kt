@@ -172,15 +172,22 @@ class EdgeSwipeBindings(val bindings: List<EdgeSwipeBinding>) {
         )
 
         /**
+         * The editing page by a slide up on `?123`: sideways is the numpad's, and down runs off the
+         * keyboard into the navigation bar. The page's own `ABC` carries the same id, so the same
+         * slide closes it. Upstream Kinetica 3.0.
+         */
+        val EDIT_PAGE = EdgeSwipeBinding("mode", EdgeSwipeBinding.Direction.UP, EditorAction.EDIT_PAGE.output)
+
+        /**
          * The built-in shortcuts, on keys that draw no corner hint to contradict: `!` and `?` on
-         * backspace and enter, and [SHIFT_CASE]. Every letter's swipe types its own hint
+         * backspace and enter, [SHIFT_CASE] and [EDIT_PAGE]. Every letter's swipe types its own hint
          * ([withImplicitAlternates]); the emoji picker is on the comma key's long-press.
          */
         val DEFAULTS = EdgeSwipeBindings(
             listOf(
                 EdgeSwipeBinding("backspace", EdgeSwipeBinding.Direction.UP, "!"),
                 EdgeSwipeBinding("enter", EdgeSwipeBinding.Direction.UP, "?"),
-            ) + SHIFT_CASE,
+            ) + SHIFT_CASE + EDIT_PAGE,
         )
 
         /**
@@ -188,8 +195,13 @@ class EdgeSwipeBindings(val bindings: List<EdgeSwipeBinding>) {
          * set saved before those defaults existed, applied once: a swipe the user bound keeps its
          * output, and a default deleted later stays deleted.
          */
-        fun withShiftCase(stored: List<EdgeSwipeBinding>): List<EdgeSwipeBinding> =
-            stored + SHIFT_CASE.filter { d ->
+        fun withShiftCase(stored: List<EdgeSwipeBinding>): List<EdgeSwipeBinding> = withFree(stored, SHIFT_CASE)
+
+        /** [stored] with [EDIT_PAGE] added where `?123`'s slide up is still free; applied once, as [withShiftCase]. */
+        fun withEditPage(stored: List<EdgeSwipeBinding>): List<EdgeSwipeBinding> = withFree(stored, listOf(EDIT_PAGE))
+
+        private fun withFree(stored: List<EdgeSwipeBinding>, defaults: List<EdgeSwipeBinding>): List<EdgeSwipeBinding> =
+            stored + defaults.filter { d ->
                 stored.none { it.keyId == d.keyId && it.direction == d.direction }
             }
 

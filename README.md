@@ -153,6 +153,13 @@ F-Droid.
   row (paste, undo, clipboard and the rest) in the middle of a sentence, over the last word's
   alternatives. A shortcut, a second tap or the next word puts the suggestions back. Turn it off in
   Settings > Suggestion bar.
+- **Editing page** (from Kinetica 3.0). Slide up on `?123` for a page of arrows, Home and End, word
+  moves, select all, copy, cut, paste, undo, redo, Tab, page up and down, forward delete and a
+  one-shot Ctrl. *Select* (dotted box) makes every move extend the selection until a copy, cut or
+  paste. Arrows, word moves and Del repeat while held; Home or End pressed again goes on a line.
+  `ABC`, or the same slide up, goes back to the letters. Its keys can be changed in Shortcuts and
+  gestures > Editing page. Two new shortcut actions come with it: cut the line, with the newline
+  after it or before it.
 - **Clean links shortcut** (from Kinetica 2.1.2). Takes tracking parts (`utm_*`, click ids, share
   ids such as YouTube's `si`) out of the selected links, or out of the link just before the cursor.
   In email and web-address fields, the period key's menu opens on `.com`, `.net` and `.org`.
@@ -318,8 +325,8 @@ Everything below comes from Kinetica and works the same in Duet.
   space+`l` are two chords. Defaults: `?123`+`l` switches language, `?123`+`p` toggles peck-type;
   both can be removed. Hold the trigger still and each key shows its chord (Shortcuts and gestures,
   on).
-- Edge swipes: swipe off any key in any direction. Defaults: backspace up `!`, enter up `?`, and
-  shift up, right and down for the word's case.
+- Edge swipes: swipe off any key in any direction. Defaults: backspace up `!`, enter up `?`,
+  shift up, right and down for the word's case, and `?123` up for the editing page.
 - Text expansions: a short trigger becomes longer text, fired by the Expand action. A trigger can
   have several targets, picked on the bar, and targets can chain. A capital in the trigger can be
   matched exactly, ignored, or carried into the text (`Andor` gives `And/or`), set on the Text
