@@ -83,6 +83,8 @@ object DictionaryLoader {
             }
         }
         val ownWords = HashSet<String>()
+        // The bundled list's largest count, before personal counts join it, for the capital rule.
+        val bundledMax = if (extraWords.isEmpty()) 1L else (countByDisplay.values.maxOrNull() ?: 1).toLong()
         for ((word, count) in extraWords) {
             val lower = word.lowercase()
             if (lower in blocked) continue
@@ -93,7 +95,8 @@ object DictionaryLoader {
             if (lower !in bundledSpellings) ownWords.add(lower)
             val variants = bundledCases[lower].orEmpty()
             val case = cases[lower]?.takeIf {
-                it.votes >= KineticaConstants.LEARNED_CAPITAL_MIN_VOTES && it.display.lowercase() == lower
+                it.votes >= KineticaConstants.LEARNED_CAPITAL_MIN_VOTES && it.display.lowercase() == lower &&
+                    !commonLowercase(countByDisplay[lower], bundledMax)
             }
             val target = when {
                 // The user's settled capital leads: one count above the strongest spelling of the
@@ -195,6 +198,13 @@ object DictionaryLoader {
         }
         return out
     }
+
+    /**
+     * Whether a bundled lowercase spelling counted [count] of [maxCount] is too common to take a
+     * learned capital ([KineticaConstants.LEARNED_CAPITAL_MAX_FREQ_BYTE]).
+     */
+    private fun commonLowercase(count: Int?, maxCount: Long): Boolean =
+        count != null && Trie.freqByteFor(count, maxCount) >= KineticaConstants.LEARNED_CAPITAL_MAX_FREQ_BYTE
 
     /**
      * The learned capitals among user rows (word, display, votes), keyed by the lowercase word,

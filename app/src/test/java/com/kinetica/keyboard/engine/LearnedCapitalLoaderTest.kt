@@ -13,7 +13,8 @@ import org.junit.Test
  */
 class LearnedCapitalLoaderTest {
 
-    private val list = "dennis\t11751\nmark\t30000\nHaus\t70976\nMitwirkung\t62\n"
+    // English-sized counts for `the` and `is`, so the common-word rule sees a real list's spread.
+    private val list = "the\t22761659\nis\t7400675\ndennis\t11751\nmark\t30000\nHaus\t70976\nMitwirkung\t62\n"
 
     private fun load(extra: List<Pair<String, Int>>, cases: Map<String, LearnedCase> = emptyMap()) =
         DictionaryLoader.load(BufferedReader(StringReader(list)), extra, cases = cases)
@@ -50,5 +51,13 @@ class LearnedCapitalLoaderTest {
         assertFalse(p.isWord("mitwirkung"))
         assertTrue(p.isWordIgnoringCase("mitwirkung"))
         assertTrue(p.frequencyByte("haus") > 0)
+    }
+
+    @Test
+    fun aCommonWordNeverTakesALearnedCapital() {
+        // `Is` settled by stray capitals (a lone `i` capitalised, then a letter took its space
+        // back) must not lead every later `is`.
+        val d = load(listOf("is" to 5000), mapOf("is" to LearnedCase("Is", 5)))
+        assertEquals(listOf("is"), spellings(d, "is"))
     }
 }
