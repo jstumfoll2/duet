@@ -74,6 +74,8 @@ object ReplayCli {
         opt(a, "--skipfrom")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_FROM = it.toInt() }
         opt(a, "--skip")?.let { com.kinetica.keyboard.engine.Interleave.SKIP_KW = it.toFloat() }
         forceTouch = a.remove("--touchforce")
+        opt(a, "--streamgate")?.let { KineticaConstants.STREAM_SEARCH_GATE = it.toInt() }
+        opt(a, "--rescued")?.let { KineticaConstants.RESCUE_MIN_LEAD_D = it.toFloat() }
         // --reuse KW: the charge for a reused letter whose key was visited once (#98); 0 = off.
         opt(a, "--reuse")?.let { com.kinetica.keyboard.engine.Interleave.REUSE_KW = it.toFloat() }
         opt(a, "--shortarc")?.let { KineticaConstants.SHORT_READING_ARC_KW = it.toFloat() }
@@ -283,6 +285,67 @@ object ReplayCli {
                     }
                     sb.append("]}")
                     println(sb)
+                }
+            }
+            "refused" -> {
+                // refused [replay flags] FILE...: every gold line (practice prompt or second attempt)
+                // whose label a 50-deep list misses, read again by a decoder that knows only that
+                // word. Listed there, the word is readable and lost to the search's budgets or to
+                // rivals; not listed, the search lines name the gate that refused it. One TSV row
+                // each: file, line, label, buckets, shape, state (lone:source:d:score:50th:size:1st:3rd:10th
+                // scores, at the word's real frequency), letter coverage, gates.
+                val ctc = opt(a, "--ctc")?.let { f -> File(f).inputStream().use { CtcScorer.load(it) } }
+                val beta = opt(a, "--beta")?.toFloat() ?: 0f
+                val ctcilOnly = a.remove("--ctcilonly")
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets, ctc = ctc, beta = beta, aim = aimModel, rerankOverlap = ctcilOnly, rerankOverlapOnly = ctcilOnly)
+                val sink = ReplayReport(h.deepK)
+                for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
+                    val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
+                    val gold = if (w.target != null) !GoldLabels.isFragment(w) else w.how == "retyped" || w.how == "reswiped" || w.how == "corrected"
+                    if (!gold) continue
+                    val label = w.label?.lowercase() ?: continue
+                    val head = "${f.name}\t$n\t$label\t${r.buckets.joinToString(",")}\t${shape(r)}"
+                    if (r.deepRank != 0) { println("$head\tlisted\t${r.rank}\t${r.deepRank}"); continue }
+                    if (!h.predictorFor(w).isWord(label)) { println("$head\tnodict"); continue }
+                    val fb = h.predictorFor(w).frequencyByte(label).coerceAtLeast(1)
+                    val cnt = (Math.exp(fb * Math.log(1.0 + 1e9) / 255.0)).toInt().coerceAtLeast(1)
+                    val lone = com.kinetica.keyboard.engine.DictionaryLoader.load("$label\t$cnt\nqqqqqqqqqqqqqqqqqq\t1000000000\n".reader().buffered())
+                    val p = com.kinetica.keyboard.engine.WordPredictor(
+                        lone.trie, com.kinetica.keyboard.engine.BigramTable.EMPTY, w.geometry.build(), lone.forms, language = w.config.language,
+                    ).also { it.aimModel = aimModel }
+                    val lines = ArrayList<String>()
+                    com.kinetica.keyboard.engine.DecodeTrace.sink = { lines.add(it) }
+                    val out = try { p.decode(r.tokens, w.context, apostrophe = w.apostropheMark) } finally { com.kinetica.keyboard.engine.DecodeTrace.sink = null }
+                    val hit = out.firstOrNull { it.word.lowercase() == label }
+                    val gates = lines.filter { "gates(" in it || it.startsWith("interleave") }.joinToString(" | ") { l ->
+                        if (l.startsWith("interleave")) l.take(60) else {
+                            val kind = l.substringBefore(" attempts=")
+                            val nz = Regex("(\\w+)=([1-9]\\d*)").findAll(l.substringAfter("gates(")).joinToString(",") { it.value }
+                            val ab = Regex("abandon\\(([^)]*)\\)").find(l)?.groupValues?.get(1)?.split(',')?.filter { !it.endsWith("=0") }?.joinToString(",") ?: ""
+                            "$kind cands=${Regex("cands=(\\d+)").find(l)?.groupValues?.get(1)} ab[$ab] g[$nz]"
+                        }
+                    }
+                    // How far each label letter's key centre is from the nearest touched point, kw.
+                    val g = w.geometry.build()
+                    val pts = ArrayList<FloatArray>()
+                    val starts = ArrayList<FloatArray>()
+                    val ends = ArrayList<FloatArray>()
+                    for (t in r.tokens) when (t) {
+                        is com.kinetica.keyboard.engine.models.TapToken -> { val q = floatArrayOf(t.x, t.y); pts.add(q); starts.add(q); ends.add(q) }
+                        is com.kinetica.keyboard.engine.models.SwipeToken -> {
+                            for (q in t.rawPath) pts.add(floatArrayOf(q.x, q.y))
+                            t.rawPath.firstOrNull()?.let { starts.add(floatArrayOf(it.x, it.y)) }
+                            t.rawPath.lastOrNull()?.let { ends.add(floatArrayOf(it.x, it.y)) }
+                        }
+                    }
+                    val codes = g.alphabet.encode(com.kinetica.keyboard.engine.AccentFolder.fold(label).replace("'", ""))?.filter { g.hasKey(it) } ?: emptyList()
+                    fun near(code: Int, from: List<FloatArray>) = from.minOfOrNull { kotlin.math.hypot(it[0] - g.centerX(code), it[1] - g.centerY(code)) } ?: 9f
+                    val miss = codes.map { near(it, pts) }
+                    val cover = "max=${"%.2f".format(miss.maxOrNull() ?: 9f)} far=${miss.count { it > 1f }} first=${"%.2f".format(codes.firstOrNull()?.let { near(it, starts) } ?: 9f)} last=${"%.2f".format(codes.lastOrNull()?.let { near(it, ends) } ?: 9f)} n=${codes.size} tok=${r.tokens.size}"
+                    val deepMin = r.deep.lastOrNull()?.score ?: 0f
+                    val state = if (hit != null) "lone:${hit.source}:${"%.2f".format(hit.dtwDistance)}:${hit.score}:${deepMin}:${r.deep.size}:${r.deep.getOrNull(0)?.score}:${r.deep.getOrNull(2)?.score}:${r.deep.getOrNull(9)?.score}:$fb:${p.frequencyByte(label)}" else "refused"
+                    println("$head\tunlisted\t$state\t$cover\t$gates")
                 }
             }
             "trace" -> {

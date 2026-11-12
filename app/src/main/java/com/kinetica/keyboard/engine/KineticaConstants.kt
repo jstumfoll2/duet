@@ -440,10 +440,13 @@ object KineticaConstants {
 
     /**
      * The rescue pass runs when the lead's distance is over this, or nothing was
-     * found. At 0.5 it cost 10 labelled leads; 1.0 cost none. Infinite turns it off.
-     * The beam's dropped-tap run opens on the same lead ([DROPPED_TAP_COST_KW]).
+     * found. Infinite turns it off. The beam's dropped-tap run opens on the same lead
+     * ([DROPPED_TAP_COST_KW]). 1.0 until the 20-batch replay of 2026-11-12: of 437 true-label
+     * words the list never held, 55 would have scored into the first ten, most read only by
+     * this pass. At 0.5: label in the first ten +21 -4 rows, lead +5 -3, all lines flat,
+     * p95 +1 ms. 0.35 gains nothing more and loses 3 more rows. A var for the replay's --rescued.
      */
-    const val RESCUE_MIN_LEAD_D = 1.0f
+    @JvmField var RESCUE_MIN_LEAD_D = 0.5f
 
     /**
      * A list only the rescue pass found commits its lead when it fits within this. On the phone,
@@ -563,7 +566,7 @@ object KineticaConstants {
      * evicts good leads the way the cut pass did ungated: top-1 251 against 268 and
      * `keys` 45 -> 25.
      */
-    const val STREAM_SEARCH_GATE = 1
+    @JvmField var STREAM_SEARCH_GATE = 1
 
     /**
      * Cuts one reading of the stream pass may place, over all its swipes together. 3 is the
