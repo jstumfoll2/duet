@@ -82,4 +82,21 @@ class AimModelTest {
         assertEquals(m.offset(a).second, r.offset(a).second, 1e-4f)
         assertEquals(m.learned, r.learned)
     }
+
+    @Test fun `switched off and on again the learned offsets come back`() {
+        // The keyboard's switch sets strength 0 and back: nothing is lost in between.
+        val m = taught(0.3f, 0f)
+        val on = m.aimed(g).centerX(a)
+        m.strength = 0f
+        assertSame(g, m.aimed(g))
+        m.strength = 1f
+        assertEquals(on, m.aimed(g).centerX(a), 1e-6f)
+    }
+
+    @Test fun `reset forgets every offset`() {
+        val m = taught(0.3f, -0.2f)
+        m.reset()
+        assertEquals(0, m.learned)
+        assertSame(g, m.aimed(g))
+    }
 }

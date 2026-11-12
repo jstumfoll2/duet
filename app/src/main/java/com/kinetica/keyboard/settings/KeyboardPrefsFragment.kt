@@ -94,6 +94,7 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         dropIconSpace(preferenceScreen)
         wireThemePreview()
         wireBackdrop()
+        wireFingerOffsetsReset()
         wireSizePreview()
         showVersion()
     }
@@ -742,6 +743,30 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) importBackdrop(uri)
         }
+
+    /**
+     * The reset row bumps a counter in the thumb positions' own file; the keyboard service, in
+     * this process, hears it and forgets what it holds in memory too. Clearing the stored text
+     * here as well covers a service that is not running.
+     */
+    private fun wireFingerOffsetsReset() {
+        val row = findPreference<Preference>(Prefs.FINGER_OFFSETS_RESET_ROW) ?: return
+        row.setOnPreferenceClickListener {
+            val ctx = requireContext()
+            AlertDialog.Builder(ctx)
+                .setTitle(R.string.pref_finger_offsets_reset_title)
+                .setMessage(R.string.pref_finger_offsets_reset_message)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    val file = ctx.applicationContext.getSharedPreferences(Prefs.TOUCH_MODEL_FILE, android.content.Context.MODE_PRIVATE)
+                    val next = file.getInt(Prefs.TOUCH_MODEL_RESET, 0) + 1
+                    file.edit().clear().putInt(Prefs.TOUCH_MODEL_RESET, next).apply()
+                    Toast.makeText(ctx, R.string.pref_finger_offsets_reset_done, Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            true
+        }
+    }
 
     /** The image row picks a picture, or offers another, a new cut or none once one is set. */
     private fun wireBackdrop() {

@@ -313,6 +313,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private var vibrator: Vibrator? = null
     private var audioManager: AudioManager? = null
     private var prefListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+    // Held here: SharedPreferences keeps its listeners weakly.
+    private var touchResetListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     private var editorState = EditorState.DEFAULT
 
@@ -593,6 +595,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         touchModelSaved = touchModel.learned
         aimModel.restore(getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE).getString(AIM_MODEL_KEY, null))
         aimModelSaved = aimModel.learned
+        // Settings > Dictionary and learning > Reset learned thumb positions bumps this counter.
+        val touchFile = getSharedPreferences(TOUCH_MODEL_PREFS, MODE_PRIVATE)
+        val resetListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == Prefs.TOUCH_MODEL_RESET) forgetThumbPositions()
+        }
+        touchResetListener = resetListener
+        touchFile.registerOnSharedPreferenceChangeListener(resetListener)
         // Decode tracing, developer build only. Two-thumb gestures cannot be reproduced on
         // the JVM, so a capture of the real token buffer is the evidence for them. The
         // release source set's TraceRecorder is a stub that installs nothing.
@@ -629,6 +638,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         EdgeSwipeDefaults.applyTo(prefs)
         config = KeyboardConfig.from(prefs)
+        applyFingerOffsets()
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
             val previous = config
             config = KeyboardConfig.from(p)
@@ -643,6 +653,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
             }
             applyViewConfig()
+            if (config.fingerOffsets != previous.fingerOffsets) applyFingerOffsets()
             if (config.enabledLanguages != previous.enabledLanguages) syncEnabledSubtypes()
             // Its own branch: an expansion edit touches no dictionary or layout, and folding
             // it into the chain below would rebuild one.
@@ -5823,6 +5834,20 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         keyboardView?.setShiftUppercase(shift.isShifted)
     }
 
+    /** Both thumb-position models back to nothing learned; their file was cleared by Settings. */
+    private fun forgetThumbPositions() {
+        aimModel.reset()
+        touchModel.reset()
+        aimModelSaved = aimModel.learned
+        touchModelSaved = touchModel.learned
+    }
+
+    /** The switch: off, nothing learned moves a key or hints a tap; both models go on learning. */
+    private fun applyFingerOffsets() {
+        aimModel.strength = if (config.fingerOffsets) KineticaConstants.AIM_MODEL_STRENGTH else 0f
+        touchModel.off = !config.fingerOffsets
+    }
+
     /** Writes the touch model to its own private file when it learned since the last write. */
     private fun saveTouchModel() {
         if (aimModel.learned != aimModelSaved) {
@@ -5841,7 +5866,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val INCOGNITO_TAG = ActionRow.glyph(EditorAction.TOGGLE_INCOGNITO)
 
         // Its own file, not the settings: per-key averages, kept out of a settings backup.
-        const val TOUCH_MODEL_PREFS = "touch_model"
+        const val TOUCH_MODEL_PREFS = Prefs.TOUCH_MODEL_FILE
         const val TOUCH_MODEL_KEY = "model"
         const val AIM_MODEL_KEY = "aim"
         const val USER_DICT_LIMIT = 5000
