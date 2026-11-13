@@ -258,7 +258,12 @@ data class KeyboardConfig(
     val editPage: EditPage = EditPage.DEFAULT,
 ) {
     companion object {
-        fun from(prefs: SharedPreferences): KeyboardConfig {
+        /**
+         * The snapshot of [stored]. With [systemNight] and the day and night themes on
+         * ([LookSets]), the theme rows are the night theme's.
+         */
+        fun from(stored: SharedPreferences, systemNight: Boolean = false): KeyboardConfig {
+            val prefs = LookSets.view(stored, LookSets.nightDrawn(stored, systemNight))
             // Read once: the tap delay defaults to it and the retraction window to twice the tap
             // delay, so an untouched keyboard keeps the single-slider behaviour.
             val swipeDelay = prefs.getInt(

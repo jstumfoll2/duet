@@ -74,9 +74,14 @@ object Backup {
     /**
      * Whether a setting travels in a backup, out and back in. The background image's stamp and
      * cuts do not: the image file stays on this device, and they alone would point at nothing.
+     * Nor does the guided setup's progress, which belongs to the install: a restored finish
+     * would skip the setup on a new phone.
      */
-    fun carried(key: String): Boolean =
-        key != Prefs.BACKDROP && key != Prefs.BACKDROP_CROP && key != Prefs.BACKDROP_CROP_LANDSCAPE
+    fun carried(key: String): Boolean = key !in NOT_CARRIED
+
+    private val NOT_CARRIED = setOf(
+        Prefs.BACKDROP, Prefs.BACKDROP_CROP, Prefs.BACKDROP_CROP_LANDSCAPE, Prefs.SETUP_STEP, Prefs.SETUP_DONE,
+    )
 
     /** True when [s] can survive a round trip: no separator, no newline. */
     fun encodable(s: String): Boolean = s.none { it == '\t' || it == '\n' || it == '\r' }

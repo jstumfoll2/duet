@@ -2,6 +2,7 @@ package com.kinetica.keyboard.settings
 
 import androidx.preference.ListPreference
 import androidx.preference.Preference
+import androidx.preference.SwitchPreferenceCompat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -88,5 +89,23 @@ class ThemeRowsEnabledTest {
         assertEquals("pref_group_keys", entries["pref_enter_action"]?.screenKey)
         assertEquals(null, entries["pref_group_typing"]?.screenKey)
         assertEquals("pref_group_about", entries["pref_licenses_screen"]?.screenKey)
+    }
+
+    @Test
+    fun theNightThemeStartsAsACopyOfTheDayTheme() {
+        val f = open("pref_group_look")
+        choose(f.row(Prefs.THEME_MODE) as ListPreference, "preset_ocean")
+        val nightMode = f.row(Prefs.nightTwin(Prefs.THEME_MODE)) as ListPreference
+        assertFalse("night rows wait for the switch", nightMode.isEnabled)
+        val sw = f.row(Prefs.LOOK_SETS) as SwitchPreferenceCompat
+        assertTrue(sw.onPreferenceChangeListener!!.onPreferenceChange(sw, true))
+        sw.isChecked = true
+        assertEquals("preset_ocean", nightMode.value)
+        assertTrue(nightMode.isEnabled)
+        // The night rows gray out by their own theme, as the day rows do.
+        assertFalse(f.row(Prefs.nightTwin(Prefs.THEME_HUE)).isEnabled)
+        choose(nightMode, "custom")
+        assertTrue(f.row(Prefs.nightTwin(Prefs.THEME_HUE)).isEnabled)
+        assertFalse("the day rows keep their own theme", f.row(Prefs.THEME_HUE).isEnabled)
     }
 }

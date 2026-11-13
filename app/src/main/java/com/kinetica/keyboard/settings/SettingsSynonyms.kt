@@ -34,6 +34,9 @@ object SettingsSynonyms {
     /** The row key of the expansions screen; it is an intent row, not a preference. */
     const val EXPANSIONS_ROW = "pref_expansions_screen"
 
+    /** The changed-settings screen ([ChangedSettings]); its rows are built in code. */
+    const val CHANGED_SCREEN = "pref_group_changed"
+
     /** The long-press screen; its per-letter rows are built in code and are not searchable. */
     const val LONGPRESS_GROUP = "pref_group_longpress"
 
@@ -50,6 +53,11 @@ object SettingsSynonyms {
         Prefs.THEME_BRIGHTNESS to listOf("dark", "light", "contrast", "dim"),
         Prefs.THEME_HUE to listOf("colour", "color", "accent", "tint"),
         Prefs.THEME_COLOR_HEX to listOf("colour", "color", "hex", "rgb", "code", "exact", "picker"),
+        Prefs.LOOK_SETS to listOf(
+            "night", "day", "dark mode", "dark theme", "evening", "automatic", "schedule", "two themes",
+            "notte", "giorno", "tema scuro",
+        ),
+        Prefs.nightTwin(Prefs.THEME_MODE) to listOf("night", "dark mode", "evening", "notte", "tema scuro"),
         Prefs.TRAIL_COLOR_HEX to listOf("trail", "swipe", "hex", "rgb", "exact", "picker"),
         Prefs.TRAIL_COLOR to listOf("swipe", "gesture", "line", "path", "rainbow"),
         Prefs.TRAIL_STYLE to listOf("swipe", "trail", "glow", "neon", "dots", "comet", "sparkle", "effect"),
@@ -185,6 +193,8 @@ object SettingsSynonyms {
         "pref_licenses_screen" to listOf("legal", "attribution", "open source", "credits"),
         "pref_traces_screen" to listOf("trace", "traces", "practice", "export", "record", "recording", "neural", "rerank", "dev"),
         "pref_contribute_screen" to listOf("donate", "donation", "coffee", "ko-fi", "kofi", "tip", "support"),
+        CHANGED_SCREEN to listOf("reset", "default", "defaults", "restore", "undo", "factory", "modified", "changed"),
+        "pref_setup_again" to listOf("setup", "set up", "wizard", "onboarding", "first run", "start over", "welcome"),
         "pref_group_learn" to listOf("help", "tutorial", "how to", "practice", "practise", "tips"),
         "pref_group_bar" to listOf("topbar", "toolbar", "candidates", "strip", "bar"),
         "pref_group_about" to listOf("info", "version", "credits", "legal", "donate"),
