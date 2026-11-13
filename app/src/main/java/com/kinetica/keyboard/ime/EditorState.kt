@@ -55,6 +55,11 @@ data class EditorState(
     /** The action id that goes with [actionLabel]. */
     val customActionId: Int = 0,
     val fieldKind: FieldKind = FieldKind.TEXT,
+    /**
+     * The field asked ([NO_RECENT_OPTION]) that the recent words neither apply nor grow: the
+     * DEV build's practice screens, whose prompts repeat by design.
+     */
+    val noRecent: Boolean = false,
 ) {
     /** True when nothing about this field may be persisted, for either reason. */
     val teachesNothing: Boolean get() = privateMode || noLearning
@@ -84,6 +89,9 @@ data class EditorState(
          * right there. Other keyboards ignore it.
          */
         const val ONE_TOKEN_OPTION = "com.kinetica.keyboard.oneToken"
+
+        /** The private option that sets [noRecent]. */
+        const val NO_RECENT_OPTION = "com.kinetica.keyboard.noRecent"
 
         internal fun asksForOneToken(privateImeOptions: String?): Boolean =
             privateImeOptions?.split(',')?.any { it.trim() == ONE_TOKEN_OPTION } == true
@@ -153,6 +161,7 @@ data class EditorState(
                 actionLabel = info.actionLabel?.toString()?.takeIf { it.isNotBlank() },
                 customActionId = info.actionId,
                 fieldKind = kind,
+                noRecent = info.privateImeOptions?.split(',')?.any { it.trim() == NO_RECENT_OPTION } == true,
             )
         }
     }

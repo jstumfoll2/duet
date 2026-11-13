@@ -76,6 +76,9 @@ fun interface CandidateReranker {
      */
     fun reranks(overlapped: Boolean): Boolean = true
 
+    /** Whether such a buffer fills the deep heap for the rerank, or reranks the shipping list. */
+    fun deepHeap(overlapped: Boolean): Boolean = true
+
     /** Whether [rerank] or [rerankOverlapped] reads [WordCandidate.segmentation] on such a buffer. */
     fun usesSegmentation(overlapped: Boolean): Boolean = true
 }

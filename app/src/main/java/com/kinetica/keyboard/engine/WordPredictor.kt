@@ -149,6 +149,37 @@ class WordPredictor(
         return out.sortedByDescending { it.score }
     }
 
+    /**
+     * Words committed lately in this session ([SessionWords.snapshot], lowercase and folded), set
+     * by the service after each commit; read once per decode. Empty is off.
+     */
+    @Volatile var sessionWords: Set<String> = emptySet()
+
+    /**
+     * [list] with each rarer word the user typed lately scored up by [KineticaConstants.SESSION_BOOST],
+     * re-sorted. After the search, like the penalties: it only reorders words already listed.
+     */
+    private fun withSession(list: List<WordCandidate>): List<WordCandidate> {
+        val r = sessionWords
+        if (r.isEmpty() || list.size < 2 || KineticaConstants.SESSION_BOOST == 1f) return list
+        val maxFw = kotlin.math.exp(KineticaConstants.SESSION_MAX_LN_FREQ)
+        var changed = false
+        val out = list.map { c ->
+            if (c.word.length < KineticaConstants.SESSION_MIN_LEN || c.frequencyWeight > maxFw ||
+                AccentFolder.fold(c.word.lowercase()) !in r
+            ) {
+                c
+            } else {
+                changed = true
+                c.scaled(ScoreTerms.Term.SESSION, KineticaConstants.SESSION_BOOST)
+            }
+        }
+        if (!changed) return list
+        val sorted = out.sortedByDescending { it.score }
+        DecodeTrace.log { "session$langTag: " + sorted.take(5).joinToString(" ") { it.word } }
+        return sorted
+    }
+
     /** Commit count for [word], 0 when never committed. */
     fun personalCount(word: String): Int = personalCounts[word.lowercase()] ?: 0
 
@@ -502,7 +533,7 @@ class WordPredictor(
         val r = reranker ?: return Reading(false, false, topK, false, il)
         val overlapped = il != null || Interleave.thumbsOverlap(tokens)
         val on = r.reranks(overlapped)
-        return Reading(overlapped, on, if (on) deepDepth else topK, on && r.usesSegmentation(overlapped), il)
+        return Reading(overlapped, on, if (on && r.deepHeap(overlapped)) deepDepth else topK, on && r.usesSegmentation(overlapped), il)
     }
 
     /**
@@ -518,7 +549,7 @@ class WordPredictor(
     ): List<WordCandidate> {
         val prevWord = context.lastOrNull()?.let { AccentFolder.fold(it.lowercase()) }
         val prevWordId = prevWord?.let { trie.nodeFor(it) } ?: -1
-        val letters = withPenalties(withTrigrams(decodeLetters(input, context, beam), context, prevWordId))
+        val letters = withPenalties(withSession(withTrigrams(decodeLetters(input, context, beam), context, prevWordId)))
         val held = if (heldDoubleBoost == 1f) IntArray(0) else HeldDoubles.heldKeys(input, heldDoubleMs, heldDoubleEndMs, heldDoubleFreeTime)
         val missCharged = heldDoubleMissKeep != 1f && input.any { it is SwipeToken }
         val ranked = if (held.isEmpty() && !missCharged) letters else preferHeldDoubles(letters, held, prevWordId).also { out ->

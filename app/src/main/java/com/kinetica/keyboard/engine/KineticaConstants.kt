@@ -906,6 +906,17 @@ object KineticaConstants {
     // move.
     const val PERSONAL_BOOST = 0.15f
 
+    // Session recency (SessionWords): a word among the last SESSION_WINDOW commits is likely again,
+    // the "cache" of a cache language model. Only rarer words of 3+ letters earn it: a common word
+    // is already carried by its frequency and the pair tables, and boosting `the` or `there` for
+    // having been typed a minute ago only swaps them with each other. Measured on 20 trace
+    // batches (free typing only; practice prompts repeat by design and skip it).
+    @JvmField var SESSION_BOOST = 1.35f
+    const val SESSION_WINDOW = 200
+    const val SESSION_MIN_LEN = 3
+    /** ln of the frequency weight at or under which a word counts as rare enough to earn [SESSION_BOOST]. */
+    @JvmField var SESSION_MAX_LN_FREQ = -0.3f
+
     /**
      * Commits a word learns when the user picks it from the bar over the decode's first choice
      * (best over beast). One unit, as any commit, barely moved the next contest. Replay of ten

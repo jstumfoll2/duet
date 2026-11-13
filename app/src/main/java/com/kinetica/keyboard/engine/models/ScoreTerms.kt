@@ -64,6 +64,9 @@ class ScoreTerms private constructor(private val v: FloatArray) {
 
         /** The neural rerank, `-beta * cost`. */
         CTC("ctc"),
+
+        /** A rarer word typed in this session's recent commits ([SessionWords]). */
+        SESSION("session"),
     }
 
     /** ln of [t]'s factor; 0 when it never applied. */

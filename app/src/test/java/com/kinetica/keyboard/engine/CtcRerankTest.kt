@@ -248,6 +248,46 @@ class CtcRerankTest {
     }
 
     @Test
+    fun oneThumbBetaIsItsOwn() {
+        val g = TestData.qwertyGeometry()
+        val r = CtcReranker(scorer(), { g }, 0.1f)
+        r.overlap = true
+        r.soloBeta = 0f
+        assertTrue(!r.reranks(false))
+        assertTrue(r.reranks(true))
+        r.soloBeta = 0.025f
+        assertTrue(r.reranks(false))
+        r.overlapOnly = true
+        assertTrue(!r.reranks(false))
+        r.overlapOnly = false
+        assertTrue(r.deepHeap(false))
+        r.soloShallow = true
+        assertTrue(!r.deepHeap(false))
+        assertTrue(r.deepHeap(true))
+    }
+
+    @Test
+    fun aClearLeadSkipsTheEncoder() {
+        val g = TestData.qwertyGeometry()
+        val dict = en
+        assumeTrue(dict != null)
+        val (trie, forms, bigrams) = dict!!
+        val r = CtcReranker(scorer(), { g }, 0.1f)
+        r.soloBeta = 0.025f
+        val p = WordPredictor(trie, bigrams, g, forms, reranker = r, interleave = false)
+        val tokens = listOf(TestData.sloppySwipe("keyboard", g, 1000, 500, 0.3f))
+        val list = p.decode(tokens, emptyList())
+        assumeTrue(list.size >= 2)
+        val gap = ln(list[0].score / list[1].score)
+        r.soloGate = gap + 1e-3f
+        assertTrue(reranked(r.rerank(tokens, list)))
+        r.soloGate = gap / 2f
+        assertSame(list, r.rerank(tokens, list))
+    }
+
+    private fun reranked(l: List<WordCandidate>) = l.any { it.terms[com.kinetica.keyboard.engine.models.ScoreTerms.Term.CTC] != 0f }
+
+    @Test
     fun repeatedDecodesScoreTheSame() {
         val g = TestData.qwertyGeometry()
         val dict = en
