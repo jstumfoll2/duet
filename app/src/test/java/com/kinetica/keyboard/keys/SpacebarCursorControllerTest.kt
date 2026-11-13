@@ -274,4 +274,24 @@ class SpacebarCursorControllerTest {
         r.controller.onMove(130f)
         assertEquals(listOf(1), r.directions)
     }
+
+    // ---- a held shift swaps the step (upstream Kinetica 3.0) ----------------------------
+
+    @Test
+    fun aHeldShiftSwapsTheStepAtEveryStep() {
+        // Steps at +28, +48, +68, +88 (anchor armed at +8, 20 per step).
+        for (words in listOf(false, true)) {
+            val r = Recorder()
+            r.controller.wordMode = words
+            r.controller.onDown(0f)
+            r.controller.onMove(8f)
+            r.controller.onMove(28f)
+            r.controller.flipped = true
+            r.controller.onMove(48f)
+            r.controller.onMove(68f)
+            r.controller.flipped = false
+            r.controller.onMove(88f)
+            assertEquals(listOf(words, !words, !words, words), r.steps.map { it.second })
+        }
+    }
 }

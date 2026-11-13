@@ -412,6 +412,8 @@
     <string name="pref_numpad_for_numbers_summary">Un campo che accetta solo numeri, un numero di telefono o una data si apre sul tastierino numerico. Se disattivato, sulle lettere, così si può ancora scrivere ed espandere una parola</string>
     <string name="pref_letters_on_new_field_title">Lettere in ogni nuovo campo</string>
     <string name="pref_letters_on_new_field_summary">Un nuovo campo si apre sulle lettere, non sulla pagina di simboli o numeri lasciata nel campo precedente</string>
+    <string name="pref_letters_after_space_title">Lettere dopo uno spazio sui simboli</string>
+    <string name="pref_letters_after_space_summary">Uno spazio scritto su una pagina di simboli torna alle lettere. Il tastierino numerico resta</string>
     <string name="pref_enter_action_summary">Invio cerca, invia o va avanti quando il campo lo prevede, e il tasto mostra cosa fa. Tienilo premuto per andare a capo. Se disattivato, va a capo in ogni campo su più righe</string>
     <string name="enter_label_search">Cerca</string>
     <string name="enter_label_send">Invia</string>
@@ -520,6 +522,10 @@
     <string name="pref_bar_menu_button_summary">Un pulsante \u2630 all\'estremità sinistra della barra. Un tocco mostra la riga delle scorciatoie (incolla, annulla e le altre) a metà frase; la parola successiva riporta i suggerimenti</string>
     <string name="pref_retype_button_title">Pulsante Riscrivi sulla barra dei suggerimenti</string>
     <string name="pref_retype_button_summary">Un pulsante ↻ all\'estremità destra della barra. Un tocco toglie la parola che stai scrivendo, o quella appena finita, per rifarla con uno swipe</string>
+    <string name="pref_backspace_punctuation_stops_title">Il trascinamento di cancella si ferma alla punteggiatura</string>
+    <string name="pref_backspace_punctuation_stops_summary">Trascinando per parole, un link o un percorso si seleziona un pezzo alla volta, quindi esempio.it/pagina richiede tre passi. Nel testo normale una parola va ancora con la sua virgola</string>
+    <string name="pref_shift_swaps_slides_title">Tieni premuto maiuscolo per invertire il passo</string>
+    <string name="pref_shift_swaps_slides_summary">Con maiuscolo premuto, il trascinamento su barra spaziatrice e cancella va per lettere invece che per parole, o per parole invece che per lettere. Dopo un trascinamento così, maiuscolo non cambia le maiuscole</string>
     <string name="pref_spacebar_word_slide_title">La barra spaziatrice sposta di una parola</string>
     <string name="pref_spacebar_word_slide_summary">Il trascinamento sulla barra spaziatrice sposta il cursore di una parola alla volta, come quello di cancella. La punteggiatura si sposta con la parola</string>
     <string name="backup_heading">Backup completo</string>

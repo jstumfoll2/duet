@@ -27,6 +27,12 @@ class SpacebarCursorController(
     var wordMode = false
 
     /**
+     * A held shift swaps [wordMode] (Prefs.SHIFT_SWAPS_SLIDES). Read at every step, so pressing or
+     * lifting shift mid-slide changes the next step: a cursor step has no count to keep.
+     */
+    var flipped = false
+
+    /**
      * Whether the left [SPACELESS_FRACTION] of the key ends the word without a space.
      *
      * Off by default: it spends a third of the spacebar's tap area.
@@ -93,12 +99,12 @@ class SpacebarCursorController(
         val step = effectiveStepDp() * density
         while (x - anchorX >= step) {
             stepped = true
-            onCursorMove(1, wordMode)
+            onCursorMove(1, wordMode != flipped)
             anchorX += step
         }
         while (anchorX - x >= step) {
             stepped = true
-            onCursorMove(-1, wordMode)
+            onCursorMove(-1, wordMode != flipped)
             anchorX -= step
         }
     }

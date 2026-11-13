@@ -75,6 +75,9 @@ class ShippedDefaultsTest {
         pref_autospace_tap_delay_ms int 300
         pref_autospace_tapped_words bool false
         pref_backspace_char_slide bool false
+        pref_backspace_punctuation_stops bool false
+        pref_shift_swaps_slides bool false
+        pref_letters_after_space bool false
         pref_badges_while_adjusting bool true
         pref_british_spelling bool false
         pref_comma_mode string keep

@@ -919,7 +919,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         val p = NeuralRerank.primary { reranker, depth ->
                             WordPredictor(
                                 dict.trie, bigrams, currentGeometry, dict.forms, counts, pairs, lang,
-                                reranker = reranker, rerankDepth = depth,
+                                reranker = reranker, rerankDepth = depth, learnedOnly = dict.ownWords,
                             )
                         }
                         p.touchModel = touchModel
@@ -936,7 +936,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         secondaryPredictor = alt?.let { (d, b) ->
                             WordPredictor(
                                 d.trie, b, currentGeometry, d.forms, altCounts, altPairs,
-                                language = detectLang ?: "",
+                                language = detectLang ?: "", learnedOnly = d.ownWords,
                             )
                         }
                         val xCounts = ConcurrentHashMap<String, Int>(extraRows.size * 2)
@@ -948,7 +948,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         // A language that left (a switch from Polish) must not keep its standing.
                         momentum.retain(residentLanguages())
                         extraPredictor = extra?.let { (d, b) ->
-                            WordPredictor(d.trie, b, currentGeometry, d.forms, xCounts, xPairs, language = extraLang ?: "")
+                            WordPredictor(
+                                d.trie, b, currentGeometry, d.forms, xCounts, xPairs,
+                                language = extraLang ?: "", learnedOnly = d.ownWords,
+                            )
                         }
                         applyWordPenalties()
                         composer = WordComposer(
@@ -1237,6 +1240,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         kv.popupColumns = config.popupColumns
         kv.autospaceDot = config.autospace
         kv.backspaceCharSlide = config.backspaceCharSlide
+        kv.backspacePunctuationStops = config.backspacePunctuationStops
+        kv.shiftSwapsSlides = config.shiftSwapsSlides
         kv.backspaceStepDp = config.backspaceStepDp
         kv.spacebarStepDp = config.spacebarStepDp
         kv.spacebarWordSlide = config.spacebarWordSlide
@@ -2083,7 +2088,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             }?.let { TraceRecorder.key(it, android.os.SystemClock.uptimeMillis()) }
             when (key.type) {
                 KeyType.CHAR -> if (!markApostrophe(key)) onPunctuation(key.output)
-                KeyType.SPACE -> onSpace()
+                KeyType.SPACE -> {
+                    onSpace()
+                    if (lettersAfterSpace(config.lettersAfterSpace, keyboardView?.shownBoard)) {
+                        keyboardView?.setKeyboardLayout(alphaLayout())
+                    }
+                }
                 KeyType.BACKSPACE -> onBackspace()
                 KeyType.ENTER -> onEnter()
                 KeyType.SHIFT -> {
@@ -2130,7 +2140,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             onBackspace(tap = !repeat)
         }
 
-        override fun onStageDelete(units: Int, chars: Boolean) = stageDeletion(units, chars)
+        override fun onStageDelete(units: Int, granularity: DeleteSpan.Granularity) = stageDeletion(units, granularity)
 
         override fun onCommitStagedDelete() = commitStagedDeletion()
 
@@ -4081,7 +4091,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private var stageSelectedText = ""
 
 
-    private fun stageDeletion(units: Int, chars: Boolean) {
+    private fun stageDeletion(units: Int, granularity: DeleteSpan.Granularity) {
+        val chars = granularity == DeleteSpan.Granularity.CHARS
         if (units <= 0) {
             if (stagedDeletionLength > 0) clearStagedDeletion(restoreCursor = true)
             return
@@ -4119,7 +4130,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val span = if (stageJoinCut > 0 && !chars && stageSelected == 0) {
             DeleteSpan.wordsFromJoin(before, units, stageJoinCut)
         } else {
-            DeleteSpan.staged(stageSelected, before, units, chars)
+            DeleteSpan.staged(stageSelected, before, units, granularity)
         }
         stagedDeletionLength = span
         val tail = (span - stageSelected).coerceIn(0, before.length)
@@ -4622,6 +4633,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (reloadHistory != null) DecodeTrace.log { "  reload word=$fragment from=history" }
         // Whatever the timer was armed for, it is not what the composer holds now.
         cancelAutospace()
+        // The last commit taken up again is not the previous word of its own decode.
+        val context = comp.contextSnapshot()
+        if (reopensLastCommit(context, fragment, wordBefore(before, fragment)) && comp.reopenLastCommit(context.last())) {
+            DecodeTrace.log { "  reopen commit word=${context.last()} left=${fragment.length}" }
+        }
         comp.seed(taps)
         // After seed, not before: the decode runs on decodeExecutor and its callback
         // cannot reach onCandidates until this method returns, so the flag is up before
@@ -4736,7 +4752,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val scores = HashMap<String, Float>(3)
         for ((lang, p) in listOf(config.language to predictor, secondaryLanguage to secondaryPredictor, extraLanguage to extraPredictor)) {
             if (lang == null || p == null) continue
-            scores[lang] = if (p.isWordIgnoringCase(word)) p.frequencyByte(word).coerceAtLeast(0) / 255f else 0f
+            // A spelling only the user's learning put in this trie scores 0 (upstream 3.0): a word
+            // filed here by mistake must not pull the momentum here too.
+            scores[lang] = p.momentumScore(word)
         }
         if (scores.size < 2) return
         momentum.observe(scores)
@@ -5357,15 +5375,20 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /**
      * The resident languages whose lexicon holds [word], each with its frequency byte there.
-     * Empty with one language resident, which leaves every filing to provenance.
+     * Empty with one language resident, which leaves every filing to provenance. With no primary
+     * language only the bundled lists count (upstream 3.0, `holdsListSpelling`): the active
+     * language says nothing about the text there, and a learned copy may be a misfiling that
+     * would otherwise claim every later commit of the word.
      */
     private fun heldBy(word: String): Map<String, Int> {
+        val listsOnly = config.noPrimary
         val second = secondaryPredictor ?: return emptyMap()
         val secondLang = secondaryLanguage ?: return emptyMap()
         val out = HashMap<String, Int>(3)
         // Held means this exact spelling: `è` is Italian's, not English's through its `e`.
         fun held(p: WordPredictor, lang: String) {
-            if (p.holdsSpelling(word)) p.frequencyByte(word).takeIf { it >= 0 }?.let { out[lang] = it }
+            val holds = if (listsOnly) p.holdsListSpelling(word) else p.holdsSpelling(word)
+            if (holds) p.frequencyByte(word).takeIf { it >= 0 }?.let { out[lang] = it }
         }
         predictor?.let { held(it, config.language) }
         held(second, secondLang)

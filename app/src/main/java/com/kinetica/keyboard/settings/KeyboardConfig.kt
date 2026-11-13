@@ -100,6 +100,10 @@ data class KeyboardConfig(
     val alternateSwipes: Boolean,
     /** Backspace slide stages single characters instead of whole words. */
     val backspaceCharSlide: Boolean,
+    /** A word on the backspace slide stops at punctuation; see [Prefs.BACKSPACE_PUNCTUATION_STOPS]. */
+    val backspacePunctuationStops: Boolean,
+    /** A held shift swaps the space and backspace slide steps; see [Prefs.SHIFT_SWAPS_SLIDES]. */
+    val shiftSwapsSlides: Boolean,
     /** One backspace tap after a swiped word deletes the whole word. */
     val backspaceWholeWord: Boolean,
     /** A backspace tap mid-word takes back the word's last tap or swipe. */
@@ -155,6 +159,8 @@ data class KeyboardConfig(
     val enterHoldSends: Boolean,
     /** A new field opens on the letters page. */
     val lettersOnNewField: Boolean,
+    /** A space on a symbol page goes back to the letters (lettersAfterSpace). */
+    val lettersAfterSpace: Boolean,
     /** The comma key fits email and web-address fields. */
     val fieldKeys: Boolean,
     /** A number field opens on the number pad. */
@@ -396,6 +402,10 @@ data class KeyboardConfig(
             backspaceCharSlide = prefs.getBoolean(
                 Prefs.BACKSPACE_CHAR_SLIDE, Prefs.DEFAULT_BACKSPACE_CHAR_SLIDE,
             ),
+            backspacePunctuationStops = prefs.getBoolean(
+                Prefs.BACKSPACE_PUNCTUATION_STOPS, Prefs.DEFAULT_BACKSPACE_PUNCTUATION_STOPS,
+            ),
+            shiftSwapsSlides = prefs.getBoolean(Prefs.SHIFT_SWAPS_SLIDES, Prefs.DEFAULT_SHIFT_SWAPS_SLIDES),
             backspaceWholeWord = prefs.getBoolean(
                 Prefs.BACKSPACE_WHOLE_WORD, Prefs.DEFAULT_BACKSPACE_WHOLE_WORD,
             ),
@@ -453,6 +463,7 @@ data class KeyboardConfig(
             lettersOnNewField = prefs.getBoolean(
                 Prefs.LETTERS_ON_NEW_FIELD, Prefs.DEFAULT_LETTERS_ON_NEW_FIELD,
             ),
+            lettersAfterSpace = prefs.getBoolean(Prefs.LETTERS_AFTER_SPACE, Prefs.DEFAULT_LETTERS_AFTER_SPACE),
             fieldKeys = prefs.getBoolean(Prefs.FIELD_KEYS, Prefs.DEFAULT_FIELD_KEYS),
             numpadForNumbers = prefs.getBoolean(Prefs.NUMPAD_FOR_NUMBERS, Prefs.DEFAULT_NUMPAD_FOR_NUMBERS),
             typingSpeed = prefs.getBoolean(Prefs.TYPING_SPEED, Prefs.DEFAULT_TYPING_SPEED),

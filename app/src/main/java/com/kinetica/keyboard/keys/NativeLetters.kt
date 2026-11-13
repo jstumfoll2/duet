@@ -23,6 +23,9 @@ object NativeLetters {
         "no" to "æøåé",
     )
 
+    /** Every language with letters of its own. */
+    val languages: Set<String> get() = LETTERS.keys
+
     /** The letters [lang] writes; empty for English and for a language on its own script. */
     fun of(lang: String): String = LETTERS[lang].orEmpty()
 
