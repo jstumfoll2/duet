@@ -52,6 +52,14 @@ line by line from the labels, as the keyboard's does from commits; with it, `--h
 `--hintshift KW` set when a tap hints a key it may have meant (see `TouchModel.hint`). `replay` exits 1 if any
 comparable line fails to reproduce.
 
+Ranking options (`replay`): `--learn words|phrases` learns each label after decoding it, as
+the phone does from commits (the realistic baseline for anything that ranks by frequency);
+`--recent B` turns on the session boost (`SessionWords`: rarer words among the file's earlier
+free-typed labels score x B; `--recentfreq L` sets its frequency cap); with `--ctc` and `--ctcil`,
+`--solobeta B`, `--sologate G` and `--soloshallow` set the one-thumb rerank as the DEV build runs it
+(`NeuralRerank.SOLO_BETA`, `SOLO_GATE`). `--dump OUT` writes one JSON row per line: label, source,
+rank and the bar's list with every candidate's score terms, for studying where a listed word lost.
+
 ## Output
 
 ```

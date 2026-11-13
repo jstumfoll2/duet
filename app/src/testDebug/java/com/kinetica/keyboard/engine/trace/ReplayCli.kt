@@ -18,6 +18,9 @@ import java.io.File
  *       line an earlier file already had; --keepdups scores it again.
  *       With --ctc MODEL.kctc [--beta B] [--depth D] the shipping run adds the
  *       stage-A CTC rerank over a heap D deep (default 50).
+ *       --solobeta B, --sologate G, --soloshallow: the one-thumb rerank's beta, margin gate and
+ *       shallow list (CtcReranker). --recent B: the session boost (SessionWords). --learn
+ *       words|phrases: learn each label after decoding it. --dump OUT: a JSON row per line.
  *   replay|ranks --personal BACKUP: decode with the learned words, counts and pairs of a
  *       settings backup (Settings > Back up), frozen unless ranks is given --learn as well.
  *   ranks [--learn words|phrases] [--pickw N] [--seed FILE] [--hdfree] TRACE.jsonl...
