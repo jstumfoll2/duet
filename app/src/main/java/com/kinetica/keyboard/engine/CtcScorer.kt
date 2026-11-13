@@ -227,8 +227,34 @@ class CtcReranker(
     var beta: Float,
 ) : CandidateReranker {
 
+    /**
+     * Beta for one-thumb buffers; NaN uses [beta]. The encoder was trained on one-finger swipes
+     * and helps there only lightly: over 20 trace batches a quarter of the two-thumb beta flips
+     * 63 true-label words right and 6 wrong, while the full beta also undoes words the decoder
+     * had right (`the` -> `three`).
+     */
+    @Volatile var soloBeta: Float = Float.NaN
+
+    /**
+     * Skip the encoder on a one-thumb buffer whose leader beats the runner-up by this much
+     * (ln of the score ratio) or more: at [soloBeta] the rerank cannot close such a gap, so the
+     * encoder would cost time and change only the tail.
+     */
+    @Volatile var soloGate: Float = Float.POSITIVE_INFINITY
+
+    /** One-thumb buffers rerank the shipping list itself, not a [rerankDepth]-deep heap. */
+    @Volatile var soloShallow: Boolean = false
+
+    private val soloBetaNow: Float get() = if (overlapOnly) 0f else if (soloBeta.isNaN()) beta else soloBeta
+
+    override fun deepHeap(overlapped: Boolean): Boolean = overlapped || !soloShallow
+
     override fun rerank(tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate> {
-        if (beta == 0f || candidates.isEmpty() || overlapOnly) return candidates
+        val beta = soloBetaNow
+        if (beta == 0f || candidates.isEmpty()) return candidates
+        if (candidates.size >= 2 && candidates[0].score > 0f && candidates[1].score > 0f &&
+            ln(candidates[0].score / candidates[1].score) >= soloGate
+        ) return candidates
         val g = geometry() ?: return candidates
         if (g !== cacheGeometry) {
             encoded.clear()
@@ -252,7 +278,7 @@ class CtcReranker(
     @Volatile var overlapOnly = false
 
     override fun reranks(overlapped: Boolean): Boolean =
-        beta != 0f && if (overlapped) overlap else !overlapOnly
+        if (overlapped) beta != 0f && overlap else soloBetaNow != 0f
 
     // rerankOverlapped reads each stroke's letters off the interleaved reading instead.
     override fun usesSegmentation(overlapped: Boolean): Boolean = !overlapped

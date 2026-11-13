@@ -256,7 +256,8 @@ and recorded traces and settings carry over because the app id is unchanged.)
   you.
 - **Neural rerank** (on by default in the DEV build): a small CTC model, trained from scratch on
   FUTO's MIT swipe dataset (never FUTO's weights), reorders the bar's list when two thumbs draw at
-  once. The traces screen turns it off and sets its weight. Off builds exactly the release decoder.
+  once, and nudges it lightly on one-thumb words when the top two are close. The traces screen
+  turns it off and sets its two-thumb weight. Off builds exactly the release decoder.
 
 Traces are personal typing data: keep them out of this repository.
 
@@ -402,6 +403,9 @@ Everything below comes from Kinetica and works the same in Duet.
 - A word you keep capitalizing yourself, a name or `GitHub`, comes out with its capital. Writing it
   in lowercase over the capital talks it back out.
 - Phrase learning (optional): which word you tend to type after which.
+- Words you typed lately: a rarer word (a name, a topic word) used in your last 200 commits ranks
+  up a little while you keep writing about it. Held in memory only, never saved; incognito and
+  private fields add nothing.
 - Dictionary: learned and blocked words per language, with search; import of an AOSP word list,
   merged on the phone.
 - Backup: every setting, learned word and shortcut in one text file, restored with progress, and

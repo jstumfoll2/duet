@@ -109,7 +109,22 @@ object ReplayCli {
                 val ctcilOnly = a.remove("--ctcilonly")
                 val ctcil = a.remove("--ctcil") || ctcilOnly
                 // --personal BACKUP: decode with the personal store of a settings backup (#97).
-                val personal = opt(a, "--personal")?.let { personalOf(File(it)) }
+                // --recent B: session recency boost B (1 = off, the default); --recentfreq L its
+                // frequency cap as ln of the weight.
+                val recent = opt(a, "--recent")?.toFloat()?.takeIf { it != 1f }?.let {
+                    KineticaConstants.SESSION_BOOST = it
+                    com.kinetica.keyboard.engine.SessionWords()
+                }
+                opt(a, "--recentfreq")?.let { KineticaConstants.SESSION_MAX_LN_FREQ = it.toFloat() }
+                // --learn words|phrases: learn each label after decoding it, as `ranks --learn` does.
+                val learnMode = opt(a, "--learn")
+                val personal = opt(a, "--personal").let { p ->
+                    if (learnMode != null) learnerOf(learnMode, null, KineticaConstants.PICK_LEARN_UNITS, p)
+                    else p?.let { personalOf(File(it)) }
+                }
+                // --dump OUT: one JSON object per scored line (label, source, context, rank and the
+                // bar's list with each candidate's score terms), for studying rank 2-10 losses.
+                dump = opt(a, "--dump")?.let { File(it).printWriter() }
                 if (a.isEmpty()) usage()
                 val harness = ReplayHarness(
                     assets, k, ctc, beta, depth,
@@ -123,8 +138,13 @@ object ReplayCli {
                     rerankOverlap = ctcil,
                     rerankOverlapOnly = ctcilOnly,
                     learner = personal,
+                    recent = recent,
+                    soloBeta = opt(a, "--solobeta")?.toFloat() ?: Float.NaN,
+                    soloGate = opt(a, "--sologate")?.toFloat() ?: Float.POSITIVE_INFINITY,
+                    soloShallow = a.remove("--soloshallow"),
                 )
                 val report = run(harness, a.map { File(it) })
+                dump?.close()
                 println(report.format())
                 if (ctc == null && report.exact < report.comparable) System.exit(1)
             }
@@ -672,12 +692,46 @@ object ReplayCli {
         }
     }
 
+    private var dump: java.io.PrintWriter? = null
+
+    private fun js(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+    /** One `--dump` row: see the replay command. */
+    private fun dumpLine(f: File, n: Int, r: ReplayHarness.Result): String {
+        val w = r.word
+        val src = when {
+            w.target != null -> if (GoldLabels.isFragment(w)) "fragment" else "practice"
+            w.how == null -> "typed"
+            else -> w.how ?: "typed"
+        }
+        val sb = StringBuilder()
+        sb.append("{\"f\":").append(js(f.name)).append(",\"n\":").append(n)
+            .append(",\"label\":").append(js(w.label?.lowercase() ?: ""))
+            .append(",\"src\":").append(js(src)).append(",\"asis\":").append(r.typedAsIs)
+            .append(",\"rank\":").append(r.rank).append(",\"deep\":").append(r.deepRank)
+            .append(",\"b\":").append(js(r.buckets.joinToString(",")))
+            .append(",\"shape\":").append(js(shape(r)))
+            .append(",\"ctx\":[").append(w.context.joinToString(",") { js(it) }).append("]")
+            .append(",\"c\":[")
+        r.shipping.forEachIndexed { i, c ->
+            if (i > 0) sb.append(',')
+            sb.append("[").append(js(c.word)).append(',').append(c.score).append(',').append(c.dtwDistance)
+                .append(',').append(js(c.source.name)).append(',').append(js(c.language)).append(",[")
+                .append(ScoreTerms.Term.entries.joinToString(",") { c.terms[it].toString() }).append("]]")
+        }
+        sb.append("]}")
+        return sb.toString()
+    }
+
     fun run(harness: ReplayHarness, files: List<File>): ReplayReport {
         val report = ReplayReport(harness.deepK)
         for (f in files) {
+            harness.newSession()
             for ((lineNo, w) in read(f, report)) {
                 try {
-                    report.add(harness.replay(w))
+                    val r = harness.replay(w)
+                    report.add(r)
+                    dump?.println(dumpLine(f, lineNo, r))
                 } catch (e: RuntimeException) {
                     report.error(lineNo, e)
                 }

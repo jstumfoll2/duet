@@ -119,6 +119,8 @@ class PracticeActivity : AppCompatActivity() {
         input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             imeOptions = EditorInfo.IME_ACTION_NONE
+            // Prompts repeat by design: the recent-words boost would read them as a topic.
+            privateImeOptions = EditorState.NO_RECENT_OPTION
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit

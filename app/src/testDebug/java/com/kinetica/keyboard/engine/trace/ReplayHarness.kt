@@ -79,7 +79,20 @@ class ReplayHarness(
     private val rerankOverlap: Boolean = false,
     /** ... and leave one-thumb buffers alone. */
     private val rerankOverlapOnly: Boolean = false,
+    /**
+     * Session recency as the keyboard keeps it: the labels of the free-typed lines before this
+     * one in the same file (a file is a session; [newSession] empties it). Practice lines decode
+     * without it and add nothing, since their prompts repeat by design. Null is off.
+     */
+    val recent: com.kinetica.keyboard.engine.SessionWords? = null,
+    /** One-thumb rerank settings ([CtcReranker.soloBeta], soloGate, soloShallow). */
+    private val soloBeta: Float = Float.NaN,
+    private val soloGate: Float = Float.POSITIVE_INFINITY,
+    private val soloShallow: Boolean = false,
 ) {
+    /** A new trace file: the recent words start empty, as after a restart. */
+    fun newSession() { recent?.clear() }
+
     /**
      * The personal store one replay builds up: commit counts (merged into the trie at each
      * [reloadEvery] lines, as a dictionary reload does), and with [phrases] the learned pairs.
@@ -158,7 +171,10 @@ class ReplayHarness(
     ): WordPredictor {
         val d = dict(lang, british)
         // Beta 0 means today: no reranker at all, so the heap stays TOP_K deep too.
-        val r = if (rerank && ctc != null && beta != 0f) CtcReranker(ctc, { g }, beta).also { it.overlap = rerankOverlap; it.overlapOnly = rerankOverlapOnly } else null
+        val r = if (rerank && ctc != null && beta != 0f) CtcReranker(ctc, { g }, beta).also {
+            it.overlap = rerankOverlap; it.overlapOnly = rerankOverlapOnly
+            it.soloBeta = soloBeta; it.soloGate = soloGate; it.soloShallow = soloShallow
+        } else null
         return WordPredictor(
             d.d.trie, d.bigrams, g, d.d.forms, language = lang, topK = topK,
             reranker = r, rerankDepth = rerankDepth,
@@ -201,15 +217,21 @@ class ReplayHarness(
         val cfg = w.config
         val active = predictor(cfg.language, cfg.britishSpelling, g, KineticaConstants.TOP_K, rerank = true)
         val alt = cfg.alternate?.let { predictor(it, cfg.britishSpelling, g, KineticaConstants.TOP_K, rerank = true) }
+        val recentNow = if (recent != null && w.target == null) recent.snapshot() else emptySet()
+        active.sessionWords = recentNow
+        alt?.sessionWords = recentNow
         val t0 = System.nanoTime()
         val shipping = composerDecode(active, alt, tokens, w.context, w.apostropheMark)
         val micros = (System.nanoTime() - t0) / 1000
 
         val deepActive = predictor(cfg.language, cfg.britishSpelling, g, deepK)
         val deepAlt = cfg.alternate?.let { predictor(it, cfg.britishSpelling, g, deepK) }
+        deepActive.sessionWords = recentNow
+        deepAlt?.sessionWords = recentNow
         val deep = deepDecode(deepActive, deepAlt, tokens, w.context, w.apostropheMark)
 
         val label = w.label?.lowercase()
+        if (recent != null && w.target == null && label != null) recent.add(label)
         if (learner != null && !learner.frozen && label != null) {
             // A pick from the bar: on the list, but not first. A typo committed as tapped isn't one.
             val at = shipping.indexOfFirst { it.word.lowercase() == label }

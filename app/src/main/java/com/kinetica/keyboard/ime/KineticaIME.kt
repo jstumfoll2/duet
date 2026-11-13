@@ -954,6 +954,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                             )
                         }
                         applyWordPenalties()
+                        applySessionWords()
                         composer = WordComposer(
                             p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
                         ).also {
@@ -1387,6 +1388,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         editorState = fieldState.withIncognito(config.incognito)
         // The DEV build's trace names what is typed; a private field leaves no line in it.
         DecodeTrace.suppressed = editorState.teachesNothing
+        applySessionWords()
         backspaceTarget = null
         spaceOwedAt = -1
         abandonWord()
@@ -2784,6 +2786,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * restored backup or a second keyboard instance agrees with what is stored.
      */
     private var wordPenalties = WordPenalties.EMPTY
+
+    /** This session's recent commits, memory only (see [RecentWords]). */
+    private val sessionWords = com.kinetica.keyboard.engine.SessionWords()
+
+    /** Hands each resident predictor the session's words. */
+    private fun applySessionWords() {
+        val r = if (editorState.noRecent) emptySet() else sessionWords.snapshot()
+        predictor?.sessionWords = r
+        secondaryPredictor?.sessionWords = r
+        extraPredictor?.sessionWords = r
+    }
 
     /** Hands each resident predictor its language's downranks. */
     private fun applyWordPenalties() {
@@ -5132,6 +5145,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // Traced, or the dictionary a word is filed under shows only in the learned-words
         // list.
         DecodeTrace.log { "  learn word=$w lang=$lang amount=$amount" }
+        // One commit is one recent word; the extra units of a bar pick are not another.
+        if (editorState.noRecent) Unit else if (amount == 1) sessionWords.add(w) else if (amount < 0) sessionWords.remove(w)
+        applySessionWords()
         var before = 0
         val after = countsFor(lang).compute(w) { _, v ->
             before = v ?: 0
@@ -5528,6 +5544,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (w.length > KineticaConstants.MAX_WORD_LEN || !WORD_RE.matches(w)) return
         val lang = lastLearnedWordLang?.takeIf { w == lastLearnedWord } ?: languageOf(word)
         countsFor(lang).computeIfPresent(w) { _, v -> (v - 1).coerceAtLeast(0) }
+        sessionWords.remove(w)
+        applySessionWords()
         val now = System.currentTimeMillis()
         learnedStore.addWord(w, lang, -1, now, "unlearn failed")
     }

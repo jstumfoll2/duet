@@ -71,6 +71,8 @@ class ProsePracticeActivity : AppCompatActivity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
                 InputType.TYPE_TEXT_FLAG_MULTI_LINE
             imeOptions = EditorInfo.IME_ACTION_NONE
+            // Prompts repeat by design: the recent-words boost would read them as a topic.
+            privateImeOptions = EditorState.NO_RECENT_OPTION
             minLines = 3
         }
         val discard = Button(this).apply {

@@ -88,11 +88,24 @@ object NeuralRerank {
 
     /**
      * The rerank as replay supports it: two thumbs drawing at once, each stroke scored on the
-     * letters the interleaved reading gives it; one-thumb buffers keep the plain order, where
-     * the rerank was flat (ten batches, futo_v1, beta 0.05-0.2: overlapped words +1 to +3 pts
-     * on either half of the batches, every other bucket level).
+     * letters the interleaved reading gives it, at [beta]. One-thumb buffers rerank lightly
+     * ([SOLO_BETA], the bar's own list, and only when the leader's margin is under [SOLO_GATE]):
+     * over 20 trace batches true-label words went 65.4 -> 66.5% top-1 (55 right, 5 wrong), every
+     * other bucket level or up. At the full beta the encoder also undid words the decoder had
+     * right (`the` -> `three`), mostly on tap+swipe buffers.
      */
-    private fun twoThumb(r: CtcReranker): CtcReranker = r.also { it.overlap = true; it.overlapOnly = true }
+    private fun twoThumb(r: CtcReranker): CtcReranker = r.also {
+        it.overlap = true
+        it.soloBeta = SOLO_BETA
+        it.soloGate = SOLO_GATE
+        it.soloShallow = true
+    }
+
+    /** One-thumb beta: a quarter of [DEFAULT_BETA]; replay over 20 batches, see [twoThumb]. */
+    const val SOLO_BETA = 0.025f
+
+    /** ln score margin at which a one-thumb leader skips the encoder; no flip in replay needed over 0.2. */
+    const val SOLO_GATE = 0.35f
 
     /** Main thread only, like the IME. [onChange] rebuilds the keyboard's predictors. */
     fun install(context: Context, onChange: (() -> Unit)?) {
@@ -210,6 +223,8 @@ object NeuralRerank {
         override fun reranks(overlapped: Boolean) = inner.reranks(overlapped)
 
         override fun usesSegmentation(overlapped: Boolean) = inner.usesSegmentation(overlapped)
+
+        override fun deepHeap(overlapped: Boolean) = inner.deepHeap(overlapped)
 
         override fun rerank(tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate> {
             val t0 = SystemClock.elapsedRealtimeNanos()
