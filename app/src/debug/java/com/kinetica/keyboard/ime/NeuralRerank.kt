@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.SystemClock
 import android.util.Log
 import com.kinetica.keyboard.engine.BoundaryModel
+import com.kinetica.keyboard.engine.PreviousWordFix
 import com.kinetica.keyboard.engine.ScoreModel
 import com.kinetica.keyboard.engine.ShapeModel
 import com.kinetica.keyboard.engine.CandidateReranker
@@ -56,6 +57,7 @@ object NeuralRerank {
     private const val PREF_LOGLINEAR = "score_loglinear"
     private const val PREF_TAPS = "score_taps"
     private const val PREF_SPEED = "shape_speed"
+    private const val PREF_REVISE = "previous_word_fix"
 
     private const val TAG = "KineticaNeural"
 
@@ -127,6 +129,7 @@ object NeuralRerank {
         ScoreModel.mode = if (logLinearScore) ScoreModel.Mode.LOGLINEAR else ScoreModel.Mode.LEGACY
         ScoreModel.taps = tapLikelihood
         ShapeModel.speed = speedShape
+        PreviousWordFix.enabled = previousWordFix
     }
 
     /**
@@ -166,6 +169,17 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_SPEED, on)?.apply()
             ShapeModel.speed = on
+        }
+
+    /**
+     * The previous-word fix ([PreviousWordFix], decoder rework step 7, #130). Off by default, and
+     * it only acts with the language-model score on.
+     */
+    var previousWordFix: Boolean
+        get() = prefs?.getBoolean(PREF_REVISE, false) ?: false
+        set(on) {
+            prefs?.edit()?.putBoolean(PREF_REVISE, on)?.apply()
+            PreviousWordFix.enabled = on
         }
 
     fun detach() {

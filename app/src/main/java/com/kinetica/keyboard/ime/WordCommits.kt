@@ -343,6 +343,24 @@ internal fun grammarWords(tail: String, word: String): Pair<String?, String>? {
 
 private val GRAMMAR_TAIL_RE = Regex("""(?:(?:^|\s)([\p{L}']+) )?(?:^|(?<=[^\p{L}']))([\p{L}']+) $""")
 
+/**
+ * The edit that revises the word before the last one ([com.kinetica.keyboard.engine.PreviousWordFix]):
+ * [tail], the text before the cursor, must end in [prev], one space, [word] and at most one more
+ * space, with nothing typed since; [prev] then becomes [flip] in [prev]'s case. Null when the
+ * text no longer reads that way, so a revision decided a moment ago never lands on other text.
+ */
+internal fun previousWordEdit(tail: String, prev: String, word: String, flip: String): AutoFixEdit? {
+    val trailing = if (tail.endsWith(" ")) " " else ""
+    val body = tail.substring(0, tail.length - trailing.length)
+    if (!body.endsWith(word)) return null
+    val (_, shown) = grammarWords(body, word) ?: return null
+    if (!shown.equals(prev, ignoreCase = true) || shown.equals(flip, ignoreCase = true)) return null
+    val wordShown = body.substring(body.length - word.length)
+    val replacement = com.kinetica.keyboard.engine.GrammarCheck.inCaseOf(shown, flip)
+    val old = "$shown $wordShown$trailing"
+    return AutoFixEdit(AutoFixKind.AFTER_I, old.length, old, "$replacement $wordShown$trailing")
+}
+
 internal enum class AutoFixKind { DOUBLED, CONTRACTION, AFTER_I, JOINED }
 
 /**
