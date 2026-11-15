@@ -103,6 +103,10 @@ object ReplayCli {
         opt(a, "--lmSigma")?.let { com.kinetica.keyboard.engine.ScoreModel.SIGMA = it.toFloat() }
         opt(a, "--lmIl")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_SCALE = it.toFloat() }
         opt(a, "--lmIlw")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_WEIGHT = it.toFloat() }
+        // --speed [--speedGamma G] [--speedMax M]: speed-weighted DTW (ShapeModel, issue #129).
+        if (a.remove("--speed")) com.kinetica.keyboard.engine.ShapeModel.speed = true
+        opt(a, "--speedGamma")?.let { com.kinetica.keyboard.engine.ShapeModel.GAMMA = it.toFloat() }
+        opt(a, "--speedMax")?.let { com.kinetica.keyboard.engine.ShapeModel.MAX_W = it.toFloat() }
         opt(a, "--gateMargin")?.let {
             com.kinetica.keyboard.engine.ScoreModel.marginGate = true
             com.kinetica.keyboard.engine.ScoreModel.GATE_MARGIN = it.toFloat()

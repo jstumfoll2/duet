@@ -31,6 +31,20 @@ interface SegmentScorer {
         budget: Float,
     ): Float
 
+    /**
+     * [cost] with each observed point's step cost scaled by [weights] (mean 1, [ShapeModel]).
+     * A scorer that has no use for them ignores them.
+     */
+    fun cost(
+        resampled: FloatArray,
+        letters: IntArray,
+        from: Int,
+        to: Int,
+        g: KeyboardGeometry,
+        budget: Float,
+        weights: FloatArray?,
+    ): Float = cost(resampled, letters, from, to, g, budget)
+
     companion object {
         const val NO_PATH = Float.NEGATIVE_INFINITY
     }
@@ -51,6 +65,20 @@ class DtwSegmentScorer : SegmentScorer {
     ): Float {
         if (!dtw.idealPath(letters, from, to, g, ideal)) return SegmentScorer.NO_PATH
         return dtw.distanceAccum(resampled, ideal, budget)
+    }
+
+    override fun cost(
+        resampled: FloatArray,
+        letters: IntArray,
+        from: Int,
+        to: Int,
+        g: KeyboardGeometry,
+        budget: Float,
+        weights: FloatArray?,
+    ): Float {
+        if (weights == null) return cost(resampled, letters, from, to, g, budget)
+        if (!dtw.idealPath(letters, from, to, g, ideal)) return SegmentScorer.NO_PATH
+        return dtw.distanceAccum(resampled, ideal, budget, weights)
     }
 }
 

@@ -1461,7 +1461,7 @@ class WordPredictor(
         var accum = 0f
         for (pi in 0 until pieceCount) {
             val m = pieceSeg[pi]!!
-            val d = segmentScorer.cost(m.resampled, pieceLetters?.get(pi) ?: letters, pieceFrom[pi], pieceTo[pi], g, budget - accum)
+            val d = segmentScorer.cost(m.resampled, pieceLetters?.get(pi) ?: letters, pieceFrom[pi], pieceTo[pi], g, budget - accum, m.speedWeights)
             if (d == SegmentScorer.NO_PATH) {
                 return Scored.IDEAL
             }
@@ -1588,7 +1588,7 @@ class WordPredictor(
         var accum = 0f
         for (pi in 0 until pieceCount) {
             val m = pieceSeg[pi]!!
-            val d = segmentScorer.cost(m.resampled, pieceLetters?.get(pi) ?: letters, pieceFrom[pi], pieceTo[pi], g, budget - accum)
+            val d = segmentScorer.cost(m.resampled, pieceLetters?.get(pi) ?: letters, pieceFrom[pi], pieceTo[pi], g, budget - accum, m.speedWeights)
             if (d == SegmentScorer.NO_PATH) return Scored.IDEAL
             if (d == Float.POSITIVE_INFINITY) return Scored.DTW
             accum += d

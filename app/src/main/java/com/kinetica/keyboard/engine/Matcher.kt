@@ -97,6 +97,9 @@ sealed class Matcher {
         private val contactEnter: LongArray,
         private val contactExit: LongArray,
     ) : Matcher() {
+        /** Per resample point, the speed weight of its DTW cost ([ShapeModel]); null for none. */
+        val speedWeights: FloatArray? = ShapeModel.weights(sampleT)
+
         fun isStart(code: Int): Boolean = isStartNeighbor[code]
         fun isEnd(code: Int): Boolean = isEndNeighbor[code]
 

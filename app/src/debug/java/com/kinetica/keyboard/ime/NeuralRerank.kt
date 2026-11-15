@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.kinetica.keyboard.engine.BoundaryModel
 import com.kinetica.keyboard.engine.ScoreModel
+import com.kinetica.keyboard.engine.ShapeModel
 import com.kinetica.keyboard.engine.CandidateReranker
 import com.kinetica.keyboard.engine.CtcReranker
 import com.kinetica.keyboard.engine.CtcScorer
@@ -54,6 +55,7 @@ object NeuralRerank {
     private const val PREF_BOUNDARY = "boundary_model"
     private const val PREF_LOGLINEAR = "score_loglinear"
     private const val PREF_TAPS = "score_taps"
+    private const val PREF_SPEED = "shape_speed"
 
     private const val TAG = "KineticaNeural"
 
@@ -124,6 +126,7 @@ object NeuralRerank {
         BoundaryModel.enabled = boundaryModel
         ScoreModel.mode = if (logLinearScore) ScoreModel.Mode.LOGLINEAR else ScoreModel.Mode.LEGACY
         ScoreModel.taps = tapLikelihood
+        ShapeModel.speed = speedShape
     }
 
     /**
@@ -155,6 +158,14 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_TAPS, on)?.apply()
             ScoreModel.taps = on
+        }
+
+    /** Speed-weighted shape matching ([ShapeModel.speed], decoder rework step 6, #129). Off by default. */
+    var speedShape: Boolean
+        get() = prefs?.getBoolean(PREF_SPEED, false) ?: false
+        set(on) {
+            prefs?.edit()?.putBoolean(PREF_SPEED, on)?.apply()
+            ShapeModel.speed = on
         }
 
     fun detach() {

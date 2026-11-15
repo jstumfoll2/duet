@@ -48,6 +48,8 @@
     <string name="loglinear_explain">Ranks words by a real language model (how likely the word is after the last two) plus a shape fit that never goes flat, instead of today\'s score. Off by default: on replay it is ahead on words with a true label (67 against 65 in 100) but changes more of the words you accepted, so it waits for a batch from the phone.</string>
     <string name="taps_toggle">Tap likelihood (test)</string>
     <string name="taps_explain">Reads every tap as each key near it, charged by how far the touch is from that key, instead of the key under your finger unless the list runs short. Best with the language-model score. Off by default.</string>
+    <string name="speed_toggle">Speed-aware shape (test)</string>
+    <string name="speed_explain">Counts a miss more where your thumb was slow (a key you meant) and less where it was flying past. Best with the language-model score. Off by default.</string>
     <string name="practice_ab">Today %1$d/%2$d · Neural %3$d/%4$d</string>
     <string name="practice_ab_last">Last: today \"%1$s\" (%2$s ms) · neural \"%3$s\" (%4$s ms)</string>
     <string name="practice_ab_none">Comparison unavailable until the keyboard has loaded its dictionary.</string>
