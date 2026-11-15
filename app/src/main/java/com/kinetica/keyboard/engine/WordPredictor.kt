@@ -440,7 +440,7 @@ class WordPredictor(
         val best = LinkedHashMap<String, WordCandidate>()
         for (c in rest) best[c.word] = c
         for (c in il) {
-            val w = c.scaled(ScoreTerms.Term.INTERLEAVE, interleaveWeight)
+            val w = c.scaled(ScoreTerms.Term.INTERLEAVE, if (ScoreModel.logLinear) ScoreModel.IL_WEIGHT else interleaveWeight)
             val have = best[c.word]
             if (have == null || w.score > have.score) best[c.word] = w
         }
@@ -451,14 +451,34 @@ class WordPredictor(
      * Two-thumb overlapped input: the best interleaved readings, scored as
      * `fw * geometric(cost) * bigram * personal`, one model for the whole list.
      */
-    private fun interleaved(il: Interleave, prevWordId: Int): List<WordCandidate> {
+    private fun interleaved(il: Interleave, prevWordId: Int, prevWordForLm: String? = null): List<WordCandidate> {
         val search = InterleavedSearch(trie, il, stop = stale)
         val hits = search.run(KineticaConstants.INTERLEAVE_KEEP)
         val out = ArrayList<WordCandidate>(hits.size)
+        val logLinear = ScoreModel.logLinear
         for (h in hits) {
             val geoFit = InterleavedSearch.geometric(h.cost)
             val shortKeep = interleavedShortKeep(il, h.word)
             val geo = geoFit * shortKeep
+            if (logLinear) {
+                // Same language model and shape curve as the passes, on the interleaved cost (mean
+                // thumb-to-key distance at the letters' moments) scaled by [ScoreModel.IL_SCALE] onto
+                // the DTW mean; one score for every pass is decoder rework step 5.
+                val ilGeo = ScoreModel.shapeFactor(h.cost * ScoreModel.IL_SCALE) * shortKeep
+                for ((display, byte) in forms[h.node]?.map { it.display to it.freqByte } ?: listOf(h.word to trie.frequency(h.node))) {
+                    val prior = ScoreModel.priorFactor(lmLog(h.node, byte, prevWordId))
+                    val pb = personalBoost(display)
+                    val pbm = personalBigramBoost(prevWordForLm, display)
+                    out.add(
+                        WordCandidate(
+                            display, prior * ilGeo * pb * pbm, h.cost, prior, 1f, h.node, WordCandidate.Source.MERGED, language, pb,
+                            personalBigram = pbm,
+                            terms = ScoreTerms.of(prior, ilGeo / shortKeep, 1f, pb, pbm, path = shortKeep),
+                        ),
+                    )
+                }
+                continue
+            }
             val bm = bigrams.multiplier(prevWordId, h.node)
             val variants = forms[h.node]
             if (variants == null) {
@@ -529,6 +549,42 @@ class WordPredictor(
      */
     private class Reading(val overlapped: Boolean, val reranks: Boolean, val depth: Int, val segments: Boolean, val il: Interleave?)
 
+    /** The word two back in the decode's context, as a trie node, or -1 ([lmLog]). Decode thread. */
+    private var lmFirstId = -1
+
+    /**
+     * `lm(w | u, v)` of the log-linear score ([ScoreModel]): the triple's log-probability when the
+     * trigram table holds it after the last two words, else the pair's after the last word, else
+     * `ln BACKOFF + ln P1(w)`. [freqByte] is the spelling's own byte: a variant spelling sharing
+     * [node] with another (`senti`/`sentì`) shifts the context's probability by its share of the
+     * unigram, so the context terms stay keyed on the folded word as the tables are.
+     */
+    internal fun lmLog(node: Int, freqByte: Int, prevWordId: Int): Float {
+        val p1 = trie.logProb(freqByte)
+        if (prevWordId < 0 || node < 0) return p1
+        val shift = p1 - trie.logProb(trie.frequency(node))
+        if (lmFirstId >= 0) {
+            val t = trigrams.logCond(lmFirstId, prevWordId, node)
+            if (!t.isNaN()) return t + shift
+        }
+        val b = bigrams.logCond(prevWordId, node)
+        if (!b.isNaN()) return b + shift
+        return kotlin.math.ln(ScoreModel.BACKOFF) + p1
+    }
+
+    /**
+     * The frequency and context factors a re-spelt candidate ([preferHeldDoubles],
+     * [preferApostrophe]) takes from its own word: (fw, bm) in the legacy score, (exp(A * lm), 1)
+     * in the log-linear one. [plainBm] is the plain word's applied bigram, which in the legacy
+     * score says whether the variant may keep its own.
+     */
+    private fun variantPrior(node: Int, freqByte: Int, prevWordId: Int, plainBm: Float): Pair<Float, Float> {
+        if (ScoreModel.logLinear) return ScoreModel.priorFactor(lmLog(node, freqByte, prevWordId)) to 1f
+        val fw = KineticaConstants.FREQ_WEIGHT_FLOOR + (1f - KineticaConstants.FREQ_WEIGHT_FLOOR) * freqByte / 255f
+        val bmRaw = bigrams.multiplier(prevWordId, node)
+        return fw to (if (plainBm > 1f) bmRaw else 1f)
+    }
+
     private fun reading(tokens: List<InputToken>, il: Interleave?): Reading {
         val r = reranker ?: return Reading(false, false, topK, false, il)
         val overlapped = il != null || Interleave.thumbsOverlap(tokens)
@@ -549,7 +605,15 @@ class WordPredictor(
     ): List<WordCandidate> {
         val prevWord = context.lastOrNull()?.let { AccentFolder.fold(it.lowercase()) }
         val prevWordId = prevWord?.let { trie.nodeFor(it) } ?: -1
-        val letters = withPenalties(withSession(withTrigrams(decodeLetters(input, context, beam), context, prevWordId)))
+        lmFirstId = if (context.size >= 2 && prevWordId != -1) {
+            trie.nodeFor(AccentFolder.fold(context[context.size - 2].lowercase()))
+        } else {
+            -1
+        }
+        val logLinear = ScoreModel.logLinear
+        val searched = decodeLetters(input, context, beam)
+        // The log-linear score carries the two-word context inside the search ([lmLog]).
+        val letters = withPenalties(withSession(if (logLinear) searched else withTrigrams(searched, context, prevWordId)))
         val held = if (heldDoubleBoost == 1f) IntArray(0) else HeldDoubles.heldKeys(input, heldDoubleMs, heldDoubleEndMs, heldDoubleFreeTime)
         val missCharged = heldDoubleMissKeep != 1f && input.any { it is SwipeToken }
         val ranked = if (held.isEmpty() && !missCharged) letters else preferHeldDoubles(letters, held, prevWordId).also { out ->
@@ -626,10 +690,7 @@ class WordPredictor(
                 val node = trie.nodeFor(spelled)
                 if (node == -1 || !trie.isWord(node)) continue
                 val form = forms[node]?.maxByOrNull { it.freqByte }
-                val fw = KineticaConstants.FREQ_WEIGHT_FLOOR +
-                    (1f - KineticaConstants.FREQ_WEIGHT_FLOOR) * (form?.freqByte ?: trie.frequency(node)) / 255f
-                val bmRaw = bigrams.multiplier(prevWordId, node)
-                val bm = if (c.bigramMultiplier > 1f) bmRaw else 1f
+                val (fw, bm) = variantPrior(node, form?.freqByte ?: trie.frequency(node), prevWordId, c.bigramMultiplier)
                 val score = c.score / (c.frequencyWeight * c.bigramMultiplier) * fw * bm * heldDoubleBoost
                 val terms = c.terms.with(ScoreTerms.Term.FREQ, fw).with(ScoreTerms.Term.BIGRAM, bm)
                     .times(ScoreTerms.Term.HELD_DOUBLE, heldDoubleBoost)
@@ -670,13 +731,10 @@ class WordPredictor(
                 if (node == -1 || !trie.isWord(node)) continue
                 val form = forms[node]?.maxByOrNull { it.freqByte }
                 val display = form?.display ?: spelled
-                val fw = KineticaConstants.FREQ_WEIGHT_FLOOR +
-                    (1f - KineticaConstants.FREQ_WEIGHT_FLOOR) * (form?.freqByte ?: trie.frequency(node)) / 255f
                 // Same geometry and personal terms; the variant's own frequency, and its own
                 // bigram only as far as the plain word earned one (the boost's fade with the
                 // fit already happened there).
-                val bmRaw = bigrams.multiplier(prevWordId, node)
-                val bm = if (c.bigramMultiplier > 1f) bmRaw else 1f
+                val (fw, bm) = variantPrior(node, form?.freqByte ?: trie.frequency(node), prevWordId, c.bigramMultiplier)
                 val score = c.score / (c.frequencyWeight * c.bigramMultiplier) * fw * bm
                 val terms = c.terms.with(ScoreTerms.Term.FREQ, fw).with(ScoreTerms.Term.BIGRAM, bm)
                 offer(c.copy(word = display, score = score, frequencyWeight = fw, bigramMultiplier = bm, wordId = node, segmentation = null, terms = terms))
@@ -742,7 +800,7 @@ class WordPredictor(
         val clock = if (DecodeTrace.enabled) PhaseClock(startNs) else null
         // Interleave reads Latin codes only; other scripts keep the cut-and-merge reading.
         val il = if (interleave && alphabet === Alphabet.LATIN) Interleave.of(tokens, g) else null
-        val ilHits = if (il != null) interleaved(il, prevWordId) else emptyList()
+        val ilHits = if (il != null) interleaved(il, prevWordId, prevWord) else emptyList()
         clock?.lap(PhaseClock.INTERLEAVE)
         val read = reading(tokens, il)
         val heapDepth = read.depth
@@ -1326,6 +1384,12 @@ class WordPredictor(
         source: WordCandidate.Source,
         unsaturated: Boolean = false,
     ): Scored {
+        if (ScoreModel.logLinear) {
+            return scoreLogLinear(
+                g, heap, prevWordId, prevWord, node, letters, depth, pieceCount, pieceSeg, pieceLetters,
+                pieceFrom, pieceTo, tapPen, contactKeep, source,
+            )
+        }
         val fw = KineticaConstants.FREQ_WEIGHT_FLOOR +
             (1f - KineticaConstants.FREQ_WEIGHT_FLOOR) * trie.frequency(node) / 255f
         val bm = bigrams.multiplier(prevWordId, node)
@@ -1445,6 +1509,95 @@ class WordPredictor(
                     ),
                 )
             }
+        }
+        return Scored.OFFERED
+    }
+
+    /**
+     * [scoreReading] under [ScoreModel.Mode.LOGLINEAR]: `exp(A * lm) * shapeFactor(d) * personal *
+     * pair * keep`, the boosts at full strength. The pieces, the short-reading keep and the DTW
+     * are the legacy path's; the budget inverts the new shape term with every factor in, so it
+     * stays admissible. One shape curve for every pass: the beam's unsaturated reading
+     * ([unsaturated]) is what this term already is.
+     */
+    private fun scoreLogLinear(
+        g: KeyboardGeometry,
+        heap: CandidateHeap,
+        prevWordId: Int,
+        prevWord: String?,
+        node: Int,
+        letters: IntArray,
+        depth: Int,
+        pieceCount: Int,
+        pieceSeg: Array<Matcher.Segment?>,
+        pieceLetters: Array<IntArray?>?,
+        pieceFrom: IntArray,
+        pieceTo: IntArray,
+        tapPen: Float,
+        contactKeep: Float,
+        source: WordCandidate.Source,
+    ): Scored {
+        val variants = forms[node]
+        val spellings: List<Pair<String, Int>> = if (variants == null) {
+            val sb = StringBuilder(depth)
+            for (i in 0 until depth) sb.append(alphabet.charOf(letters[i]))
+            listOf(sb.toString() to trie.frequency(node))
+        } else {
+            variants.map { it.display to it.freqByte }
+        }
+        val priors = FloatArray(spellings.size)
+        val pbs = FloatArray(spellings.size)
+        val pbms = FloatArray(spellings.size)
+        var maxNumerator = 0f
+        for ((i, sp) in spellings.withIndex()) {
+            priors[i] = ScoreModel.priorFactor(lmLog(node, sp.second, prevWordId))
+            pbs[i] = personalBoost(sp.first)
+            pbms[i] = personalBigramBoost(prevWord, sp.first)
+            val n = priors[i] * pbs[i] * pbms[i]
+            if (n > maxNumerator) maxNumerator = n
+        }
+
+        var shortKeep = 1f
+        if (pieceCount == 1 && pieceLetters == null) {
+            val arc = pieceSeg[0]!!.letterArcLen
+            if (arc >= KineticaConstants.UNCUT_SHORT_ARC_KW) {
+                shortKeep = KineticaConstants.uncutShortKeep(dtw.idealLength(letters, pieceFrom[0], pieceTo[0], g), arc)
+            }
+        }
+        val keep = contactKeep * shortKeep
+
+        val totalSteps = pieceCount * KineticaConstants.RESAMPLE_N
+        var budget = Float.POSITIVE_INFINITY
+        val minScore = heap.minScoreIfFull()
+        if (minScore > 0f) {
+            val dMax = ScoreModel.maxD(maxNumerator * keep, minScore) - tapPen
+            if (dMax <= 0f) return Scored.SCORE
+            if (totalSteps > 0 && dMax.isFinite()) budget = dMax * totalSteps
+        }
+
+        var accum = 0f
+        for (pi in 0 until pieceCount) {
+            val m = pieceSeg[pi]!!
+            val d = segmentScorer.cost(m.resampled, pieceLetters?.get(pi) ?: letters, pieceFrom[pi], pieceTo[pi], g, budget - accum)
+            if (d == SegmentScorer.NO_PATH) return Scored.IDEAL
+            if (d == Float.POSITIVE_INFINITY) return Scored.DTW
+            accum += d
+        }
+        val geoFit = if (totalSteps > 0) accum / totalSteps else 0f
+        val dTotal = geoFit + tapPen
+        val geo = ScoreModel.shapeFactor(dTotal)
+        val wantSeg = heap.segments
+        for ((i, sp) in spellings.withIndex()) {
+            val score = priors[i] * geo * pbs[i] * pbms[i] * keep
+            val accepted = heap.accepts(sp.first, score)
+            val seg = if (wantSeg && accepted) segmentation(letters, depth, pieceCount, pieceSeg, pieceLetters, pieceFrom, pieceTo) else null
+            val terms = if (accepted) ScoreTerms.of(priors[i], geo, 1f, pbs[i], pbms[i], keep) else ScoreTerms.NONE
+            heap.offer(
+                WordCandidate(
+                    sp.first, score, dTotal, priors[i], 1f, node, source, language, pbs[i],
+                    keep, pbms[i], seg, terms,
+                ),
+            )
         }
         return Scored.OFFERED
     }

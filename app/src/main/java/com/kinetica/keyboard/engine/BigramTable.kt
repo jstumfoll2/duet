@@ -19,8 +19,26 @@ class BigramTable private constructor(
     private val compact: Compact? = null,
     /** A wider table the decoder's boost reads in place of this one ([withContext]). */
     private val context: BigramTable? = null,
+    /**
+     * Per pair, `-ln P(next | prev)` in steps of [LOGP_STEP] nat (capped at 255 steps), for the
+     * log-linear score ([ScoreModel]); P is the pair's count over all counted followers of the
+     * previous word. Only a table built from counts ([build]) has it; a pair file holds bytes.
+     */
+    private val logp: ByteArray? = null,
 ) {
     val size: Int get() = compact?.size ?: keys.size
+
+    /**
+     * `ln P(next | prev)` from this table's own counts, or NaN when the pair is absent or the
+     * table has no counts. Reads this table, never the wider [context] one, whose pair file
+     * keeps only per-context bytes (decoder rework step 3 rebuilds it with probabilities).
+     */
+    fun logCond(prevWordId: Int, nextWordId: Int): Float {
+        val lp = logp ?: return Float.NaN
+        if (prevWordId < 0 || nextWordId < 0 || keys.isEmpty()) return Float.NaN
+        val i = java.util.Arrays.binarySearch(keys, pack(prevWordId, nextWordId))
+        return if (i < 0) Float.NaN else -(lp[i].toInt() and 0xFF) * LOGP_STEP
+    }
 
     fun multiplier(prevWordId: Int, nextWordId: Int): Float {
         val byte = (context ?: this).boostByte(prevWordId, nextWordId)
@@ -34,7 +52,7 @@ class BigramTable private constructor(
      * bytes split `someone` and `minigames`, and its web text holds `ill be` and `its a` often
      * enough to rewrite `i'll` and `it's` the wrong way.
      */
-    fun withContext(wide: BigramTable): BigramTable = BigramTable(keys, boosts, compact, wide)
+    fun withContext(wide: BigramTable): BigramTable = BigramTable(keys, boosts, compact, wide, logp)
 
     /** The pair's boost byte in the table behind [multiplier]: the wide one when there is one. */
     fun contextByte(prevWordId: Int, nextWordId: Int): Int = (context ?: this).boostByte(prevWordId, nextWordId)
@@ -127,6 +145,15 @@ class BigramTable private constructor(
     companion object {
         val EMPTY = BigramTable(LongArray(0), ByteArray(0))
 
+        /** Resolution of the stored log-probabilities, nat per step. */
+        const val LOGP_STEP = 1f / 16f
+
+        /** `-ln p` quantized to [LOGP_STEP], 0..255. */
+        internal fun quantizeLogP(count: Long, total: Long): Byte {
+            val nll = -ln(count.toDouble() / maxOf(total, 1L).toDouble())
+            return Math.round(nll / LOGP_STEP).toInt().coerceIn(0, 255).toByte()
+        }
+
         /** The table of a pair file ([PairFile.read]). */
         internal fun compact(c: Compact): BigramTable = BigramTable(LongArray(0), ByteArray(0), c)
 
@@ -156,23 +183,27 @@ class BigramTable private constructor(
             // Same-prev entries are contiguous after sorting; normalize each group
             // against its own maximum so every context uses the full byte range.
             val boosts = ByteArray(uniqueCount)
+            val logp = ByteArray(uniqueCount)
             var start = 0
             while (start < uniqueCount) {
                 val prev = keys[start] ushr 32
                 var end = start
                 var maxCount = 1L
+                var total = 0L
                 while (end < uniqueCount && (keys[end] ushr 32) == prev) {
                     maxCount = max(maxCount, counts[end])
+                    total += maxOf(counts[end], 0L)
                     end++
                 }
                 val logMax = ln(1.0 + maxCount)
                 for (i in start until end) {
                     val b = (255.0 * ln(1.0 + counts[i]) / logMax).toInt().coerceIn(1, 255)
                     boosts[i] = b.toByte()
+                    logp[i] = quantizeLogP(maxOf(counts[i], 1L), total)
                 }
                 start = end
             }
-            return BigramTable(keys.copyOf(uniqueCount), boosts)
+            return BigramTable(keys.copyOf(uniqueCount), boosts, logp = logp)
         }
     }
 }

@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.SystemClock
 import android.util.Log
 import com.kinetica.keyboard.engine.BoundaryModel
+import com.kinetica.keyboard.engine.ScoreModel
 import com.kinetica.keyboard.engine.CandidateReranker
 import com.kinetica.keyboard.engine.CtcReranker
 import com.kinetica.keyboard.engine.CtcScorer
@@ -51,6 +52,7 @@ object NeuralRerank {
     private const val PREF_ENABLED = "enabled"
     private const val PREF_BETA = "beta"
     private const val PREF_BOUNDARY = "boundary_model"
+    private const val PREF_LOGLINEAR = "score_loglinear"
 
     private const val TAG = "KineticaNeural"
 
@@ -119,6 +121,7 @@ object NeuralRerank {
         appContext = context.applicationContext
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         BoundaryModel.enabled = boundaryModel
+        ScoreModel.mode = if (logLinearScore) ScoreModel.Mode.LOGLINEAR else ScoreModel.Mode.LEGACY
     }
 
     /**
@@ -131,6 +134,17 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_BOUNDARY, on)?.apply()
             BoundaryModel.enabled = on
+        }
+
+    /**
+     * The log-linear candidate score with a real language model ([ScoreModel], decoder rework
+     * step 1, #124). Off by default: on replay it does not yet reach the legacy score's numbers.
+     */
+    var logLinearScore: Boolean
+        get() = prefs?.getBoolean(PREF_LOGLINEAR, false) ?: false
+        set(on) {
+            prefs?.edit()?.putBoolean(PREF_LOGLINEAR, on)?.apply()
+            ScoreModel.mode = if (on) ScoreModel.Mode.LOGLINEAR else ScoreModel.Mode.LEGACY
         }
 
     fun detach() {
