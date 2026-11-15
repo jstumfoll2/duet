@@ -150,6 +150,35 @@ class WordPredictor(
     }
 
     /**
+     * "Decoded Y, meant X" counts for this language ([RetypePenalties.forLanguage]), set by the
+     * service when one is learned; read once per decode. Empty, or the switch off, is no pass.
+     */
+    @Volatile var retypeCounts: RetypePenalties.Counts = RetypePenalties.Counts.EMPTY
+
+    /**
+     * [list] with each word the user keeps getting instead of another listed word scored down
+     * ([RetypePenalties.factorFor]), re-sorted. After the search, like the penalties.
+     */
+    private fun withRetypes(list: List<WordCandidate>): List<WordCandidate> {
+        val counts = retypeCounts
+        if (!RetypePenalties.enabled || counts.isEmpty || list.size < 2) return list
+        val listed = list.map { it.word.lowercase() }
+        var changed = false
+        val out = list.mapIndexed { i, c ->
+            val f = counts.factorFor(listed[i], listed)
+            if (f == 1f) {
+                c
+            } else {
+                changed = true
+                c.scaled(ScoreTerms.Term.RETYPE, f)
+            }
+        }
+        if (!changed) return list
+        DecodeTrace.log { "retyped$langTag: " + out.filter { it.terms[ScoreTerms.Term.RETYPE] != 0f }.joinToString(" ") { it.word } }
+        return out.sortedByDescending { it.score }
+    }
+
+    /**
      * Words committed lately in this session ([SessionWords.snapshot], lowercase and folded), set
      * by the service after each commit; read once per decode. Empty is off.
      */
@@ -613,7 +642,7 @@ class WordPredictor(
         val logLinear = ScoreModel.logLinear
         val searched = decodeLetters(input, context, beam)
         // The log-linear score carries the two-word context inside the search ([lmLog]).
-        val letters = withPenalties(withSession(if (logLinear) searched else withTrigrams(searched, context, prevWordId)))
+        val letters = withRetypes(withPenalties(withSession(if (logLinear) searched else withTrigrams(searched, context, prevWordId))))
         val held = if (heldDoubleBoost == 1f) IntArray(0) else HeldDoubles.heldKeys(input, heldDoubleMs, heldDoubleEndMs, heldDoubleFreeTime)
         val missCharged = heldDoubleMissKeep != 1f && input.any { it is SwipeToken }
         val ranked = if (held.isEmpty() && !missCharged) letters else preferHeldDoubles(letters, held, prevWordId).also { out ->

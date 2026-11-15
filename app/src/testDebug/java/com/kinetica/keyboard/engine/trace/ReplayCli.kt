@@ -151,6 +151,14 @@ object ReplayCli {
                 }
                 opt(a, "--recentfreq")?.let { KineticaConstants.SESSION_MAX_LN_FREQ = it.toFloat() }
                 // --learn words|phrases: learn each label after decoding it, as `ranks --learn` does.
+                // --retypes SRC,SRC: learn "decoded Y, meant X" penalties (#131) in trace order from
+                // lines labelled by these sources (retyped, corrected, reswiped, confirmed, picked).
+                // --retypeW W: the penalty's exponent; --retypeMin N: net count it starts at.
+                val retypeSources = opt(a, "--retypes")?.split(',')?.toSet()
+                com.kinetica.keyboard.engine.RetypePenalties.enabled = retypeSources != null
+                opt(a, "--retypeW")?.let { com.kinetica.keyboard.engine.RetypePenalties.WEIGHT = it.toFloat() }
+                opt(a, "--retypeMin")?.let { com.kinetica.keyboard.engine.RetypePenalties.MIN_COUNT = it.toInt() }
+                opt(a, "--retypePrior")?.let { com.kinetica.keyboard.engine.RetypePenalties.PRIOR = it.toFloat() }
                 val learnMode = opt(a, "--learn")
                 val personal = opt(a, "--personal").let { p ->
                     if (learnMode != null) learnerOf(learnMode, null, KineticaConstants.PICK_LEARN_UNITS, p)
@@ -176,10 +184,16 @@ object ReplayCli {
                     soloBeta = opt(a, "--solobeta")?.toFloat() ?: Float.NaN,
                     soloGate = opt(a, "--sologate")?.toFloat() ?: Float.POSITIVE_INFINITY,
                     soloShallow = a.remove("--soloshallow"),
+                    retypeSources = retypeSources,
                 )
                 val report = run(harness, a.map { File(it) })
                 dump?.close()
                 println(report.format())
+                if (retypeSources != null) {
+                    println("retype pairs learned: ${harness.retypeStore.size}")
+                    val rows = harness.retypeStore.serialize().split(',').map { it.split('|') }.filter { it.size == 4 && it[2].isNotEmpty() }
+                    println("most counted: " + rows.sortedByDescending { it[3].toInt() }.take(25).joinToString(" ") { "${it[1]}>${it[2]}x${it[3]}/${harness.retypeStore.seen("en", it[1])}" })
+                }
                 if (ctc == null && report.exact < report.comparable) System.exit(1)
             }
             "misses" -> {

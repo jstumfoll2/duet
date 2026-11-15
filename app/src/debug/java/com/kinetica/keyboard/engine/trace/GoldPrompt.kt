@@ -83,20 +83,7 @@ class GoldPrompt(private val minGapMs: Long = MIN_GAP_MS) {
             val b = retyped.lowercase()
             if (a == b || a.isEmpty()) return Retype.NONE
             if (b.startsWith(a)) return Retype.EXTENDS
-            return if (editDistance(a, b) <= maxOf(1, maxOf(a.length, b.length) / 2)) Retype.CLOSE else Retype.NONE
-        }
-
-        private fun editDistance(a: String, b: String): Int {
-            var prev = IntArray(b.length + 1) { it }
-            for (i in 1..a.length) {
-                val cur = IntArray(b.length + 1)
-                cur[0] = i
-                for (j in 1..b.length) {
-                    cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
-                }
-                prev = cur
-            }
-            return prev[b.length]
+            return if (com.kinetica.keyboard.engine.RetypePenalties.closeRetype(a, b)) Retype.CLOSE else Retype.NONE
         }
     }
 }
