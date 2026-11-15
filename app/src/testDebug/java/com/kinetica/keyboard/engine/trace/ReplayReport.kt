@@ -68,6 +68,10 @@ class ReplayReport(private val deepK: Int) {
     /** Commits relabelled as the close word the user retyped, and stray mid-word commits dropped. */
     var retyped = 0
     var extended = 0
+
+    /** Relabelled retypes the user confirmed on the developer build's prompt, and ones they denied. */
+    var confirmed = 0
+    var denied = 0
     /**
      * Digests of the word lines read so far, across files, and how many repeats were skipped.
      * An export can contain an earlier one: 2026-10-20 starts with all of 19c and 19d_new, so
@@ -113,6 +117,7 @@ class ReplayReport(private val deepK: Int) {
         val source = when {
             r.word.target != null -> "practice"
             r.word.how == "retyped" -> "retyped"
+            r.word.how == "confirmed" -> "confirmed"
             r.word.how == "reswiped" -> "reswiped"
             r.word.how == "tentative" -> "space commit"
             else -> "you typed"
@@ -120,10 +125,12 @@ class ReplayReport(private val deepK: Int) {
         bySource.getValue(source).add(r)
         when {
             r.word.target != null -> if (GoldLabels.isFragment(r.word)) fragments++ else gold.add(r)
-            r.word.how == "retyped" || r.word.how == "reswiped" || r.word.how == "corrected" -> gold.add(r)
+            r.word.how == "retyped" || r.word.how == "reswiped" || r.word.how == "corrected" ||
+                r.word.how == "confirmed" -> gold.add(r)
         }
         if (r.word.target == null && r.word.context.isNotEmpty() &&
-            (r.word.how == "retyped" || r.word.how == "reswiped" || r.word.how == "corrected" || r.word.how == "picked")
+            (r.word.how == "retyped" || r.word.how == "reswiped" || r.word.how == "corrected" || r.word.how == "picked" ||
+                r.word.how == "confirmed")
         ) context.add(r)
         if (source == "you typed" && (r.rank == 1 || r.typedAsIs)) asTypedHits++
     }
@@ -138,6 +145,7 @@ class ReplayReport(private val deepK: Int) {
         appendLine("exact replay: $exact/$comparable comparable lines (identical list, scores bit for bit)")
         if (duplicates > 0) appendLine("duplicates: $duplicates word lines already read from an earlier file skipped (--keepdups keeps them)")
         if (retyped + extended > 0) appendLine("retyped: $retyped commits relabelled as the word retyped, $extended mid-word commits unlabelled (--plain keeps them)")
+        if (confirmed + denied > 0) appendLine("confirmed: $confirmed retypes confirmed on the prompt, $denied denied and unlabelled")
         if (reswiped > 0) appendLine("reswiped: $reswiped earlier tries relabelled as the word a later try of the same shape committed (--plain keeps them)")
         if (fragments > 0) appendLine("fragments: $fragments practice lines touch under half their prompt's letters; scored below, left out of gold")
         appendLine()
@@ -207,7 +215,7 @@ class ReplayReport(private val deepK: Int) {
     }
 
     private companion object {
-        val SOURCES = listOf("practice", "you typed", "space commit", "retyped", "reswiped")
+        val SOURCES = listOf("practice", "you typed", "space commit", "retyped", "confirmed", "reswiped")
         val LENGTHS = listOf("1-2 letters", "3-6 letters", "7-9 letters", "10+ letters")
 
         const val MAX_EXAMPLES = 10

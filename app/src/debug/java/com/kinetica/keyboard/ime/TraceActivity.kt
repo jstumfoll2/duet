@@ -135,6 +135,16 @@ class TraceActivity : AppCompatActivity() {
             text = getString(R.string.boundary_explain)
             textSize = 13f
         }
+        val goldToggle = SwitchCompat(this).apply {
+            text = getString(R.string.gold_toggle)
+            textSize = 16f
+            isChecked = TraceRecorder.words.goldPrompt
+            setOnCheckedChangeListener { _, on -> TraceRecorder.words.goldPrompt = on }
+        }
+        val goldExplain = TextView(this).apply {
+            text = getString(R.string.gold_explain)
+            textSize = 13f
+        }
         val scoreToggle = SwitchCompat(this).apply {
             text = getString(R.string.loglinear_toggle)
             textSize = 16f
@@ -143,6 +153,16 @@ class TraceActivity : AppCompatActivity() {
         }
         val scoreExplain = TextView(this).apply {
             text = getString(R.string.loglinear_explain)
+            textSize = 13f
+        }
+        val tapsToggle = SwitchCompat(this).apply {
+            text = getString(R.string.taps_toggle)
+            textSize = 16f
+            isChecked = NeuralRerank.tapLikelihood
+            setOnCheckedChangeListener { _, on -> NeuralRerank.tapLikelihood = on }
+        }
+        val tapsExplain = TextView(this).apply {
+            text = getString(R.string.taps_explain)
             textSize = 13f
         }
         val betaRow = RadioGroup(this).apply {
@@ -191,8 +211,12 @@ class TraceActivity : AppCompatActivity() {
             addView(neuralExplain)
             addView(boundaryToggle)
             addView(boundaryExplain)
+            addView(goldToggle)
+            addView(goldExplain)
             addView(scoreToggle)
             addView(scoreExplain)
+            addView(tapsToggle)
+            addView(tapsExplain)
         }
         setContentView(ScrollView(this).apply { addView(column) })
     }

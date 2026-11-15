@@ -30,4 +30,9 @@ object TraceRecorder {
     fun correction(from: String, to: String) = Unit
 
     fun key(name: String, t: Long) = Unit
+
+    /** The developer build's retype prompt: never offered in a release build. */
+    fun takeGoldOffer(): Pair<String, String>? = null
+
+    fun goldAnswer(from: String, to: String, yes: Boolean) = Unit
 }

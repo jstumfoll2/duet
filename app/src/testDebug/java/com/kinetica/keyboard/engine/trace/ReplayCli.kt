@@ -23,6 +23,8 @@ import java.io.File
  *       words|phrases: learn each label after decoding it. --dump OUT: a JSON row per line.
  *       --score loglinear [--lmA A] [--lmB B] [--lmSigma S] [--lmBackoff F] [--lmIl K] [--lmIlw W] (any command): the
  *       log-linear score with a real language model (ScoreModel, issue #124).
+ *       --taps [--tapSigma S] [--tapW W] [--tapRadius R] [--tapMax N] (any command): continuous
+ *       tap likelihood over the keys near each tap (ScoreModel.taps, issue #127).
  *   replay|ranks --personal BACKUP: decode with the learned words, counts and pairs of a
  *       settings backup (Settings > Back up), frozen unless ranks is given --learn as well.
  *   ranks [--learn words|phrases] [--pickw N] [--seed FILE] [--hdfree] TRACE.jsonl...
@@ -102,6 +104,13 @@ object ReplayCli {
         opt(a, "--lmIl")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_SCALE = it.toFloat() }
         opt(a, "--lmIlw")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_WEIGHT = it.toFloat() }
         opt(a, "--lmBackoff")?.let { com.kinetica.keyboard.engine.ScoreModel.BACKOFF = it.toFloat() }
+        // --taps: continuous tap likelihood (ScoreModel.taps, issue #127), --tapSigma, --tapW,
+        // --tapRadius, --tapMax its constants.
+        if (a.remove("--taps")) com.kinetica.keyboard.engine.ScoreModel.taps = true
+        opt(a, "--tapSigma")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_SIGMA = it.toFloat() }
+        opt(a, "--tapW")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_W = it.toFloat() }
+        opt(a, "--tapRadius")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_RADIUS = it.toFloat() }
+        opt(a, "--tapMax")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_MAX_NATS = it.toFloat() }
         val assets = File(opt(a, "--assets") ?: defaultAssets())
         when (cmd) {
             "replay" -> {
@@ -321,6 +330,58 @@ object ReplayCli {
                     println(sb)
                 }
             }
+            "tappoints" -> {
+                // tappoints FILE...: on gold all-tap words (practice prompts and the user's own
+                // fixes, never words the decoder chose), which point of each tap lands nearest the
+                // key meant: the down point the decoder reads, the lift, the mean of all samples,
+                // or the midpoint of down and lift (issue #127). One row per point: taps, share
+                // nearest the meant key's centre, mean distance to it (kw).
+                if (a.isEmpty()) usage()
+                val names = listOf("down", "lift", "centroid", "mid")
+                val hit = IntArray(names.size)
+                val dist = DoubleArray(names.size)
+                var n = 0
+                val sink = ReplayReport(ReplayHarness.DEFAULT_DEEP_K)
+                for (f in a.map { File(it) }) for ((_, w) in read(f, sink)) {
+                    val gold = if (w.target != null) !GoldLabels.isFragment(w) else w.how == "retyped" || w.how == "reswiped" || w.how == "corrected" || w.how == "confirmed"
+                    if (!gold) continue
+                    val label = w.label?.lowercase() ?: continue
+                    val codes = com.kinetica.keyboard.engine.Alphabet.encode(label) ?: continue
+                    val tokens = SwipeTrace.replayTokens(w)
+                    if (tokens.size != codes.size || tokens.any { it !is com.kinetica.keyboard.engine.models.TapToken }) continue
+                    if (w.tokens.size != codes.size || w.tokens.any { it !is SwipeTrace.Gesture }) continue
+                    val g = w.geometry.build()
+                    val kw = w.geometry.keyWidthPx
+                    for (i in codes.indices) {
+                        val meant = codes[i]
+                        if (!g.hasKey(meant)) continue
+                        val ss = (w.tokens[i] as SwipeTrace.Gesture).samples
+                        if (ss.isEmpty()) continue
+                        val pts = listOf(
+                            ss.first().x to ss.first().y,
+                            ss.last().x to ss.last().y,
+                            ss.map { it.x }.average().toFloat() to ss.map { it.y }.average().toFloat(),
+                            (ss.first().x + ss.last().x) / 2f to (ss.first().y + ss.last().y) / 2f,
+                        )
+                        n++
+                        for ((k, pt) in pts.withIndex()) {
+                            val x = pt.first / kw
+                            val y = pt.second / kw
+                            var best = -1
+                            var bestD = Float.POSITIVE_INFINITY
+                            for (c in 0 until com.kinetica.keyboard.engine.Alphabet.LETTERS) {
+                                if (!g.hasKey(c)) continue
+                                val d = g.distToCenter(x, y, c)
+                                if (d < bestD) { bestD = d; best = c }
+                            }
+                            if (best == meant) hit[k]++
+                            dist[k] += g.distToCenter(x, y, meant).toDouble()
+                        }
+                    }
+                }
+                println("taps=$n")
+                for (k in names.indices) println(String.format(java.util.Locale.ROOT, "%-9s %6.2f%% %.3f kw", names[k], 100.0 * hit[k] / maxOf(n, 1), dist[k] / maxOf(n, 1)))
+            }
             "refused" -> {
                 // refused [replay flags] FILE...: every gold line (practice prompt or second attempt)
                 // whose label a 50-deep list misses, read again by a decoder that knows only that
@@ -336,7 +397,7 @@ object ReplayCli {
                 val sink = ReplayReport(h.deepK)
                 for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
                     val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
-                    val gold = if (w.target != null) !GoldLabels.isFragment(w) else w.how == "retyped" || w.how == "reswiped" || w.how == "corrected"
+                    val gold = if (w.target != null) !GoldLabels.isFragment(w) else w.how == "retyped" || w.how == "reswiped" || w.how == "corrected" || w.how == "confirmed"
                     if (!gold) continue
                     val label = w.label?.lowercase() ?: continue
                     val head = "${f.name}\t$n\t$label\t${r.buckets.joinToString(",")}\t${shape(r)}"
@@ -834,6 +895,7 @@ object ReplayCli {
                         }
                         is SwipeTrace.Line.Discard -> if (!skipped) { words.removeLastOrNull(); chain = ArrayList() }
                         is SwipeTrace.Line.Key -> if (!skipped && l.name == "backspace" && chain.isNotEmpty()) undone = true
+                        is SwipeTrace.Line.Confirm -> if (!skipped) confirm(words, l, report)
                         is SwipeTrace.Line.Correction -> if (!skipped) {
                             val k = words.indexOfLast { it.second.committed.equals(l.from, ignoreCase = true) }
                             if (k >= 0) {
@@ -854,30 +916,33 @@ object ReplayCli {
     enum class Retype { NONE, CLOSE, EXTENDS }
 
     /**
+     * Applies the user's answer to the developer build's retype prompt ([GoldPrompt]): the
+     * lines just before the retyped commit that were relabelled to it (`how = "retyped"`) become
+     * confirmed labels on a yes, and lose their label on a no (a change of mind, not a fix).
+     */
+    internal fun confirm(words: MutableList<Pair<Int, SwipeTrace.Word>>, l: SwipeTrace.Line.Confirm, report: ReplayReport) {
+        // The retyped commit itself is the newest line spelled `to`; the relabelled tries sit
+        // before it, with dropped buffers (no commit) between them.
+        var k = words.indexOfLast { it.second.committed.equals(l.to, ignoreCase = true) && it.second.how != "retyped" }
+        if (k < 0) return
+        var hit = 0
+        while (--k >= 0) {
+            val (n, w) = words[k]
+            if (w.committed == null) continue
+            if (w.how != "retyped" || !w.committed.equals(l.to, ignoreCase = true)) break
+            words[k] = n to if (l.yes) w.copy(how = "confirmed") else w.copy(committed = null)
+            hit++
+        }
+        if (l.yes) report.confirmed += hit else report.denied += hit
+    }
+
+    /**
      * How [retyped] relates to the earlier commit [was]: CLOSE when it differs by at most half
      * the longer word's letters (go/to, gels/tells, bit/but), EXTENDS when it only adds letters
      * at the end, NONE otherwise (a stray "j" before "the", or a different word altogether).
      */
-    fun retypeOf(was: String?, retyped: String): Retype {
-        val a = was?.lowercase() ?: return Retype.NONE
-        val b = retyped.lowercase()
-        if (a == b || a.isEmpty()) return Retype.NONE
-        if (b.startsWith(a)) return Retype.EXTENDS
-        return if (editDistance(a, b) <= maxOf(1, maxOf(a.length, b.length) / 2)) Retype.CLOSE else Retype.NONE
-    }
-
-    private fun editDistance(a: String, b: String): Int {
-        var prev = IntArray(b.length + 1) { it }
-        for (i in 1..a.length) {
-            val cur = IntArray(b.length + 1)
-            cur[0] = i
-            for (j in 1..b.length) {
-                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
-            }
-            prev = cur
-        }
-        return prev[b.length]
-    }
+    fun retypeOf(was: String?, retyped: String): Retype =
+        Retype.valueOf(GoldPrompt.retypeOf(was, retyped).name)
 
     /**
      * One line per miss: label, shipping and deep rank, buckets, the top three,

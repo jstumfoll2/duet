@@ -40,6 +40,12 @@ class SwipeTraceRecorder(
      */
     var compare: (List<InputToken>, List<String>, String?) -> SwipeTrace.AB? = { _, _, _ -> null }
 
+    /** The retype prompt, fed every word line this writes ([GoldPrompt]). */
+    val gold = GoldPrompt()
+
+    /** The clock [gold] rate-limits on, wall time in ms. */
+    var now: () -> Long = { System.currentTimeMillis() }
+
     /** A correction-strip pick replaced the last commit [from] with [to]. */
     fun onCorrection(from: String, to: String) {
         if (enabled()) sink(SwipeTrace.encodeCorrection(from, to))
@@ -129,6 +135,7 @@ class SwipeTraceRecorder(
             compare(tokens, context, goal), apostropheMark,
         )
         sink(SwipeTrace.encode(word))
+        gold.onWord(committed, goal, now())
     }
 
     // Gives the seeded taps that lead [tokens] the real times of [lastTaps] when they spell the

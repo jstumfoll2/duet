@@ -53,6 +53,7 @@ object NeuralRerank {
     private const val PREF_BETA = "beta"
     private const val PREF_BOUNDARY = "boundary_model"
     private const val PREF_LOGLINEAR = "score_loglinear"
+    private const val PREF_TAPS = "score_taps"
 
     private const val TAG = "KineticaNeural"
 
@@ -122,6 +123,7 @@ object NeuralRerank {
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         BoundaryModel.enabled = boundaryModel
         ScoreModel.mode = if (logLinearScore) ScoreModel.Mode.LOGLINEAR else ScoreModel.Mode.LEGACY
+        ScoreModel.taps = tapLikelihood
     }
 
     /**
@@ -145,6 +147,14 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_LOGLINEAR, on)?.apply()
             ScoreModel.mode = if (on) ScoreModel.Mode.LOGLINEAR else ScoreModel.Mode.LEGACY
+        }
+
+    /** Continuous tap likelihood ([ScoreModel.taps], decoder rework step 4, #127). Off by default. */
+    var tapLikelihood: Boolean
+        get() = prefs?.getBoolean(PREF_TAPS, false) ?: false
+        set(on) {
+            prefs?.edit()?.putBoolean(PREF_TAPS, on)?.apply()
+            ScoreModel.taps = on
         }
 
     fun detach() {

@@ -741,6 +741,9 @@
     <string name="pref_theme_color_summary">The colour the custom palette is built from</string>
     <string name="action_clipboard">Clipboard history</string>
     <string name="action_voice">Voice typing</string>
+    <!-- Developer build only: the retype prompt (decoder rework step 2). The release build never shows it. -->
+    <string name="gold_prompt_yes" translatable="false">✓ %1$s meant %2$s</string>
+    <string name="gold_prompt_no" translatable="false">✗ changed my mind</string>
     <string name="clipboard_empty">Nothing copied in the last hour</string>
     <string name="clip_image">Image</string>
     <string name="clipboard_images_refused">This field doesn\'t take images</string>

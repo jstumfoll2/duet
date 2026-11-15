@@ -160,6 +160,77 @@ class SwipeTraceReplayTest {
     }
 
     @Test
+    fun promptAnswersConfirmOrUnlabelRetypes() {
+        assumeTrue(haveAssets("en"))
+        val lines = ArrayList<String>()
+        SyntheticSession(assets).record(listOf("go", "to", "bit", "but", "the"), "en", null) { lines.add(it) }
+        val bs = SwipeTrace.encodeKey("backspace", 0)
+        val f = File.createTempFile("trace", ".jsonl")
+        try {
+            // go -> to confirmed (answered a word later), bit -> but denied.
+            f.writeText(
+                listOf(
+                    lines[0], bs, lines[1], lines[4], SwipeTrace.encodeConfirm("go", "to", true),
+                    lines[2], bs, lines[3], SwipeTrace.encodeConfirm("bit", "but", false),
+                ).joinToString("\n"),
+            )
+            val report = ReplayReport(ReplayHarness.DEFAULT_DEEP_K)
+            val words = ReplayCli.read(f, report).map { it.second }
+            assertEquals(listOf("to", "to", "the", null, "but"), words.map { it.label })
+            assertEquals("confirmed", words[0].how)
+            assertEquals(1, report.confirmed)
+            assertEquals(1, report.denied)
+        } finally {
+            f.delete()
+        }
+    }
+
+    @Test
+    fun liveGoldPromptOffersWhatReplayRelabels() {
+        val p = GoldPrompt(minGapMs = 1000)
+        p.onWord("go", null, 0)
+        p.onKey("backspace")
+        p.onWord("to", null, 10)
+        assertEquals(GoldPrompt.Offer("go", "to"), p.take())
+        assertEquals(null, p.take())
+        // Too soon after the last offer.
+        p.onKey("backspace")
+        p.onWord("tp", null, 20)
+        assertEquals(null, p.pending)
+        // A stray mid-word commit extended is not a retype; a far word is not either.
+        p.onWord("ca", null, 5000)
+        p.onWord(null, null, 5001)
+        p.onWord("can", null, 5002)
+        assertEquals(null, p.pending)
+        p.onKey("backspace")
+        p.onWord("with", null, 5003)
+        assertEquals(null, p.pending)
+        // No undo in between: both stand.
+        p.onWord("bit", null, 9000)
+        p.onWord("but", null, 9001)
+        assertEquals(null, p.pending)
+        // Practice lines never offer.
+        p.onKey("backspace")
+        p.onWord("bat", "bat", 9002)
+        assertEquals(null, p.pending)
+        // An unshown offer waits a few words, then goes.
+        p.onWord("bit", null, 20000)
+        p.onKey("backspace")
+        p.onWord("but", null, 20001)
+        repeat(GoldPrompt.PENDING_WORDS) { p.onWord("x", null, 20002L + it) }
+        assertEquals(GoldPrompt.Offer("bit", "but"), p.pending)
+        p.onWord("x", null, 20010)
+        assertEquals(null, p.pending)
+    }
+
+    @Test
+    fun confirmLinesRoundTrip() {
+        val l = SwipeTrace.decodeLine(SwipeTrace.encodeConfirm("go", "to", true))
+        assertEquals(SwipeTrace.Line.Confirm("go", "to", true), l)
+        assertEquals(0, SwipeTrace.wordDelta(SwipeTrace.encodeConfirm("go", "to", false)))
+    }
+
+    @Test
     fun retypeNeedsACloseWord() {
         assertEquals(ReplayCli.Retype.CLOSE, ReplayCli.retypeOf("gels", "tells"))
         assertEquals(ReplayCli.Retype.CLOSE, ReplayCli.retypeOf("foe", "for"))

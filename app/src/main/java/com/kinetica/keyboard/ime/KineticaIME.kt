@@ -276,8 +276,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val shown: List<String>,
         val images: List<ClipboardHistory.Image?> = emptyList(),
     ) {
-        enum class Kind { CLIPS, FRESH_CLIP, CODES }
+        enum class Kind { CLIPS, FRESH_CLIP, CODES, GOLD }
     }
+
+    // The retype a GOLD offer asks about: the word committed first and the word typed instead.
+    private var goldAsked: Pair<String, String>? = null
 
     private var barOffer: BarOffer? = null
 
@@ -2520,6 +2523,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val bar = suggestionBar ?: return
         val quiet = lastCandidates.isEmpty() && lastCommit.stripWord == null && keptBar == null &&
             expansionChoice == null && barOffer == null
+        if (quiet && tentativeLength == 0 && composer?.hasPendingWord != true && offerGold()) return
         if (quiet && tentativeLength == 0 && composer?.hasPendingWord != true && offerFreshClip()) return
         val idle = quiet && config.nextWord && !editorState.privateMode && tentativeLength == 0 &&
             composer?.hasPendingWord != true
@@ -3422,6 +3426,25 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         return true
     }
 
+    /**
+     * The developer build's question after a retype (decoder rework step 2, #125): was the word
+     * committed first meant as the one typed instead? One tap answers into the word trace, so
+     * replay gets confirmed labels instead of guesses. The release build never has one to ask.
+     */
+    private fun offerGold(): Boolean {
+        if (editorState.privateMode) return false
+        val bar = suggestionBar ?: return false
+        val (from, to) = TraceRecorder.takeGoldOffer() ?: return false
+        val shown = listOf(getString(R.string.gold_prompt_yes, from, to), getString(R.string.gold_prompt_no))
+        DecodeTrace.log { "  gold prompt from=$from to=$to" }
+        goldAsked = from to to
+        barOffer = BarOffer(BarOffer.Kind.GOLD, listOf("yes", "no"), shown)
+        barPredictions = emptyList()
+        containerView?.hideInlineStrip()
+        bar.setSuggestions(shown.map { SuggestionBarView.Suggestion(it, 0) })
+        return true
+    }
+
     private fun showBarOffer(kind: BarOffer.Kind, texts: List<String>, images: List<ClipboardHistory.Image?> = emptyList()) {
         val bar = suggestionBar ?: return
         val imageLabel = "🖼 " + getString(R.string.clip_image)
@@ -3430,7 +3453,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             when (kind) {
                 BarOffer.Kind.CLIPS -> preview
                 BarOffer.Kind.FRESH_CLIP -> "📋 " + preview
-                BarOffer.Kind.CODES -> t
+                BarOffer.Kind.CODES, BarOffer.Kind.GOLD -> t
             }
         }
         val shown = ExpansionRows.distinctLabels(labels)
@@ -3449,6 +3472,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun pickBarOffer(offer: BarOffer, index: Int) {
         if (offer.kind == BarOffer.Kind.FRESH_CLIP) clipboardHistory.markFreshUsed()
         suggestionBar?.clearSuggestions()
+        if (offer.kind == BarOffer.Kind.GOLD) {
+            // An answer, not text: nothing is written to the field.
+            goldAsked?.let { (from, to) -> TraceRecorder.goldAnswer(from, to, index == 0) }
+            goldAsked = null
+            refreshPredictions()
+            return
+        }
         val text = offer.texts[index]
         // A code picked once is not offered again in a field that never asked for one.
         if (offer.kind == BarOffer.Kind.CODES) usedCodes.add(text)

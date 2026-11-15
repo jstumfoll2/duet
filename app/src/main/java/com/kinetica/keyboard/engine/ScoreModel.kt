@@ -58,6 +58,31 @@ object ScoreModel {
 
     val logLinear: Boolean get() = mode == Mode.LOGLINEAR
 
+    /**
+     * Continuous tap likelihood (decoder rework step 4, #127). Off: a tap reads as the key under
+     * the finger at no charge, and its neighbours only in the fuzzy passes (sparse heap or a tap
+     * near an edge). On: every pass tries each key whose centre lies within [TAP_RADIUS] kw, at
+     * the Gaussian charge `TAP_W * (d^2 - d0^2) / (2 * TAP_SIGMA^2)` (kw of shape distance per
+     * nat), d0 the nearest centre's distance, so the key under the finger is free and a
+     * neighbour costs what the touch spread says it should. Independent of [mode].
+     */
+    @Volatile @JvmField var taps = false
+
+    /**
+     * Touch spread, kw. The developer's taps scatter 0.25 to 0.35 kw around where they aim; 0.4
+     * fitted best on replay (wider covers the thumbs' own offsets the model does not subtract).
+     */
+    @Volatile @JvmField var TAP_SIGMA = 0.4f
+
+    /** Shape-distance kw charged per nat of tap log-likelihood. */
+    @Volatile @JvmField var TAP_W = 0.1f
+
+    /** Keys farther than this from the touch are never tried. */
+    @Volatile @JvmField var TAP_RADIUS = 1.2f
+
+    /** A key whose charge exceeds this many nats is not tried (prunes the search). */
+    @Volatile @JvmField var TAP_MAX_NATS = 6f
+
     /** `B * shape(d)`, the shape term as a natural-log factor of the score. */
     fun lnShape(d: Float): Float {
         val r = d / SIGMA

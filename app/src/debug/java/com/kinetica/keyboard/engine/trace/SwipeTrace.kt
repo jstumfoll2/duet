@@ -68,6 +68,11 @@ import com.kinetica.keyboard.engine.models.WordCandidate
  * pick from the correction strip after a commit: the most recent word line
  * whose `word` is `from` was really meant as `to`.
  *
+ * `{"v":1,"type":"confirm","from":..,"to":..,"yes":..}` answers the developer build's
+ * "did you mean" prompt after a retype ([GoldPrompt]): `yes` true says the earlier word line
+ * committed as `from`, then undone and typed again as `to`, was meant as `to` (a true label),
+ * false says it was not (the retype was a change of mind, not a fix).
+ *
  * A third, `{"v":1,"type":"discard"}`, withdraws the most recent word line: the
  * practice screen writes it when the person says their last attempt was a bad
  * swipe, so a sloppy attempt never becomes a labelled example.
@@ -276,6 +281,10 @@ object SwipeTrace {
         JsonWriter().beginObject().key("v").value(VERSION).key("type").value("correction")
             .key("from").value(from).key("to").value(to).endObject().toString()
 
+    fun encodeConfirm(from: String, to: String, yes: Boolean): String =
+        JsonWriter().beginObject().key("v").value(VERSION).key("type").value("confirm")
+            .key("from").value(from).key("to").value(to).key("yes").value(yes).endObject().toString()
+
     fun encodeDiscard(): String =
         JsonWriter().beginObject().key("v").value(VERSION).key("type").value("discard").endObject().toString()
 
@@ -302,10 +311,11 @@ object SwipeTrace {
     private val WORD_HEAD = "{\"v\":$VERSION,\"type\":\"word\""
     private val DISCARD_HEAD = "{\"v\":$VERSION,\"type\":\"discard\""
 
-    /** A line of any type: a [Word], a correction as (from, to), a discard, or a key press. */
+    /** A line of any type: a [Word], a correction as (from, to), a prompt answer, a discard, or a key press. */
     sealed class Line {
         data class WordLine(val word: Word) : Line()
         data class Correction(val from: String, val to: String) : Line()
+        data class Confirm(val from: String, val to: String, val yes: Boolean) : Line()
         object Discard : Line()
         data class Key(val name: String, val t: Long) : Line()
     }
@@ -317,6 +327,10 @@ object SwipeTrace {
             "correction" -> {
                 require((o["v"] as JsonNum).toInt() == VERSION) { "unsupported trace version ${o["v"]}" }
                 Line.Correction(o["from"] as String, o["to"] as String)
+            }
+            "confirm" -> {
+                require((o["v"] as JsonNum).toInt() == VERSION) { "unsupported trace version ${o["v"]}" }
+                Line.Confirm(o["from"] as String, o["to"] as String, o["yes"] == true)
             }
             "discard" -> {
                 require((o["v"] as JsonNum).toInt() == VERSION) { "unsupported trace version ${o["v"]}" }
