@@ -28,8 +28,16 @@ table, stopped turning `for s` into `for a`. Pairs with a contraction piece (`ll
 or a one-letter word other than `a` and `i` are dropped from the web counts before the cut.
 The decoder replay is level with and without them.
 
-Format: see PairFile.kt. Three bytes a pair, words named by spelling. Offline and
-deterministic: the same inputs give a byte-identical file.
+Log-probabilities (decoder rework step 3, #126). The default format, DPR2, also stores for
+every pair `-ln P(next | prev)` in 1/16-nat steps and for every context `ln C(prev)`, the
+blended count of everything that follows `prev` (all counted pairs over the vocabulary, before
+the cut), so the log-linear score reads a real conditional probability and can turn a triple's
+count into `P(w | u, v) = c(u, v, w) / c(u, v)` with `c(u, v) = C(u) * P(v | u)`. The boost
+bytes are unchanged, so the legacy score reads the same numbers. `--format 1` writes the old
+DPR1 file (byte-identical to the one shipped before step 3).
+
+Format: see PairFile.kt. Words named by spelling. Offline and deterministic: the same inputs
+give a byte-identical file.
 """
 
 from __future__ import annotations
@@ -59,6 +67,14 @@ def fragment(word: str) -> bool:
     return word in CONTRACTION_PIECES or (len(word) == 1 and word not in SINGLE_LETTER_WORDS)
 
 
+LOGP_STEP = 1.0 / 16.0
+
+
+def logp_byte(log_p: float) -> int:
+    """`-ln P` in LOGP_STEP steps, 0..255 (BigramTable.quantizeLogP)."""
+    return min(255, max(0, round(-log_p / LOGP_STEP)))
+
+
 def utf(word: str) -> bytes:
     # DataOutput.writeUTF: a u16 byte length, then modified UTF-8. The word list holds no NUL
     # and nothing outside the basic plane, where modified and standard UTF-8 agree.
@@ -75,6 +91,7 @@ def main() -> int:
     p.add_argument("--pairs", type=int, default=1_000_000)
     p.add_argument("--out", type=Path, help="defaults to <assets>/en_pairs.bin")
     p.add_argument("--text", type=Path, help="also write the table as prev<TAB>next<TAB>count lines")
+    p.add_argument("--format", type=int, choices=(1, 2), default=2, help="DPR1 (boosts) or DPR2 (boosts and log-probabilities)")
     args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -98,6 +115,10 @@ def main() -> int:
         merged[k] += c
     for k, c in tat.items():
         merged[k] += c * scale
+    # Every counted follower of a word, before the cut: the denominator of P(next | prev).
+    totals: dict[str, float] = collections.defaultdict(float)
+    for (a, _), c in merged.items():
+        totals[a] += c
     kept = sorted(((c, a, b) for (a, b), c in merged.items()), key=lambda r: (-r[0], r[1], r[2]))[: args.pairs]
     kept = [(a, b, max(1, round(c))) for c, a, b in kept]
     LOG.info("%d tatoeba + %d web -> %d kept", len(tat), len(web), len(kept))
@@ -114,7 +135,7 @@ def main() -> int:
     for a, b, c in kept:
         contexts[index[a]].append((index[b], c))
 
-    out = bytearray(b"DPR1")
+    out = bytearray(b"DPR1" if args.format == 1 else b"DPR2")
     out += struct.pack(">i", len(words))
     for w in words:
         out += utf(w)
@@ -123,9 +144,15 @@ def main() -> int:
         followers = sorted(contexts[prev])
         log_max = math.log(1.0 + max(c for _, c in followers))
         out += struct.pack(">HH", prev, len(followers) - 1)
+        if args.format == 2:
+            log_total = math.log(totals[words[prev]])
+            out += struct.pack(">f", log_total)
         for nxt, c in followers:
             boost = min(255, max(1, int(255.0 * math.log(1.0 + c) / log_max)))
-            out += struct.pack(">HB", nxt, boost)
+            if args.format == 1:
+                out += struct.pack(">HB", nxt, boost)
+            else:
+                out += struct.pack(">HBB", nxt, boost, logp_byte(math.log(c) - log_total))
     target = args.out or args.assets / "en_pairs.bin"
     target.write_bytes(bytes(out))
     LOG.info("%s: %d words, %d contexts, %d pairs, %d bytes", target, len(words), len(contexts), len(kept), len(out))

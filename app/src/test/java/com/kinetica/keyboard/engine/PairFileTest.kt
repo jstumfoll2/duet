@@ -26,10 +26,10 @@ class PairFileTest {
         DictionaryLoader.loadWordlist(StringReader(list.mapIndexed { i, w -> "$w\t${1000 - i}" }.joinToString("\n")).buffered())
 
     /** The file tools/build_en_pairs.py writes for [counts] over [vocabulary]. */
-    private fun file(vocabulary: List<String> = words): ByteArray {
+    private fun file(vocabulary: List<String> = words, v2: Boolean = false): ByteArray {
         val bytes = ByteArrayOutputStream()
         val out = DataOutputStream(bytes)
-        out.writeInt(0x44505231)
+        out.writeInt(if (v2) 0x44505232 else 0x44505231)
         out.writeInt(vocabulary.size)
         vocabulary.forEach { out.writeUTF(it) }
         val contexts = counts.groupBy { vocabulary.indexOf(it.first) }.toSortedMap()
@@ -38,9 +38,12 @@ class PairFileTest {
             val max = rows.maxOf { it.third }
             out.writeShort(prev)
             out.writeShort(rows.size - 1)
+            val total = rows.sumOf { it.third }
+            if (v2) out.writeFloat(ln(total.toDouble()).toFloat())
             for (r in rows.sortedBy { vocabulary.indexOf(it.second) }) {
                 out.writeShort(vocabulary.indexOf(r.second))
                 out.writeByte((255.0 * ln(1.0 + r.third) / ln(1.0 + max)).toInt().coerceIn(1, 255))
+                if (v2) out.writeByte(BigramTable.quantizeLogP(r.third, total).toInt())
             }
         }
         return bytes.toByteArray()
@@ -97,6 +100,41 @@ class PairFileTest {
         assertEquals(counts.size, both.contextSize)
     }
 
+    @Test
+    fun aVersionTwoFileReadsTheSameBoostsAndRealProbabilities() {
+        val t = trie()
+        val one = PairFile.read(ByteArrayInputStream(file()), t)
+        val two = PairFile.read(ByteArrayInputStream(file(v2 = true)), t)
+        for (a in words) for (b in words) {
+            val p = t.nodeFor(AccentFolder.fold(a))
+            val n = t.nodeFor(AccentFolder.fold(b))
+            assertEquals("$a $b", one.boostByte(p, n), two.boostByte(p, n))
+        }
+        assertTrue(one.logCond(t.nodeFor("kind"), t.nodeFor("of")).isNaN())
+        // kind: of 900, the 3.
+        assertEquals(ln(900f / 903f), two.logCond(t.nodeFor("kind"), t.nodeFor("of")), BigramTable.LOGP_STEP)
+        assertEquals(ln(3f / 903f), two.logCond(t.nodeFor("kind"), t.nodeFor("the")), BigramTable.LOGP_STEP)
+        assertEquals(ln(900f), two.lnPairCount(t.nodeFor("kind"), t.nodeFor("of")), BigramTable.LOGP_STEP)
+        assertTrue(two.logCond(t.nodeFor("cat"), t.nodeFor("of")).isNaN())
+        // Behind a text table, the wide file's probabilities answer.
+        val behind = text(t).withContext(two)
+        assertEquals(ln(40f / 57f), behind.logCond(t.nodeFor("the"), t.nodeFor("cat")), BigramTable.LOGP_STEP)
+    }
+
+    @Test
+    fun aTripleOverItsPairCountIsARealConditional() {
+        val t = trie()
+        val tri = TrigramTable.build(
+            listOf(intArrayOf(t.nodeFor("the"), t.nodeFor("kind"), t.nodeFor("of"))),
+            longArrayOf(6L),
+        )
+        val ids = intArrayOf(t.nodeFor("the"), t.nodeFor("kind"), t.nodeFor("of"))
+        // Listed alone, the triple looks certain; over c(the, kind) = 12 it is a half.
+        assertEquals(0f, tri.logCond(ids[0], ids[1], ids[2]), BigramTable.LOGP_STEP)
+        assertEquals(ln(0.5f), tri.logCondOver(ids[0], ids[1], ids[2], ln(12f)), BigramTable.LOGP_STEP)
+        assertEquals(0f, tri.logCondOver(ids[0], ids[1], ids[2], Float.NaN), BigramTable.LOGP_STEP)
+    }
+
     @Test(expected = IOException::class)
     fun anotherFileIsRefused() {
         PairFile.read(ByteArrayInputStream("the\tof\t12\n".toByteArray()), trie())
@@ -109,6 +147,9 @@ class PairFileTest {
         val t = Files.newBufferedReader(dir!!.resolve("en_wordlist.txt")).use { DictionaryLoader.loadWordlist(it) }
         val pairs = Files.newInputStream(dir.resolve("en_pairs.bin")).use { PairFile.read(it, t) }
         assertTrue("pairs ${pairs.size}", pairs.size >= 900_000)
+        // The shipped file carries real conditionals (DPR2): `of` follows most `kind`s.
+        val kindOf = pairs.logCond(t.nodeFor("kind"), t.nodeFor("of"))
+        assertTrue("ln P(of | kind) $kindOf", kindOf > ln(0.3f) && kindOf <= 0f)
         fun byte(a: String, b: String) = pairs.boostByte(t.nodeFor(a), t.nodeFor(b))
         assertTrue(byte("kind", "of") > 200)
         assertTrue(byte("i", "agree") > 100)

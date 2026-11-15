@@ -29,11 +29,26 @@ class BigramTable private constructor(
     val size: Int get() = compact?.size ?: keys.size
 
     /**
-     * `ln P(next | prev)` from this table's own counts, or NaN when the pair is absent or the
-     * table has no counts. Reads this table, never the wider [context] one, whose pair file
-     * keeps only per-context bytes (decoder rework step 3 rebuilds it with probabilities).
+     * `ln P(next | prev)`, or NaN when the pair is absent or no table has probabilities. The
+     * wider [context] table answers when its pair file carries them (DPR2, decoder rework step
+     * 3): its pairs are a real conditional over everything counted after `prev`. Otherwise this
+     * table's own counts, normalised over the followers it lists.
      */
     fun logCond(prevWordId: Int, nextWordId: Int): Float {
+        val wide = context?.compact
+        if (wide != null && wide.hasLogp) return wide.logCond(prevWordId, nextWordId)
+        compact?.let { if (it.hasLogp) return it.logCond(prevWordId, nextWordId) }
+        return ownLogCond(prevWordId, nextWordId)
+    }
+
+    /**
+     * `ln c(prev, next)`, the pair's blended count, from a pair file with probabilities, or NaN.
+     * The denominator of a triple's `P(w | prev, next)`.
+     */
+    fun lnPairCount(prevWordId: Int, nextWordId: Int): Float =
+        ((context ?: this).compact)?.lnPairCount(prevWordId, nextWordId) ?: Float.NaN
+
+    private fun ownLogCond(prevWordId: Int, nextWordId: Int): Float {
         val lp = logp ?: return Float.NaN
         if (prevWordId < 0 || nextWordId < 0 || keys.isEmpty()) return Float.NaN
         val i = java.util.Arrays.binarySearch(keys, pack(prevWordId, nextWordId))
@@ -101,17 +116,25 @@ class BigramTable private constructor(
         private val start: IntArray,
         private val next: ShortArray,
         private val boost: ByteArray,
+        /** Per pair, `-ln P(next | prev)` in [LOGP_STEP] steps (DPR2), or null. */
+        private val logp: ByteArray? = null,
+        /** Per word number, `ln C(word)`: the count of everything after it (DPR2), NaN for none. */
+        private val lnTotal: FloatArray? = null,
     ) {
         val size: Int get() = next.size
 
-        fun sizeBytes(): Int = next.size * 3 + (indexOfNode.size + nodeOf.size + start.size) * 4
+        val hasLogp: Boolean get() = logp != null
+
+        fun sizeBytes(): Int = next.size * (if (logp != null) 4 else 3) +
+            (indexOfNode.size + nodeOf.size + start.size + (lnTotal?.size ?: 0)) * 4
 
         private fun indexOf(node: Int): Int = if (node < 0 || node >= indexOfNode.size) -1 else indexOfNode[node]
 
-        fun boostByte(prevNode: Int, nextNode: Int): Int {
+        /** The pair's slot in [next], or -1. */
+        private fun find(prevNode: Int, nextNode: Int): Int {
             val p = indexOf(prevNode)
             val n = indexOf(nextNode)
-            if (p < 0 || n < 0) return 0
+            if (p < 0 || n < 0) return -1
             var lo = start[p]
             var hi = start[p + 1] - 1
             while (lo <= hi) {
@@ -120,10 +143,27 @@ class BigramTable private constructor(
                 when {
                     v < n -> lo = mid + 1
                     v > n -> hi = mid - 1
-                    else -> return boost[mid].toInt() and 0xFF
+                    else -> return mid
                 }
             }
-            return 0
+            return -1
+        }
+
+        fun boostByte(prevNode: Int, nextNode: Int): Int {
+            val i = find(prevNode, nextNode)
+            return if (i < 0) 0 else boost[i].toInt() and 0xFF
+        }
+
+        fun logCond(prevNode: Int, nextNode: Int): Float {
+            val lp = logp ?: return Float.NaN
+            val i = find(prevNode, nextNode)
+            return if (i < 0) Float.NaN else -(lp[i].toInt() and 0xFF) * LOGP_STEP
+        }
+
+        fun lnPairCount(prevNode: Int, nextNode: Int): Float {
+            val totals = lnTotal ?: return Float.NaN
+            val l = logCond(prevNode, nextNode)
+            return if (l.isNaN()) Float.NaN else totals[indexOf(prevNode)] + l
         }
 
         fun successors(prevNode: Int, limit: Int): List<Pair<Int, Int>> {

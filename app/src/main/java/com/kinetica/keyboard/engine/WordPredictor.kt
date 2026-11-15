@@ -564,7 +564,7 @@ class WordPredictor(
         if (prevWordId < 0 || node < 0) return p1
         val shift = p1 - trie.logProb(trie.frequency(node))
         if (lmFirstId >= 0) {
-            val t = trigrams.logCond(lmFirstId, prevWordId, node)
+            val t = trigrams.logCondOver(lmFirstId, prevWordId, node, bigrams.lnPairCount(lmFirstId, prevWordId))
             if (!t.isNaN()) return t + shift
         }
         val b = bigrams.logCond(prevWordId, node)

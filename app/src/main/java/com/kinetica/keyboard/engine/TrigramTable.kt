@@ -16,6 +16,8 @@ class TrigramTable private constructor(
     private val boosts: ByteArray,
     /** Per triple, `-ln P(next | first, second)` in [BigramTable.LOGP_STEP] steps ([ScoreModel]). */
     private val logp: ByteArray? = null,
+    /** Per triple, `ln c(first, second, next)` in [BigramTable.LOGP_STEP] steps, capped at 255. */
+    private val lnc: ByteArray? = null,
 ) {
     val size: Int get() = keys.size
 
@@ -32,6 +34,21 @@ class TrigramTable private constructor(
         if (keys.isEmpty() || !fits(firstId) || !fits(secondId) || !fits(nextId)) return Float.NaN
         val i = java.util.Arrays.binarySearch(keys, pack(firstId, secondId, nextId))
         return if (i < 0) Float.NaN else -(lp[i].toInt() and 0xFF) * BigramTable.LOGP_STEP
+    }
+
+    /**
+     * `ln P(next | first, second)` as the triple's count over the pair's, `c(u, v, w) / c(u, v)`,
+     * with [lnPairCount] the pair's `ln c(u, v)` from a pair file with probabilities (decoder
+     * rework step 3). NaN when the triple is absent; [logCond] (normalised over the followers the
+     * table lists, which overstates them) when the pair count is unknown.
+     */
+    fun logCondOver(firstId: Int, secondId: Int, nextId: Int, lnPairCount: Float): Float {
+        val l = lnc
+        if (l == null || lnPairCount.isNaN()) return logCond(firstId, secondId, nextId)
+        if (keys.isEmpty() || !fits(firstId) || !fits(secondId) || !fits(nextId)) return Float.NaN
+        val i = java.util.Arrays.binarySearch(keys, pack(firstId, secondId, nextId))
+        if (i < 0) return Float.NaN
+        return minOf(0f, (l[i].toInt() and 0xFF) * BigramTable.LOGP_STEP - lnPairCount)
     }
 
     /** 1 + [KineticaConstants.TRIGRAM_BOOST_MAX] scaled by the boost byte; 1.0 when unseen. */
@@ -74,6 +91,7 @@ class TrigramTable private constructor(
             // its own maximum so every context uses the full byte range.
             val boosts = ByteArray(n)
             val logp = ByteArray(n)
+            val lnc = ByteArray(n)
             var start = 0
             while (start < n) {
                 val ctx = keys[start] ushr BITS
@@ -89,10 +107,12 @@ class TrigramTable private constructor(
                     val q = if (max <= 0) 0 else Math.round(255.0 * sums[j] / max).toInt().coerceIn(1, 255)
                     boosts[j] = q.toByte()
                     logp[j] = BigramTable.quantizeLogP(maxOf(sums[j], 1L), total)
+                    lnc[j] = Math.round(kotlin.math.ln(maxOf(sums[j], 1L).toDouble()) / BigramTable.LOGP_STEP)
+                        .toInt().coerceIn(0, 255).toByte()
                 }
                 start = end
             }
-            return TrigramTable(keys.copyOf(n), boosts, logp)
+            return TrigramTable(keys.copyOf(n), boosts, logp, lnc)
         }
     }
 }

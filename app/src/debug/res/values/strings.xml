@@ -45,7 +45,7 @@
     <string name="gold_toggle">Ask after retypes</string>
     <string name="gold_explain">Now and then (at most every five minutes), after you undo a word and type a close one instead, the bar asks whether the first word was meant as the second. Your answer goes into the word trace as a confirmed label, so replay measures on what you meant rather than a guess.</string>
     <string name="loglinear_toggle">Language-model score (test)</string>
-    <string name="loglinear_explain">Ranks words by a real language model (how likely the word is after the last two) plus a shape fit that never goes flat, instead of today\'s score. Off by default: on replay it is about a point behind today\'s decoder for now.</string>
+    <string name="loglinear_explain">Ranks words by a real language model (how likely the word is after the last two) plus a shape fit that never goes flat, instead of today\'s score. Off by default: on replay it reads context better than today\'s decoder but loses about four points where both thumbs overlap, so it waits for that to be fixed.</string>
     <string name="practice_ab">Today %1$d/%2$d · Neural %3$d/%4$d</string>
     <string name="practice_ab_last">Last: today \"%1$s\" (%2$s ms) · neural \"%3$s\" (%4$s ms)</string>
     <string name="practice_ab_none">Comparison unavailable until the keyboard has loaded its dictionary.</string>
