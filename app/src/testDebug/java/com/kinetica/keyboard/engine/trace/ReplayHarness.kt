@@ -262,6 +262,19 @@ class ReplayHarness(
         )
     }
 
+    /**
+     * The shipping list for [w] with [context] in place of its own, and nothing learned from
+     * it: for a second look at a line (the previous-word fix decodes a word after each
+     * runner-up of the word before it).
+     */
+    fun shippingFor(w: SwipeTrace.Word, context: List<String>): List<WordCandidate> {
+        val g = w.geometry.build()
+        val cfg = w.config
+        val active = predictor(cfg.language, cfg.britishSpelling, g, KineticaConstants.TOP_K, rerank = true)
+        val alt = cfg.alternate?.let { predictor(it, cfg.britishSpelling, g, KineticaConstants.TOP_K, rerank = true) }
+        return composerDecode(active, alt, SwipeTrace.replayTokens(w), context, w.apostropheMark)
+    }
+
     /** The keyboard's own path: context committed, buffer seeded, one merged decode. */
     private fun composerDecode(
         active: WordPredictor,

@@ -50,6 +50,8 @@ import com.kinetica.keyboard.engine.KeyboardGeometry
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.LanguageMomentum
 import com.kinetica.keyboard.engine.LanguageStreak
+import com.kinetica.keyboard.engine.PreviousWordFix
+import com.kinetica.keyboard.engine.ScoreModel
 import com.kinetica.keyboard.engine.SharedWordFiling
 import com.kinetica.keyboard.engine.ShortSlips
 import com.kinetica.keyboard.engine.SpellLexicon
@@ -365,6 +367,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // does an autocorrect. Cleared when an autocorrect's undo would be.
     private class AutoFixUndo(val shown: String, val fixed: String, val end: Int, val context: List<String>?)
     private var autoFixUndo: AutoFixUndo? = null
+
+    // The last decoded commit's ranked readings, for the previous-word fix ([PreviousWordFix]):
+    // null after a word the user typed, picked or corrected, which is not the decoder's to revise.
+    private class Revisable(val word: String, val readings: List<PreviousWordFix.Reading>)
+    private var revisable: Revisable? = null
+    // Bumped by every commit, so a revision decided for one commit never lands after another.
+    // Read on the decode thread.
+    @Volatile private var reviseGeneration = 0
     // Auto-fixes the user took back, lowercased (`to to`): not made again while the keyboard runs.
     private val rejectedAutoFixes = LinkedHashSet<String>()
 
@@ -5626,9 +5636,24 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             ich.textBeforeCursor(word.length + CAPS_LOOKBACK_CHARS)?.toString()
                 ?.takeIf { it.endsWith(word) }?.dropLast(word.length)
         }
+        // Read before composer.commitWord empties the tokens and before the candidates go.
+        val reviseTokens = if (PreviousWordFix.enabled) composer?.tokensSnapshot() else null
+        val reviseNext = lastCandidates
+        val revisePrev = revisable
+        revisable = if (PreviousWordFix.enabled && !lastCommitDeliberate && word.isNotEmpty() &&
+            lastCandidates.firstOrNull()?.word.equals(word, ignoreCase = true)
+        ) {
+            Revisable(word.lowercase(), lastCandidates.map { PreviousWordFix.Reading(it.word, it.score) })
+        } else {
+            null
+        }
+        reviseGeneration++
         composer?.commitWord(word.lowercase())
         grammarFix = null
         if (!previousDeliberate) fixPreviousWord(word)
+        if (grammarFix == null && revisePrev != null && reviseTokens != null) {
+            reviseFromNextWord(revisePrev, word, reviseTokens, reviseNext)
+        }
         tentativeLength = 0
         tentativeWord = ""
         lastCandidates = emptyList()
@@ -5773,6 +5798,75 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         DecodeTrace.log { "  grammar autofix undo fixed=${undo.fixed} back=${undo.shown}" }
         updateAutoShift()
         return true
+    }
+
+    /**
+     * The previous-word fix ([PreviousWordFix], decoder rework step 7): [word] has just been
+     * committed after [prev], and may say [prev] was read wrong. [word]'s gesture is decoded
+     * again after each close runner-up of [prev], on the decode thread, and when a runner-up
+     * and its best next word beat the committed pair clearly, [prev] is rewritten in place.
+     * Only under the log-linear score, in the active language, never in private or address
+     * fields, and never on a word the user chose. One backspace right after takes it back
+     * ([undoAutoFix]), and a revision taken back is not made again.
+     */
+    private fun reviseFromNextWord(
+        prev: Revisable,
+        word: String,
+        tokens: List<InputToken>,
+        next: List<WordCandidate>,
+    ) {
+        if (!ScoreModel.logLinear || !editorState.offersCorrections || editorState.addressField) return
+        if (word.isEmpty() || tokens.isEmpty() || next.isEmpty() || lastCommitDeliberate) return
+        if (languageOf(word) != config.language || languageOf(prev.word) != config.language) return
+        val p = predictor ?: return
+        val context = composer?.contextSnapshot() ?: return
+        // The composer has both words now: [..., prev, word].
+        if (context.size < 2 || context[context.size - 2] != prev.word) return
+        val alternates = PreviousWordFix.candidates(prev.readings, prev.word)
+        if (alternates.isEmpty()) return
+        val before = context.subList(0, context.size - 2).toList()
+        val generation = reviseGeneration
+        decodeExecutor.execute {
+            // The committed pair is decoded the same way as the runners-up, so the two sides
+            // of the comparison come from one function.
+            val given = p.decode(tokens, before + prev.word).map { PreviousWordFix.Reading(it.word, it.score) }
+            val byAlternate = HashMap<String, List<PreviousWordFix.Reading>>()
+            for (a in alternates) {
+                if (generation != reviseGeneration) return@execute
+                byAlternate[a.word] = p.decode(tokens, before + a.word.lowercase())
+                    .map { PreviousWordFix.Reading(it.word, it.score) }
+            }
+            val flip = PreviousWordFix.decide(prev.readings, prev.word, given, byAlternate) ?: return@execute
+            mainHandler.post { applyRevision(generation, prev.word, word, flip) }
+        }
+    }
+
+    private fun applyRevision(generation: Int, prev: String, word: String, flip: String) {
+        if (generation != reviseGeneration || !PreviousWordFix.enabled) return
+        // Nothing may have happened since the commit but its own space.
+        if (selectionLength() != 0 || tentativeLength > 0 || composer?.hasPendingWord == true || midWordOffer != null) return
+        val tail = ich.textBeforeCursor(GRAMMAR_TAIL_CHARS)?.toString() ?: return
+        val after = ich.textAfterCursor(1)
+        if (after != null && after.isNotEmpty() && after[0].isLetter()) return
+        val edit = previousWordEdit(tail, prev, word, flip) ?: return
+        if (rejectedAutoFixes.any { it.trim() == edit.shown.trim().lowercase() }) return
+        val context = composer?.contextSnapshot()
+        val start = cursorExpected() - edit.span
+        ich.replaceBeforeCursor(edit.span, edit.text)
+        commitHistory.replaced(start, edit.shown.substringBefore(' '), edit.text.substringBefore(' '))
+        expectAfter(edit.span, edit.text.length, rewritesWord = true)
+        composer?.replaceCommit(1, prev, flip.lowercase())
+        recentWords.onReplaced(1, edit.text.substringBefore(' '))
+        if (!editorState.teachesNothing) {
+            unlearnWord(prev)
+            learnWord(flip.lowercase())
+        }
+        clearCorrection()
+        autocorrectUndo = null
+        wholeWordArmStart = -1
+        revisable = null
+        autoFixUndo = AutoFixUndo(edit.shown, edit.text, cursorExpected(), context)
+        DecodeTrace.log { "  previous word=$prev revised=$flip next=${word.lowercase()}" }
     }
 
     /**
