@@ -464,7 +464,7 @@ class WordPredictor(
                 // Same language model and shape curve as the passes, on the interleaved cost (mean
                 // thumb-to-key distance at the letters' moments) scaled by [ScoreModel.IL_SCALE] onto
                 // the DTW mean; one score for every pass is decoder rework step 5.
-                val ilGeo = ScoreModel.shapeFactor(h.cost * ScoreModel.IL_SCALE) * shortKeep
+                val ilGeo = ScoreModel.interleavedShape(h.cost, h.word.length) * shortKeep
                 for ((display, byte) in forms[h.node]?.map { it.display to it.freqByte } ?: listOf(h.word to trie.frequency(h.node))) {
                     val prior = ScoreModel.priorFactor(lmLog(h.node, byte, prevWordId))
                     val pb = personalBoost(display)
@@ -840,7 +840,7 @@ class WordPredictor(
         // sequence is cut: the alternatives are already a guess at a cut, and cutting them
         // again multiplies work for readings this pass reaches directly.
         val primary = seqs.firstOrNull()
-        if (heap.sparse && primary != null && primary.any { it is SwipeToken }) {
+        if (wantsMore(heap) && primary != null && primary.any { it is SwipeToken }) {
             val p = patterns.firstOrNull()
             if (p != null && p.size == primary.size) {
                 val cuts = cutCandidates(primary)
@@ -872,7 +872,7 @@ class WordPredictor(
         // Fallback passes for sparse results: relaxed anchors (adjacent-key
         // typos, slightly missed taps in merged input), then transpositions
         // for all-tap sequences ("hte" -> "the").
-        val fuzzyRan = heap.sparse
+        val fuzzyRan = wantsMore(heap)
         if (fuzzyRan) {
             for (p in patterns) {
                 if (p.any { it is Matcher.Anchor }) {
@@ -1045,8 +1045,18 @@ class WordPredictor(
         return heap.sortedByScoreDesc()
     }
 
+    /**
+     * Whether the extra passes (cut, stream, fuzzy) run: today when the heap holds fewer than
+     * its prune rank, which makes the result depend on what filled the heap first. With
+     * [ScoreModel.marginGate] (decoder rework step 5) also when the lead's margin over the
+     * runner-up is under [ScoreModel.GATE_MARGIN] nats: a close call is worth a second look
+     * however full the heap is.
+     */
+    private fun wantsMore(heap: CandidateHeap): Boolean =
+        heap.sparse || (ScoreModel.marginGate && heap.leadMargin() < ScoreModel.GATE_MARGIN)
+
     private fun streamGateOpen(heap: CandidateHeap): Boolean = when (KineticaConstants.STREAM_SEARCH_GATE) {
-        1 -> heap.sparse
+        1 -> wantsMore(heap)
         3 -> true
         else -> false
     }
@@ -1570,7 +1580,7 @@ class WordPredictor(
         var budget = Float.POSITIVE_INFINITY
         val minScore = heap.minScoreIfFull()
         if (minScore > 0f) {
-            val dMax = ScoreModel.maxD(maxNumerator * keep, minScore) - tapPen
+            val dMax = ScoreModel.maxD(maxNumerator * keep, minScore, depth) - tapPen
             if (dMax <= 0f) return Scored.SCORE
             if (totalSteps > 0 && dMax.isFinite()) budget = dMax * totalSteps
         }
@@ -1585,7 +1595,7 @@ class WordPredictor(
         }
         val geoFit = if (totalSteps > 0) accum / totalSteps else 0f
         val dTotal = geoFit + tapPen
-        val geo = ScoreModel.shapeFactor(dTotal)
+        val geo = ScoreModel.shapeFactor(dTotal, depth)
         val wantSeg = heap.segments
         for ((i, sp) in spellings.withIndex()) {
             val score = priors[i] * geo * pbs[i] * pbms[i] * keep
@@ -2826,6 +2836,21 @@ class CandidateHeap(private val cap: Int, private val pruneRank: Int = cap, val 
     fun sortedByScoreDesc(): List<WordCandidate> = items.sortedByDescending { it.score }
 
     fun best(): WordCandidate? = items.maxByOrNull { it.score }
+
+    /** `ln(best / second)`, infinite with fewer than two words or a zero runner-up. */
+    fun leadMargin(): Float {
+        var a = 0f
+        var b = 0f
+        for (c in items) {
+            if (c.score > a) {
+                b = a
+                a = c.score
+            } else if (c.score > b) {
+                b = c.score
+            }
+        }
+        return if (b <= 0f || a <= 0f) Float.POSITIVE_INFINITY else kotlin.math.ln(a / b)
+    }
 }
 
 /**
