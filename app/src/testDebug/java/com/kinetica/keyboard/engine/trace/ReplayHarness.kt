@@ -89,7 +89,17 @@ class ReplayHarness(
     private val soloBeta: Float = Float.NaN,
     private val soloGate: Float = Float.POSITIVE_INFINITY,
     private val soloShallow: Boolean = false,
+    /**
+     * Retype penalties as the keyboard would learn them (#131), in trace order: a line whose
+     * label came from one of these sources (`how`) and whose recorded lead was another word
+     * teaches "decoded lead, meant label" after it is decoded. Null is off.
+     */
+    private val retypeSources: Set<String>? = null,
 ) {
+    /** The retype counts learned so far; kept across files, as the preference is on a phone. */
+    var retypeStore: com.kinetica.keyboard.engine.RetypePenalties = com.kinetica.keyboard.engine.RetypePenalties.EMPTY
+        private set
+
     /** A new trace file: the recent words start empty, as after a restart. */
     fun newSession() { recent?.clear() }
 
@@ -220,6 +230,10 @@ class ReplayHarness(
         val recentNow = if (recent != null && w.target == null) recent.snapshot() else emptySet()
         active.sessionWords = recentNow
         alt?.sessionWords = recentNow
+        if (retypeSources != null) {
+            active.retypeCounts = retypeStore.forLanguage(cfg.language)
+            cfg.alternate?.let { alt?.retypeCounts = retypeStore.forLanguage(it) }
+        }
         val t0 = System.nanoTime()
         val shipping = composerDecode(active, alt, tokens, w.context, w.apostropheMark)
         val micros = (System.nanoTime() - t0) / 1000
@@ -231,6 +245,15 @@ class ReplayHarness(
         val deep = deepDecode(deepActive, deepAlt, tokens, w.context, w.apostropheMark)
 
         val label = w.label?.lowercase()
+        if (retypeSources != null && label != null) {
+            // What the phone showed first, not this run's lead: that is the word the user saw
+            // committed, and kept or rejected.
+            val shown = w.shown.candidates.firstOrNull()?.word?.lowercase()
+            if (shown != null) {
+                retypeStore = retypeStore.withCommit(cfg.language, shown)
+                if (shown != label && w.how in retypeSources) retypeStore = retypeStore.with(cfg.language, shown, label)
+            }
+        }
         if (recent != null && w.target == null && label != null) recent.add(label)
         if (learner != null && !learner.frozen && label != null) {
             // A pick from the bar: on the list, but not first. A typo committed as tapped isn't one.

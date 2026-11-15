@@ -224,6 +224,8 @@
 
     <string name="pref_retype_avoids_title">Retype offers a different word</string>
     <string name="pref_retype_avoids_summary">After the retype button, the rejected word moves to the end of the bar instead of leading again. It stays pickable</string>
+    <string name="pref_retype_penalties_title">Learn from words I retype</string>
+    <string name="pref_retype_penalties_summary">When you delete a word the keyboard wrote and type a close one instead, or pick another from the bar, the pair is remembered. A word you keep having to replace then ranks below the one you meant. Stored on this device only</string>
     <string name="pref_group_look_title">Look, sound and vibration</string>
     <string name="pref_group_look_summary">Theme, colours, swipe trail, vibration, key sound</string>
     <string name="pref_group_size_title">Size and layout</string>

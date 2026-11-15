@@ -51,6 +51,7 @@ import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.LanguageMomentum
 import com.kinetica.keyboard.engine.LanguageStreak
 import com.kinetica.keyboard.engine.PreviousWordFix
+import com.kinetica.keyboard.engine.RetypePenalties
 import com.kinetica.keyboard.engine.ScoreModel
 import com.kinetica.keyboard.engine.SharedWordFiling
 import com.kinetica.keyboard.engine.ShortSlips
@@ -667,10 +668,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         EdgeSwipeDefaults.applyTo(prefs)
         config = KeyboardConfig.from(prefs, systemNight())
+        RetypePenalties.enabled = prefs.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
         applyFingerOffsets()
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
             val previous = config
             config = KeyboardConfig.from(p, systemNight())
+            RetypePenalties.enabled = p.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
             // What decides the automatic space, whenever any of it changes and from wherever.
             if (config.autospace != previous.autospace || config.tidySpaces != previous.tidySpaces ||
                 config.wordEndsOnSpace != previous.wordEndsOnSpace ||
@@ -967,6 +970,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                             )
                         }
                         applyWordPenalties()
+                        applyRetypePenalties(reload = true)
                         applySessionWords()
                         composer = WordComposer(
                             p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
@@ -1523,6 +1527,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         abandonWord()
         composer?.reset()
         saveTouchModel()
+        saveRetypePenalties()
         // A notice belongs to the field it was shown in, not to the next one.
         clearSpacebarNotice()
         super.onFinishInput()
@@ -2496,7 +2501,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // and the pairs with its neighbours move with it.
         val lang = filingLanguage(replacement, entry.languages[word.lowercase()] ?: languageOf(replacement))
         learnWord(replacement, lang = lang)
-        if (!entry.word.equals(replacement, ignoreCase = true)) unlearnWord(entry.word)
+        if (!entry.word.equals(replacement, ignoreCase = true)) {
+            unlearnWord(entry.word)
+            learnRetype(entry.word, replacement, lang)
+        }
         // A neighbour counts only across whitespace: `end. Next` is no pair, as learnPair agrees.
         val prev = if (back + 1 < aligned.size) {
             val p = entries[entries.size - 2 - back].word
@@ -2822,6 +2830,85 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         extraLanguage?.let { extraPredictor?.penalties = wordPenalties.forLanguage(it) }
     }
 
+    // Retype penalties (decoder rework step 8, #131): the "decoded Y, meant X" counts, the
+    // commit a retype has just taken back (the Y of the next commit, if that one is close to
+    // it), and whether the counts have changed since they were stored. Main thread only.
+    private var retypePenalties = RetypePenalties.EMPTY
+    private var retypeTakenBack: String? = null
+    private var retypePenaltiesDirty = false
+
+    /**
+     * Hands each resident predictor its language's retype counts. With [reload] they are read
+     * from the preference first, so a restored backup is picked up, unless this instance holds
+     * counts it has not stored yet.
+     */
+    private fun applyRetypePenalties(reload: Boolean) {
+        if (reload && !retypePenaltiesDirty) {
+            retypePenalties = RetypePenalties.parse(
+                PreferenceManager.getDefaultSharedPreferences(this).getString(Prefs.RETYPE_COUNTS, null),
+            )
+        }
+        predictor?.retypeCounts = retypePenalties.forLanguage(config.language)
+        secondaryLanguage?.let { secondaryPredictor?.retypeCounts = retypePenalties.forLanguage(it) }
+        extraLanguage?.let { extraPredictor?.retypeCounts = retypePenalties.forLanguage(it) }
+    }
+
+    private fun saveRetypePenalties() {
+        if (!retypePenaltiesDirty) return
+        retypePenaltiesDirty = false
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+            .putString(Prefs.RETYPE_COUNTS, retypePenalties.serialize()).apply()
+    }
+
+    /** A retype took the commit [word] back: the next commit may say what it was meant as. */
+    private fun noteRetypeTakenBack(word: String?) {
+        retypeTakenBack = if (RetypePenalties.enabled && !editorState.teachesNothing) word?.lowercase() else null
+    }
+
+    /** The keyboard committed [decoded] and the user made it [meant]: counted when the two are close. */
+    private fun learnRetype(decoded: String, meant: String, lang: String) {
+        if (!RetypePenalties.enabled || editorState.teachesNothing) return
+        if (!RetypePenalties.closeRetype(decoded, meant)) return
+        val next = retypePenalties.with(lang, decoded, meant)
+        if (next === retypePenalties) return
+        retypePenalties = next
+        retypePenaltiesDirty = true
+        DecodeTrace.log {
+            "  retype pair decoded=${decoded.lowercase()} meant=${meant.lowercase()} lang=$lang " +
+                "n=${next.count(lang, decoded, meant)} seen=${next.seen(lang, decoded)}"
+        }
+        saveRetypePenalties()
+        applyRetypePenalties(reload = false)
+    }
+
+    /**
+     * [word] was committed, [decoded] when the keyboard proposed it: settles a retype waiting
+     * on this commit, and counts the commit for a word that has pairs. The count is stored
+     * when the field is left, not on every word.
+     */
+    private fun noteRetypeCommit(word: String, lang: String, decoded: Boolean) {
+        val back = retypeTakenBack
+        retypeTakenBack = null
+        if (!RetypePenalties.enabled || editorState.teachesNothing || word.isEmpty()) return
+        if (back != null) learnRetype(back, word, lang)
+        if (!decoded) return
+        val next = retypePenalties.withCommit(lang, word)
+        if (next === retypePenalties) return
+        retypePenalties = next
+        retypePenaltiesDirty = true
+        applyRetypePenalties(reload = false)
+    }
+
+    /** The bar's "forget": every retype pair naming [word] goes. */
+    private fun forgetRetypes(word: String, lang: String) {
+        val next = retypePenalties.without(lang, word)
+        if (next.size == retypePenalties.size) return
+        retypePenalties = next
+        retypePenaltiesDirty = true
+        saveRetypePenalties()
+        applyRetypePenalties(reload = false)
+    }
+
     private fun setWordPenalty(word: String, lang: String, steps: Int) {
         if (!WordPenalties.storable(word)) return
         val next = WordPenalties.parse(
@@ -2862,6 +2949,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             BarAdjust.WordMenuAction.FORGET -> {
                 if (steps > 0) setWordPenalty(word, lang, 0)
                 if (count > 0) learnWord(word, -count, lang)
+                forgetRetypes(word, lang)
             }
             BarAdjust.WordMenuAction.WHY -> Unit
         }
@@ -2952,6 +3040,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 val offer = notBlocked(lastCommit.offerAfterRetype(committed!!, KineticaConstants.TOP_K), blockedSpellings)
                 val languages = lastCommit.languages
                 unlearnLastPair()
+                noteRetypeTakenBack(committed)
                 ich.deleteBeforeCursor(committedSpan)
                 expectAfter(committedSpan, 0)
                 recentWords.dropNewest()
@@ -3913,6 +4002,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (src == "commit") committed?.let {
             unlearnWord(it)
             lastCommitLearned = null
+            noteRetypeTakenBack(it)
         }
         // Armed only for a commit retype: the tentative and cursor cases have no committed
         // word the user can be said to have rejected.
@@ -4941,6 +5031,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         expectAfter(span, replacement.length + tail.length, rewritesWord = true)
         lastCommit.onReplaced(replacement)
         recentWords.onReplaced(0, replacement)
+        learnRetype(current, replacement, languageOf(replacement))
         // Same transfer the unigram counts get below: the pair the wrong commit recorded
         // is taken back and the corrected one recorded in its place.
         val prevForPair = composer?.contextSnapshot()?.getOrNull(
@@ -5630,6 +5721,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // Read before the candidates go: what the keyboard proposed for these letters, and the
         // text before the word (the editor holds the word, so it is cut off the read).
         val proposal = lastCandidates.firstOrNull { it.word.equals(word, ignoreCase = true) }?.word
+        noteRetypeCommit(word, lang, proposal != null)
         val textBefore = if (editorState.addressField || editorState.teachesNothing) {
             null
         } else {

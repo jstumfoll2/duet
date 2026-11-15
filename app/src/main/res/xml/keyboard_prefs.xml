@@ -420,6 +420,12 @@
                     android:summary="@string/pref_retype_avoids_summary"
                     android:defaultValue="true" />
                 <SwitchPreferenceCompat
+                    android:key="pref_retype_penalties"
+                    android:title="@string/pref_retype_penalties_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_retype_penalties_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
                     android:key="pref_delete_on_block"
                     android:title="@string/pref_delete_on_block_title"
                     app:singleLineTitle="false"

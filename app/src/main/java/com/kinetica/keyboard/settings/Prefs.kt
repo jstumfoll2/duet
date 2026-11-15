@@ -260,6 +260,18 @@ object Prefs {
     const val CHORD_DEFAULTS_SEEDED = "pref_chord_defaults_seeded"
     const val RETYPE_AVOIDS_REJECTED = "pref_retype_avoids_rejected"
 
+    /**
+     * Learn "the keyboard wrote Y, I meant X" from retypes and correction picks, and score Y
+     * down when both are candidates again (engine.RetypePenalties, decoder rework step 8).
+     */
+    const val RETYPE_PENALTIES = "pref_retype_penalties"
+
+    /**
+     * The counts behind [RETYPE_PENALTIES], rows joined by commas (engine.RetypePenalties).
+     * Not on any settings screen; a string preference, so the settings backup carries it.
+     */
+    const val RETYPE_COUNTS = "pref_retype_counts"
+
     /** Whether the learned per-key thumb positions (AimModel, TouchModel) are used; they keep learning either way. */
     const val FINGER_OFFSETS = "pref_finger_offsets"
     const val DEFAULT_FINGER_OFFSETS = true
@@ -797,6 +809,7 @@ object Prefs {
      */
     const val DEFAULT_SPACE_CHORD_ARM_MS = 50
     const val DEFAULT_RETYPE_AVOIDS_REJECTED = true
+    const val DEFAULT_RETYPE_PENALTIES = false
     const val DEFAULT_AUTOCORRECT_LEVEL = "normal"
     const val DEFAULT_REINFORCE_INCREMENT = "medium"
     const val DEFAULT_EMOJI_KEY = true
