@@ -188,6 +188,18 @@ object TraceRecorder {
         words.recorder?.onCorrection(from, to)
     }
 
+    /**
+     * The retype the developer build would like confirmed, once, or null ([GoldPrompt]): the
+     * keyboard asks when its bar is next idle.
+     */
+    fun takeGoldOffer(): Pair<String, String>? =
+        words.recorder?.gold?.take()?.let { it.from to it.to }
+
+    /** The user's answer to [takeGoldOffer]'s question, written as a `confirm` line. */
+    fun goldAnswer(from: String, to: String, yes: Boolean) {
+        words.confirm(from, to, yes)
+    }
+
     /** A space, backspace, enter or punctuation key pressed, at uptime [t] ms (see SwipeTrace.encodeKey). */
     fun key(name: String, t: Long) {
         words.key(name, t)
@@ -244,6 +256,7 @@ object TraceRecorder {
             r.enabled = { (enabled || practiceTarget != null) && !info.suppressed() }
             r.target = { practiceTarget }
             r.compare = NeuralRerank::compare
+            r.gold.enabled = { goldPrompt && enabled && practiceTarget == null }
             recorder = r
             engine.observer = r
         }
@@ -255,6 +268,19 @@ object TraceRecorder {
             val i = info ?: return
             if (!(enabled || practiceTarget != null) || i.suppressed()) return
             append(SwipeTrace.encodeKey(name, t))
+            recorder?.gold?.onKey(name)
+        }
+
+        /** Whether the retype prompt is offered (the trace screen's switch). On by default. */
+        var goldPrompt: Boolean
+            get() = prefs?.getBoolean(PREF_GOLD, true) != false
+            set(on) { prefs?.edit()?.putBoolean(PREF_GOLD, on)?.apply() }
+
+        /** Records the answer to the retype prompt. */
+        fun confirm(from: String, to: String, yes: Boolean) {
+            val i = info ?: return
+            if (!enabled || i.suppressed()) return
+            append(SwipeTrace.encodeConfirm(from, to, yes))
         }
 
         /** Withdraws the most recent word line (the practice screen's "bad swipe"). */
@@ -314,6 +340,7 @@ object TraceRecorder {
     private const val WORDS_NAME = "words_v1.jsonl"
     private const val PREFS = "trace_v1"
     private const val PREF_ENABLED = "enabled"
+    private const val PREF_GOLD = "gold_prompt"
 
     /** Two files of this size: at ~3 KB a word, about 5 000 words before the oldest go. */
     private const val MAX_WORD_BYTES = 8L * 1024 * 1024

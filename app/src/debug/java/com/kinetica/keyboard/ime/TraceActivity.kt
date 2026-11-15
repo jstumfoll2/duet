@@ -135,6 +135,16 @@ class TraceActivity : AppCompatActivity() {
             text = getString(R.string.boundary_explain)
             textSize = 13f
         }
+        val goldToggle = SwitchCompat(this).apply {
+            text = getString(R.string.gold_toggle)
+            textSize = 16f
+            isChecked = TraceRecorder.words.goldPrompt
+            setOnCheckedChangeListener { _, on -> TraceRecorder.words.goldPrompt = on }
+        }
+        val goldExplain = TextView(this).apply {
+            text = getString(R.string.gold_explain)
+            textSize = 13f
+        }
         val scoreToggle = SwitchCompat(this).apply {
             text = getString(R.string.loglinear_toggle)
             textSize = 16f
@@ -191,6 +201,8 @@ class TraceActivity : AppCompatActivity() {
             addView(neuralExplain)
             addView(boundaryToggle)
             addView(boundaryExplain)
+            addView(goldToggle)
+            addView(goldExplain)
             addView(scoreToggle)
             addView(scoreExplain)
         }

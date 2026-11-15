@@ -336,7 +336,7 @@ object ReplayCli {
                 val sink = ReplayReport(h.deepK)
                 for (f in a.map { File(it) }) for ((n, w) in read(f, sink)) {
                     val r = try { h.replay(w) } catch (e: RuntimeException) { continue }
-                    val gold = if (w.target != null) !GoldLabels.isFragment(w) else w.how == "retyped" || w.how == "reswiped" || w.how == "corrected"
+                    val gold = if (w.target != null) !GoldLabels.isFragment(w) else w.how == "retyped" || w.how == "reswiped" || w.how == "corrected" || w.how == "confirmed"
                     if (!gold) continue
                     val label = w.label?.lowercase() ?: continue
                     val head = "${f.name}\t$n\t$label\t${r.buckets.joinToString(",")}\t${shape(r)}"
@@ -834,6 +834,7 @@ object ReplayCli {
                         }
                         is SwipeTrace.Line.Discard -> if (!skipped) { words.removeLastOrNull(); chain = ArrayList() }
                         is SwipeTrace.Line.Key -> if (!skipped && l.name == "backspace" && chain.isNotEmpty()) undone = true
+                        is SwipeTrace.Line.Confirm -> if (!skipped) confirm(words, l, report)
                         is SwipeTrace.Line.Correction -> if (!skipped) {
                             val k = words.indexOfLast { it.second.committed.equals(l.from, ignoreCase = true) }
                             if (k >= 0) {
@@ -854,30 +855,33 @@ object ReplayCli {
     enum class Retype { NONE, CLOSE, EXTENDS }
 
     /**
+     * Applies the user's answer to the developer build's retype prompt ([GoldPrompt]): the
+     * lines just before the retyped commit that were relabelled to it (`how = "retyped"`) become
+     * confirmed labels on a yes, and lose their label on a no (a change of mind, not a fix).
+     */
+    internal fun confirm(words: MutableList<Pair<Int, SwipeTrace.Word>>, l: SwipeTrace.Line.Confirm, report: ReplayReport) {
+        // The retyped commit itself is the newest line spelled `to`; the relabelled tries sit
+        // before it, with dropped buffers (no commit) between them.
+        var k = words.indexOfLast { it.second.committed.equals(l.to, ignoreCase = true) && it.second.how != "retyped" }
+        if (k < 0) return
+        var hit = 0
+        while (--k >= 0) {
+            val (n, w) = words[k]
+            if (w.committed == null) continue
+            if (w.how != "retyped" || !w.committed.equals(l.to, ignoreCase = true)) break
+            words[k] = n to if (l.yes) w.copy(how = "confirmed") else w.copy(committed = null)
+            hit++
+        }
+        if (l.yes) report.confirmed += hit else report.denied += hit
+    }
+
+    /**
      * How [retyped] relates to the earlier commit [was]: CLOSE when it differs by at most half
      * the longer word's letters (go/to, gels/tells, bit/but), EXTENDS when it only adds letters
      * at the end, NONE otherwise (a stray "j" before "the", or a different word altogether).
      */
-    fun retypeOf(was: String?, retyped: String): Retype {
-        val a = was?.lowercase() ?: return Retype.NONE
-        val b = retyped.lowercase()
-        if (a == b || a.isEmpty()) return Retype.NONE
-        if (b.startsWith(a)) return Retype.EXTENDS
-        return if (editDistance(a, b) <= maxOf(1, maxOf(a.length, b.length) / 2)) Retype.CLOSE else Retype.NONE
-    }
-
-    private fun editDistance(a: String, b: String): Int {
-        var prev = IntArray(b.length + 1) { it }
-        for (i in 1..a.length) {
-            val cur = IntArray(b.length + 1)
-            cur[0] = i
-            for (j in 1..b.length) {
-                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
-            }
-            prev = cur
-        }
-        return prev[b.length]
-    }
+    fun retypeOf(was: String?, retyped: String): Retype =
+        Retype.valueOf(GoldPrompt.retypeOf(was, retyped).name)
 
     /**
      * One line per miss: label, shipping and deep rank, buckets, the top three,
