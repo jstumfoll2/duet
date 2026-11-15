@@ -33,6 +33,8 @@ class Trie private constructor(
     val alphabet: Alphabet,
     /** ln(1 + the largest raw count), the scale [freqByteFor] quantized against; see [endShare]. */
     private val logMaxCount: Double = ln(1.0 + 1.0),
+    /** ln of all raw counts added up, for [logProb]; 0 for a trie built without counts. */
+    private val logTotalCount: Double = 0.0,
 ) {
     val nodeCount: Int get() = nodes.size / 2
     val root: Int get() = 0
@@ -166,6 +168,15 @@ class Trie private constructor(
 
     private fun countOf(freqByte: Int): Double = exp(freqByte * logMaxCount / 255.0) - 1.0
 
+    /**
+     * The unigram log-probability a frequency byte stands for: the count [freqByteFor] quantized,
+     * recovered, over the list's total count ([ScoreModel], decoder rework step 1). The byte's
+     * resolution is ln(1 + max) / 255, about 0.07 nat for English. A count recovered as under one
+     * (the smallest bytes) counts as one half.
+     */
+    fun logProb(freqByte: Int): Float =
+        (ln(maxOf(countOf(freqByte), 0.5)) - logTotalCount).toFloat()
+
     /** Approximate retained size for the memory-budget test. */
     fun sizeBytes(): Int = nodes.size * 4
 
@@ -187,11 +198,13 @@ class Trie private constructor(
         fun build(words: List<Pair<String, Int>>, alphabet: Alphabet = Alphabet.LATIN): Trie {
             val valid = ArrayList<Pair<IntArray, Int>>(words.size)
             var maxCount = 1L
+            var totalCount = 0.0
             for ((w, c) in words) {
                 if (w.isEmpty() || w.length > KineticaConstants.MAX_WORD_LEN) continue
                 val codes = alphabet.encode(w) ?: continue
                 valid.add(codes to c)
                 maxCount = max(maxCount, c.toLong())
+                totalCount += maxOf(c, 0)
             }
             // Lexicographic sort: sorted insertion keeps sibling chains letter-
             // sorted, which the packed layout requires.
@@ -339,7 +352,7 @@ class Trie private constructor(
                     nextFree = (packed[id * 2 + 1] and 0xFFFFFF) + count
                 }
             }
-            return Trie(packed, uniqueWords, alphabet, ln(1.0 + maxCountFinal))
+            return Trie(packed, uniqueWords, alphabet, ln(1.0 + maxCountFinal), ln(maxOf(totalCount, 1.0)))
         }
 
         private fun common(a: IntArray, b: IntArray): Int {

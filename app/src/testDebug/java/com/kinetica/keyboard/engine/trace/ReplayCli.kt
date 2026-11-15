@@ -21,6 +21,8 @@ import java.io.File
  *       --solobeta B, --sologate G, --soloshallow: the one-thumb rerank's beta, margin gate and
  *       shallow list (CtcReranker). --recent B: the session boost (SessionWords). --learn
  *       words|phrases: learn each label after decoding it. --dump OUT: a JSON row per line.
+ *       --score loglinear [--lmA A] [--lmB B] [--lmSigma S] [--lmBackoff F] [--lmIl K] [--lmIlw W] (any command): the
+ *       log-linear score with a real language model (ScoreModel, issue #124).
  *   replay|ranks --personal BACKUP: decode with the learned words, counts and pairs of a
  *       settings backup (Settings > Back up), frozen unless ranks is given --learn as well.
  *   ranks [--learn words|phrases] [--pickw N] [--seed FILE] [--hdfree] TRACE.jsonl...
@@ -91,6 +93,15 @@ object ReplayCli {
         opt(a, "--hintshift")?.let { com.kinetica.keyboard.engine.TouchModel.HINT_MIN_SHIFT_KW = it.toFloat() }
         // --boundary (any command): word boundaries decided by the fitted BoundaryModel.
         if (a.remove("--boundary")) com.kinetica.keyboard.engine.BoundaryModel.enabled = true
+        // --score loglinear (any command): the log-linear score with a real language model (#124);
+        // --lmA, --lmB, --lmSigma, --lmBackoff set its weights (ScoreModel).
+        opt(a, "--score")?.let { com.kinetica.keyboard.engine.ScoreModel.mode = com.kinetica.keyboard.engine.ScoreModel.Mode.valueOf(it.uppercase()) }
+        opt(a, "--lmA")?.let { com.kinetica.keyboard.engine.ScoreModel.A = it.toFloat() }
+        opt(a, "--lmB")?.let { com.kinetica.keyboard.engine.ScoreModel.B = it.toFloat() }
+        opt(a, "--lmSigma")?.let { com.kinetica.keyboard.engine.ScoreModel.SIGMA = it.toFloat() }
+        opt(a, "--lmIl")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_SCALE = it.toFloat() }
+        opt(a, "--lmIlw")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_WEIGHT = it.toFloat() }
+        opt(a, "--lmBackoff")?.let { com.kinetica.keyboard.engine.ScoreModel.BACKOFF = it.toFloat() }
         val assets = File(opt(a, "--assets") ?: defaultAssets())
         when (cmd) {
             "replay" -> {

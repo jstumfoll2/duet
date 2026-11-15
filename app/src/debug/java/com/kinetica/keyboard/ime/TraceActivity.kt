@@ -135,6 +135,16 @@ class TraceActivity : AppCompatActivity() {
             text = getString(R.string.boundary_explain)
             textSize = 13f
         }
+        val scoreToggle = SwitchCompat(this).apply {
+            text = getString(R.string.loglinear_toggle)
+            textSize = 16f
+            isChecked = NeuralRerank.logLinearScore
+            setOnCheckedChangeListener { _, on -> NeuralRerank.logLinearScore = on }
+        }
+        val scoreExplain = TextView(this).apply {
+            text = getString(R.string.loglinear_explain)
+            textSize = 13f
+        }
         val betaRow = RadioGroup(this).apply {
             orientation = RadioGroup.HORIZONTAL
             val current = NeuralRerank.beta
@@ -181,6 +191,8 @@ class TraceActivity : AppCompatActivity() {
             addView(neuralExplain)
             addView(boundaryToggle)
             addView(boundaryExplain)
+            addView(scoreToggle)
+            addView(scoreExplain)
         }
         setContentView(ScrollView(this).apply { addView(column) })
     }

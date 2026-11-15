@@ -14,6 +14,8 @@ package com.kinetica.keyboard.engine
 class TrigramTable private constructor(
     private val keys: LongArray,
     private val boosts: ByteArray,
+    /** Per triple, `-ln P(next | first, second)` in [BigramTable.LOGP_STEP] steps ([ScoreModel]). */
+    private val logp: ByteArray? = null,
 ) {
     val size: Int get() = keys.size
 
@@ -22,6 +24,14 @@ class TrigramTable private constructor(
         if (keys.isEmpty() || !fits(firstId) || !fits(secondId) || !fits(nextId)) return 0
         val i = java.util.Arrays.binarySearch(keys, pack(firstId, secondId, nextId))
         return if (i < 0) 0 else boosts[i].toInt() and 0xFF
+    }
+
+    /** `ln P(next | first, second)` from the counts, or NaN when the triple is absent. */
+    fun logCond(firstId: Int, secondId: Int, nextId: Int): Float {
+        val lp = logp ?: return Float.NaN
+        if (keys.isEmpty() || !fits(firstId) || !fits(secondId) || !fits(nextId)) return Float.NaN
+        val i = java.util.Arrays.binarySearch(keys, pack(firstId, secondId, nextId))
+        return if (i < 0) Float.NaN else -(lp[i].toInt() and 0xFF) * BigramTable.LOGP_STEP
     }
 
     /** 1 + [KineticaConstants.TRIGRAM_BOOST_MAX] scaled by the boost byte; 1.0 when unseen. */
@@ -63,22 +73,26 @@ class TrigramTable private constructor(
             // A context's triples are contiguous after sorting: normalize each group against
             // its own maximum so every context uses the full byte range.
             val boosts = ByteArray(n)
+            val logp = ByteArray(n)
             var start = 0
             while (start < n) {
                 val ctx = keys[start] ushr BITS
                 var end = start
                 var max = 0L
+                var total = 0L
                 while (end < n && (keys[end] ushr BITS) == ctx) {
                     if (sums[end] > max) max = sums[end]
+                    total += maxOf(sums[end], 0L)
                     end++
                 }
                 for (j in start until end) {
                     val q = if (max <= 0) 0 else Math.round(255.0 * sums[j] / max).toInt().coerceIn(1, 255)
                     boosts[j] = q.toByte()
+                    logp[j] = BigramTable.quantizeLogP(maxOf(sums[j], 1L), total)
                 }
                 start = end
             }
-            return TrigramTable(keys.copyOf(n), boosts)
+            return TrigramTable(keys.copyOf(n), boosts, logp)
         }
     }
 }
