@@ -53,6 +53,13 @@ object ScoreModel {
     /** Scale from the interleaved reading's cost onto the DTW mean the shape term reads. */
     @Volatile @JvmField var IL_SCALE = 1f
 
+    /**
+     * Weight of the shape term on an interleaved reading, NaN for [B]. The interleaved cost is
+     * the thumbs' distance at the letters' moments, which runs smaller than a pass's DTW mean
+     * for the same fit, so it is weighed more: 4 fitted best on both replay halves (1 to 5 tried).
+     */
+    @Volatile @JvmField var IL_B = 4f
+
     /** What an interleaved reading's score is worth against the passes' (legacy: INTERLEAVE_WEIGHT). */
     @Volatile @JvmField var IL_WEIGHT = 1f
 
@@ -83,14 +90,47 @@ object ScoreModel {
     /** A key whose charge exceeds this many nats is not tried (prunes the search). */
     @Volatile @JvmField var TAP_MAX_NATS = 6f
 
+    /**
+     * Growth of [SIGMA] per letter past [SIGMA_LEN_FROM] (decoder rework step 5, #128). A long
+     * word's path drifts further from its ideal shape than a short one's: thumbs cut corners
+     * over a long trip, and the mean DTW distance rises with it. Legacy answers with a
+     * saturation that widens on long buffers; here the shape term's scale widens instead.
+     * 0 keeps one scale for every length; 0.05 fitted on replay (10+ letter words 64 -> 69%).
+     */
+    @Volatile @JvmField var SIGMA_LEN = 0.05f
+
+    /** Word length from which [SIGMA_LEN] applies. */
+    @Volatile @JvmField var SIGMA_LEN_FROM = 4
+
+    /**
+     * Run the cut, stream and fuzzy passes on a close call too, not only on a short list
+     * (decoder rework step 5, #128): when the lead beats the runner-up by under [GATE_MARGIN]
+     * nats. Off: today's "fewer than ten words" gate alone.
+     */
+    @Volatile @JvmField var marginGate = false
+
+    /** The lead's margin, nats, under which the extra passes run with [marginGate]. */
+    @Volatile @JvmField var GATE_MARGIN = 0.5f
+
+    /** The shape scale for a word of [letters] letters. */
+    fun sigmaFor(letters: Int): Float = SIGMA * (1f + SIGMA_LEN * maxOf(0, letters - SIGMA_LEN_FROM))
+
     /** `B * shape(d)`, the shape term as a natural-log factor of the score. */
-    fun lnShape(d: Float): Float {
-        val r = d / SIGMA
+    fun lnShape(d: Float, letters: Int = 0): Float {
+        val r = d / sigmaFor(letters)
         return -B * ln(1f + r * r)
     }
 
+    /** The shape factor of an interleaved reading of [letters] letters at cost [cost]. */
+    fun interleavedShape(cost: Float, letters: Int): Float {
+        val d = cost * IL_SCALE
+        val r = d / sigmaFor(letters)
+        val b = if (IL_B.isNaN()) B else IL_B
+        return exp(-b * ln(1f + r * r))
+    }
+
     /** The shape term as a factor of the score, 1.0 at a perfect fit, never flat. */
-    fun shapeFactor(d: Float): Float = exp(lnShape(d))
+    fun shapeFactor(d: Float, letters: Int = 0): Float = exp(lnShape(d, letters))
 
     /** `exp(A * lm)`, the language model as a factor of the score. */
     fun priorFactor(lm: Float): Float = exp(A * lm)
@@ -100,12 +140,12 @@ object ScoreModel {
      * [numerator] * shapeFactor(d) still beats [minScore]. Infinite when there is no heap minimum
      * yet, 0 when nothing can beat it.
      */
-    fun maxD(numerator: Float, minScore: Float): Float {
+    fun maxD(numerator: Float, minScore: Float, letters: Int = 0): Float {
         if (minScore <= 0f) return Float.POSITIVE_INFINITY
         val ratio = numerator / minScore
         if (ratio <= 1f) return 0f
         // numerator * (1 + r^2)^-B > minScore  <=>  r^2 < ratio^(1/B) - 1
         val r2 = exp(ln(ratio) / B) - 1f
-        return SIGMA * sqrt(r2)
+        return sigmaFor(letters) * sqrt(r2)
     }
 }

@@ -103,6 +103,13 @@ object ReplayCli {
         opt(a, "--lmSigma")?.let { com.kinetica.keyboard.engine.ScoreModel.SIGMA = it.toFloat() }
         opt(a, "--lmIl")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_SCALE = it.toFloat() }
         opt(a, "--lmIlw")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_WEIGHT = it.toFloat() }
+        opt(a, "--gateMargin")?.let {
+            com.kinetica.keyboard.engine.ScoreModel.marginGate = true
+            com.kinetica.keyboard.engine.ScoreModel.GATE_MARGIN = it.toFloat()
+        }
+        opt(a, "--lmIlB")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_B = it.toFloat() }
+        opt(a, "--lmSigmaLen")?.let { com.kinetica.keyboard.engine.ScoreModel.SIGMA_LEN = it.toFloat() }
+        opt(a, "--lmSigmaFrom")?.let { com.kinetica.keyboard.engine.ScoreModel.SIGMA_LEN_FROM = it.toInt() }
         opt(a, "--lmBackoff")?.let { com.kinetica.keyboard.engine.ScoreModel.BACKOFF = it.toFloat() }
         // --taps: continuous tap likelihood (ScoreModel.taps, issue #127), --tapSigma, --tapW,
         // --tapRadius, --tapMax its constants.

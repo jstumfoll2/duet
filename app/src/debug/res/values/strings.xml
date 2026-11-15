@@ -45,7 +45,7 @@
     <string name="gold_toggle">Ask after retypes</string>
     <string name="gold_explain">Now and then (at most every five minutes), after you undo a word and type a close one instead, the bar asks whether the first word was meant as the second. Your answer goes into the word trace as a confirmed label, so replay measures on what you meant rather than a guess.</string>
     <string name="loglinear_toggle">Language-model score (test)</string>
-    <string name="loglinear_explain">Ranks words by a real language model (how likely the word is after the last two) plus a shape fit that never goes flat, instead of today\'s score. Off by default: on replay it reads context better than today\'s decoder but loses about four points where both thumbs overlap, so it waits for that to be fixed.</string>
+    <string name="loglinear_explain">Ranks words by a real language model (how likely the word is after the last two) plus a shape fit that never goes flat, instead of today\'s score. Off by default: on replay it is ahead on words with a true label (67 against 65 in 100) but changes more of the words you accepted, so it waits for a batch from the phone.</string>
     <string name="taps_toggle">Tap likelihood (test)</string>
     <string name="taps_explain">Reads every tap as each key near it, charged by how far the touch is from that key, instead of the key under your finger unless the list runs short. Best with the language-model score. Off by default.</string>
     <string name="practice_ab">Today %1$d/%2$d · Neural %3$d/%4$d</string>

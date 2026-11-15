@@ -46,6 +46,21 @@ class ScoreModelTest {
     }
 
     @Test
+    fun longWordsGetAWiderShapeScale() {
+        assertEquals(ScoreModel.SIGMA, ScoreModel.sigmaFor(3), 0f)
+        assertEquals(ScoreModel.SIGMA, ScoreModel.sigmaFor(ScoreModel.SIGMA_LEN_FROM), 0f)
+        assertTrue(ScoreModel.sigmaFor(10) > ScoreModel.sigmaFor(6))
+        // The abandon budget inverts the same length-aware term.
+        val d = ScoreModel.maxD(1f, 0.01f, 10)
+        assertEquals(0.01f, ScoreModel.shapeFactor(d, 10), 1e-5f)
+    }
+
+    @Test
+    fun theMarginGateIsOffByDefault() {
+        assertTrue(!ScoreModel.marginGate)
+    }
+
+    @Test
     fun bigramLogProbabilitiesAreNormalisedPerContext() {
         val table = BigramTable.build(
             listOf(Triple(1, 2, 300L), Triple(1, 3, 100L), Triple(4, 2, 5L)),
