@@ -23,6 +23,8 @@ import java.io.File
  *       words|phrases: learn each label after decoding it. --dump OUT: a JSON row per line.
  *       --score loglinear [--lmA A] [--lmB B] [--lmSigma S] [--lmBackoff F] [--lmIl K] [--lmIlw W] (any command): the
  *       log-linear score with a real language model (ScoreModel, issue #124).
+ *       --taps [--tapSigma S] [--tapW W] [--tapRadius R] [--tapMax N] (any command): continuous
+ *       tap likelihood over the keys near each tap (ScoreModel.taps, issue #127).
  *   replay|ranks --personal BACKUP: decode with the learned words, counts and pairs of a
  *       settings backup (Settings > Back up), frozen unless ranks is given --learn as well.
  *   ranks [--learn words|phrases] [--pickw N] [--seed FILE] [--hdfree] TRACE.jsonl...
@@ -102,6 +104,13 @@ object ReplayCli {
         opt(a, "--lmIl")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_SCALE = it.toFloat() }
         opt(a, "--lmIlw")?.let { com.kinetica.keyboard.engine.ScoreModel.IL_WEIGHT = it.toFloat() }
         opt(a, "--lmBackoff")?.let { com.kinetica.keyboard.engine.ScoreModel.BACKOFF = it.toFloat() }
+        // --taps: continuous tap likelihood (ScoreModel.taps, issue #127), --tapSigma, --tapW,
+        // --tapRadius, --tapMax its constants.
+        if (a.remove("--taps")) com.kinetica.keyboard.engine.ScoreModel.taps = true
+        opt(a, "--tapSigma")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_SIGMA = it.toFloat() }
+        opt(a, "--tapW")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_W = it.toFloat() }
+        opt(a, "--tapRadius")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_RADIUS = it.toFloat() }
+        opt(a, "--tapMax")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_MAX_NATS = it.toFloat() }
         val assets = File(opt(a, "--assets") ?: defaultAssets())
         when (cmd) {
             "replay" -> {
@@ -320,6 +329,58 @@ object ReplayCli {
                     sb.append("]}")
                     println(sb)
                 }
+            }
+            "tappoints" -> {
+                // tappoints FILE...: on gold all-tap words (practice prompts and the user's own
+                // fixes, never words the decoder chose), which point of each tap lands nearest the
+                // key meant: the down point the decoder reads, the lift, the mean of all samples,
+                // or the midpoint of down and lift (issue #127). One row per point: taps, share
+                // nearest the meant key's centre, mean distance to it (kw).
+                if (a.isEmpty()) usage()
+                val names = listOf("down", "lift", "centroid", "mid")
+                val hit = IntArray(names.size)
+                val dist = DoubleArray(names.size)
+                var n = 0
+                val sink = ReplayReport(ReplayHarness.DEFAULT_DEEP_K)
+                for (f in a.map { File(it) }) for ((_, w) in read(f, sink)) {
+                    val gold = if (w.target != null) !GoldLabels.isFragment(w) else w.how == "retyped" || w.how == "reswiped" || w.how == "corrected" || w.how == "confirmed"
+                    if (!gold) continue
+                    val label = w.label?.lowercase() ?: continue
+                    val codes = com.kinetica.keyboard.engine.Alphabet.encode(label) ?: continue
+                    val tokens = SwipeTrace.replayTokens(w)
+                    if (tokens.size != codes.size || tokens.any { it !is com.kinetica.keyboard.engine.models.TapToken }) continue
+                    if (w.tokens.size != codes.size || w.tokens.any { it !is SwipeTrace.Gesture }) continue
+                    val g = w.geometry.build()
+                    val kw = w.geometry.keyWidthPx
+                    for (i in codes.indices) {
+                        val meant = codes[i]
+                        if (!g.hasKey(meant)) continue
+                        val ss = (w.tokens[i] as SwipeTrace.Gesture).samples
+                        if (ss.isEmpty()) continue
+                        val pts = listOf(
+                            ss.first().x to ss.first().y,
+                            ss.last().x to ss.last().y,
+                            ss.map { it.x }.average().toFloat() to ss.map { it.y }.average().toFloat(),
+                            (ss.first().x + ss.last().x) / 2f to (ss.first().y + ss.last().y) / 2f,
+                        )
+                        n++
+                        for ((k, pt) in pts.withIndex()) {
+                            val x = pt.first / kw
+                            val y = pt.second / kw
+                            var best = -1
+                            var bestD = Float.POSITIVE_INFINITY
+                            for (c in 0 until com.kinetica.keyboard.engine.Alphabet.LETTERS) {
+                                if (!g.hasKey(c)) continue
+                                val d = g.distToCenter(x, y, c)
+                                if (d < bestD) { bestD = d; best = c }
+                            }
+                            if (best == meant) hit[k]++
+                            dist[k] += g.distToCenter(x, y, meant).toDouble()
+                        }
+                    }
+                }
+                println("taps=$n")
+                for (k in names.indices) println(String.format(java.util.Locale.ROOT, "%-9s %6.2f%% %.3f kw", names[k], 100.0 * hit[k] / maxOf(n, 1), dist[k] / maxOf(n, 1)))
             }
             "refused" -> {
                 // refused [replay flags] FILE...: every gold line (practice prompt or second attempt)

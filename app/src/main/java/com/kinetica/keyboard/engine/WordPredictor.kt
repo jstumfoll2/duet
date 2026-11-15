@@ -2299,7 +2299,11 @@ class WordPredictor(
                 }
                 editsLeft++
             }
-            if (!fuzzyAnchors) {
+            if (tapLikelihood) {
+                val keys = tapKeys(ti, m)
+                val pens = tapCharges[ti]!!
+                for (k in keys.indices) tryAnchor(node, keys[k], pens[k], ti, depth, tapPen, contactKeep)
+            } else if (!fuzzyAnchors) {
                 tryAnchor(node, m.code, 0f, ti, depth, tapPen, contactKeep)
             } else {
                 val own = if (g.hasKey(m.code)) g.distToCenter(m.x, m.y, m.code) else 0f
@@ -2325,6 +2329,53 @@ class WordPredictor(
                     anchorStep(apo, ti, depth + 1, tapPen, contactKeep, allowApostrophe = false)
                 }
             }
+        }
+
+        // Continuous tap likelihood ([ScoreModel.taps]): per tap, the keys it may mean and the
+        // charge of each, built once per pass on first visit.
+        private val tapLikelihood = ScoreModel.taps
+        private val tapCodes = arrayOfNulls<IntArray>(pattern.size)
+        private val tapCharges = arrayOfNulls<FloatArray>(pattern.size)
+
+        private fun tapKeys(ti: Int, m: Matcher.Anchor): IntArray {
+            tapCodes[ti]?.let { return it }
+            val sigma = ScoreModel.TAP_SIGMA
+            val inv = 1f / (2f * sigma * sigma)
+            val tm = touchModel?.takeIf { !it.off && !it.isActive }
+            val codes = IntArray(alphabet.letterCount)
+            val d2 = FloatArray(alphabet.letterCount)
+            var n = 0
+            var best = Float.POSITIVE_INFINITY
+            for (code in 0 until alphabet.letterCount) {
+                if (!g.hasKey(code)) continue
+                // Where this thumb's taps on the key land, when the touch model has learned it
+                // but does not move taps itself (moved taps already carry the offset).
+                var x = m.x
+                var y = m.y
+                if (tm != null && m.stream != null) {
+                    val (dx, dy) = tm.offset(m.stream, code)
+                    x -= dx
+                    y -= dy
+                }
+                val d = g.distToCenter(x, y, code)
+                if (d > ScoreModel.TAP_RADIUS && code != m.code) continue
+                codes[n] = code
+                d2[n] = d * d
+                if (d * d < best) best = d * d
+                n++
+            }
+            val outCodes = ArrayList<Int>(n)
+            val outPens = ArrayList<Float>(n)
+            for (i in 0 until n) {
+                val nats = (d2[i] - best) * inv
+                if (nats > ScoreModel.TAP_MAX_NATS && codes[i] != m.code) continue
+                outCodes.add(codes[i])
+                outPens.add(ScoreModel.TAP_W * nats)
+            }
+            val c = outCodes.toIntArray()
+            tapCharges[ti] = outPens.toFloatArray()
+            tapCodes[ti] = c
+            return c
         }
 
         private fun tryAnchor(
