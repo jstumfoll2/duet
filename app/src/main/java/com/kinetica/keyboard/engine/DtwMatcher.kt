@@ -141,22 +141,31 @@ class DtwMatcher {
      * x2). Returns the accumulated cost, or +Inf once the running row minimum
      * exceeds [abandonAboveAccum]. Divide by N for the mean per-step cost.
      */
-    fun distanceAccum(observed: FloatArray, ideal: FloatArray, abandonAboveAccum: Float): Float {
+    fun distanceAccum(observed: FloatArray, ideal: FloatArray, abandonAboveAccum: Float): Float =
+        distanceAccum(observed, ideal, abandonAboveAccum, null)
+
+    /**
+     * [distanceAccum] with the cost of every cell on observed point i scaled by `weights[i]`
+     * ([ShapeModel]: mean 1, so the sum stays on the same scale). Null weights are all 1.
+     */
+    fun distanceAccum(observed: FloatArray, ideal: FloatArray, abandonAboveAccum: Float, weights: FloatArray?): Float {
         val w = KineticaConstants.DTW_ENDPOINT_WEIGHT
         java.util.Arrays.fill(prev, Float.POSITIVE_INFINITY)
         java.util.Arrays.fill(curr, Float.POSITIVE_INFINITY)
-        prev[0] = w * cellDist(observed, 0, ideal, 0)
+        val w0 = weights?.get(0) ?: 1f
+        prev[0] = w * w0 * cellDist(observed, 0, ideal, 0)
         val row0Hi = min(n - 1, band)
         for (j in 1..row0Hi) {
-            prev[j] = prev[j - 1] + cellDist(observed, 0, ideal, j)
+            prev[j] = prev[j - 1] + w0 * cellDist(observed, 0, ideal, j)
         }
         for (i in 1 until n) {
             val jLo = maxOf(0, i - band)
             val jHi = min(n - 1, i + band)
             if (jLo > 0) curr[jLo - 1] = Float.POSITIVE_INFINITY
             var rowMin = Float.POSITIVE_INFINITY
+            val wi = weights?.get(i) ?: 1f
             for (j in jLo..jHi) {
-                val d = cellDist(observed, i, ideal, j)
+                val d = wi * cellDist(observed, i, ideal, j)
                 var best = prev[j]
                 if (j > 0) {
                     if (prev[j - 1] < best) best = prev[j - 1]

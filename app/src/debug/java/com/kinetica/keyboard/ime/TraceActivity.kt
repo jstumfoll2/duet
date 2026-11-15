@@ -165,6 +165,16 @@ class TraceActivity : AppCompatActivity() {
             text = getString(R.string.taps_explain)
             textSize = 13f
         }
+        val speedToggle = SwitchCompat(this).apply {
+            text = getString(R.string.speed_toggle)
+            textSize = 16f
+            isChecked = NeuralRerank.speedShape
+            setOnCheckedChangeListener { _, on -> NeuralRerank.speedShape = on }
+        }
+        val speedExplain = TextView(this).apply {
+            text = getString(R.string.speed_explain)
+            textSize = 13f
+        }
         val betaRow = RadioGroup(this).apply {
             orientation = RadioGroup.HORIZONTAL
             val current = NeuralRerank.beta
@@ -217,6 +227,8 @@ class TraceActivity : AppCompatActivity() {
             addView(scoreExplain)
             addView(tapsToggle)
             addView(tapsExplain)
+            addView(speedToggle)
+            addView(speedExplain)
         }
         setContentView(ScrollView(this).apply { addView(column) })
     }
