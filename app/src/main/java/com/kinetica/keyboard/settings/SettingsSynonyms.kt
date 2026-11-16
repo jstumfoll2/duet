@@ -170,6 +170,7 @@ object SettingsSynonyms {
         Prefs.REINFORCE_INCREMENT to listOf("learn", "weight", "boost", "personal"),
         Prefs.LEARN_PHRASES to listOf("bigram", "context", "pairs", "personal"),
         Prefs.CONTACT_NAMES to listOf("contacts", "names", "people", "address book", "vocabulary"),
+        Prefs.FIELD_LEARNING to listOf("app", "field", "chat", "email", "search", "code", "terminal", "context", "adapt", "personal"),
         Prefs.RETYPE_AVOIDS_REJECTED to listOf("retype", "again", "reject"),
         Prefs.RETYPE_PENALTIES to listOf("retype", "mistake", "confuse", "wrong word", "penalty", "learn"),
         Prefs.FINGER_OFFSETS to listOf("offset", "finger", "thumb", "aim", "touch", "calibrate", "position"),

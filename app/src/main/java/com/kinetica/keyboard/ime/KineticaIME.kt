@@ -49,6 +49,8 @@ import com.kinetica.keyboard.engine.HarperLints
 import com.kinetica.keyboard.engine.KeyboardGeometry
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.LanguageMomentum
+import com.kinetica.keyboard.engine.FieldClass
+import com.kinetica.keyboard.engine.FieldWords
 import com.kinetica.keyboard.engine.LanguageStreak
 import com.kinetica.keyboard.engine.LatticeDecoder
 import com.kinetica.keyboard.engine.PreviousWordFix
@@ -668,11 +670,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         EdgeSwipeDefaults.applyTo(prefs)
+        FieldWords.enabled = prefs.getBoolean(Prefs.FIELD_LEARNING, Prefs.DEFAULT_FIELD_LEARNING)
         config = KeyboardConfig.from(prefs, systemNight())
         RetypePenalties.enabled = prefs.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
         applyFingerOffsets()
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
             val previous = config
+            FieldWords.enabled = p.getBoolean(Prefs.FIELD_LEARNING, Prefs.DEFAULT_FIELD_LEARNING)
             config = KeyboardConfig.from(p, systemNight())
             RetypePenalties.enabled = p.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
             // What decides the automatic space, whenever any of it changes and from wherever.
@@ -973,6 +977,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         applyWordPenalties()
                         applyRetypePenalties(reload = true)
                         applySessionWords()
+                        applyFieldWords(reload = true)
                         composer = WordComposer(
                             p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
                         ).also {
@@ -1404,6 +1409,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         synchronizeLanguageOnStart()
         fieldState = EditorState.from(attribute)
         editorState = fieldState.withIncognito(config.incognito)
+        fieldClass = FieldClass.of(attribute?.inputType ?: 0, attribute?.imeOptions ?: 0)
+        applyFieldWords(reload = false)
         // The DEV build's trace names what is typed; a private field leaves no line in it.
         DecodeTrace.suppressed = editorState.teachesNothing
         applySessionWords()
@@ -1528,6 +1535,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         abandonWord()
         composer?.reset()
         saveTouchModel()
+        saveFieldWords()
         saveRetypePenalties()
         // A notice belongs to the field it was shown in, not to the next one.
         clearSpacebarNotice()
@@ -2851,6 +2859,44 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         extraLanguage?.let { extraPredictor?.penalties = wordPenalties.forLanguage(it) }
     }
 
+    // Per-field learning (#136): where each word was typed, the class of the field at hand, and
+    // whether the counts have changed since they were stored. Main thread only; the predictors
+    // read the same store, which is safe to read while it is written.
+    private var fieldWords = FieldWords()
+    private var fieldClass = FieldClass.OTHER
+    private var fieldWordsDirty = false
+
+    /**
+     * Hands each resident predictor the per-field counts and this field's class. With [reload]
+     * the counts are read from the preference first, so a restored backup is picked up, unless
+     * this instance holds counts it has not stored yet.
+     */
+    private fun applyFieldWords(reload: Boolean) {
+        if (reload && !fieldWordsDirty) {
+            fieldWords = FieldWords.parse(
+                PreferenceManager.getDefaultSharedPreferences(this).getString(Prefs.FIELD_COUNTS, null),
+            )
+        }
+        for (p in listOfNotNull(predictor, secondaryPredictor, extraPredictor)) {
+            p.fieldWords = fieldWords
+            p.fieldClass = fieldClass
+        }
+    }
+
+    private fun saveFieldWords() {
+        if (!fieldWordsDirty) return
+        fieldWordsDirty = false
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+            .putString(Prefs.FIELD_COUNTS, fieldWords.serialize()).apply()
+    }
+
+    /** A learned commit of [word], counted for this field's class. Stored when the field is left. */
+    private fun noteFieldCommit(word: String) {
+        if (!FieldWords.enabled || config.incognito || editorState.teachesNothing) return
+        fieldWords.add(word, fieldClass)
+        fieldWordsDirty = true
+    }
+
     // Retype penalties (decoder rework step 8, #131): the "decoded Y, meant X" counts, the
     // commit a retype has just taken back (the Y of the next commit, if that one is close to
     // it), and whether the counts have changed since they were stored. Main thread only.
@@ -2971,6 +3017,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 if (steps > 0) setWordPenalty(word, lang, 0)
                 if (count > 0) learnWord(word, -count, lang)
                 forgetRetypes(word, lang)
+                if (fieldWords.remove(word)) fieldWordsDirty = true
             }
             BarAdjust.WordMenuAction.WHY -> Unit
         }
@@ -5791,6 +5838,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             if (!swipeDecodeEmpty && learnsOnCommit(word, reloadedWord)) {
                 val filed = filingLanguage(word, lang)
                 learnWord(word, lang = filed)
+                noteFieldCommit(word)
                 noticeWrongLanguage(word, filed)
                 lastCommitLearned = word.lowercase()
                 val held = predictorFor(filed)?.holdsExactSpelling(word) == true
