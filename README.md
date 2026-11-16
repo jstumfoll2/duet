@@ -258,6 +258,10 @@ and recorded traces and settings carry over because the app id is unchanged.)
   FUTO's MIT swipe dataset (never FUTO's weights), reorders the bar's list when two thumbs draw at
   once, and nudges it lightly on one-thumb words when the top two are close. The traces screen
   turns it off and sets its two-thumb weight. Off builds exactly the release decoder.
+- **Two-thumb encoder** (off by default, a switch on the traces screen): a second small CTC
+  model, trained the same way on those swipes redrawn as two thumbs would type them, watches both
+  thumbs in time and re-scores the bar's list when the top two are close. It needs the
+  language-model score switch on.
 
 Traces are personal typing data: keep them out of this repository.
 
