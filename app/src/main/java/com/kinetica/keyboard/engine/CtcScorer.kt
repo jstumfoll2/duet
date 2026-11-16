@@ -35,9 +35,16 @@ class CtcScorer private constructor(
     private val outW: FloatArray, private val outB: FloatArray,
     private val width: Int,
     private val hidden: Int,
+    /** Frames per input: [KineticaConstants.RESAMPLE_N] for a stroke, [DuoFeatures.FRAMES] for a buffer. */
+    val frames: Int = KineticaConstants.RESAMPLE_N,
+    private val inDim: Int = IN_DIM,
 ) {
-    private val n = KineticaConstants.RESAMPLE_N
-    private val x = FloatArray(n * IN_DIM)
+    private val n = frames
+    private val x = FloatArray(n * inDim)
+
+    /** Whether this is the two-thumb encoder, which reads a whole buffer ([logProbsDuo]), not a stroke. */
+    val duo: Boolean get() = inDim == DuoFeatures.IN_DIM
+
     private val h1 = FloatArray(n * width)
     private val h2 = FloatArray(n * width)
     private val hs = FloatArray(n * 2 * hidden)
@@ -47,8 +54,20 @@ class CtcScorer private constructor(
 
     /** Log-probabilities, [RESAMPLE_N * CLASSES], for one resampled piece on [g]. */
     fun logProbs(resampled: FloatArray, g: KeyboardGeometry): FloatArray {
+        require(!duo) { "a two-thumb encoder reads buffers" }
         features(resampled, g)
-        conv(x, IN_DIM, conv1W, conv1B, h1)
+        return run()
+    }
+
+    /** Log-probabilities, [frames] x [CLASSES], for a whole buffer's [strokes] on [g] (the two-thumb encoder). */
+    fun logProbsDuo(strokes: List<DuoFeatures.Stroke>, g: KeyboardGeometry): FloatArray {
+        require(duo) { "a one-stroke encoder reads resampled strokes" }
+        DuoFeatures.of(strokes, g).copyInto(x)
+        return run()
+    }
+
+    private fun run(): FloatArray {
+        conv(x, inDim, conv1W, conv1B, h1)
         conv(h1, width, conv2W, conv2B, h2)
         gruPass(forward = true)
         gruPass(forward = false)
@@ -185,10 +204,13 @@ class CtcScorer private constructor(
             fun int(): Int = ByteBuffer.wrap(ByteArray(4).also { d.readFully(it) }).order(ByteOrder.LITTLE_ENDIAN).int
             fun float(): Float = java.lang.Float.intBitsToFloat(int())
             val version = int()
-            require(version == 1) { "unsupported KCTC version $version" }
+            require(version == 1 || version == 2) { "unsupported KCTC version $version" }
             val count = int()
             require(count == 14) { "expected 14 tensors, found $count" }
             val sigma = float()
+            // Version 2 (duo_ctc.py): the two-thumb encoder, its frame count in the header.
+            val frames = if (version == 2) int() else KineticaConstants.RESAMPLE_N
+            val inDim = if (version == 2) DuoFeatures.IN_DIM else IN_DIM
             val shapes = ArrayList<IntArray>(count)
             val t = Array(count) {
                 val nd = int()
@@ -201,12 +223,13 @@ class CtcScorer private constructor(
             }
             val width = shapes[0][0]
             val hidden = shapes[5][1]
-            require(shapes[0][1] == IN_DIM && shapes[0][2] == KERNEL) { "conv1 shape ${shapes[0].toList()}" }
+            require(shapes[0][1] == inDim && shapes[0][2] == KERNEL) { "conv1 shape ${shapes[0].toList()}" }
+            require(version == 1 || (frames == DuoFeatures.FRAMES && sigma == DuoFeatures.SIGMA_KW)) { "frames $frames sigma $sigma" }
             require(shapes[12][0] == CLASSES && shapes[12][1] == 2 * hidden) { "output shape ${shapes[12].toList()}" }
             return CtcScorer(
                 sigma, t[0], t[1], t[2], t[3],
                 arrayOf(t[4], t[5], t[6], t[7], t[8], t[9], t[10], t[11]),
-                t[12], t[13], width, hidden,
+                t[12], t[13], width, hidden, frames, inDim,
             )
         }
     }

@@ -1,0 +1,59 @@
+name: Train two-thumb swipe encoder
+
+# Trains tools/experiment/duo_ctc.py's encoder (decoder rework step 11, #134) on GitHub's
+# runners, which can reach Hugging Face. FUTO's MIT swipe DATASET only, each one-finger swipe
+# redrawn as two thumbs would type it - never FUTO's released model weights or their outputs.
+#
+# Runs when the training code changes on its branch, or by hand. Real user traces never
+# reach this job: they are not in the repo.
+#
+# The model and its log are pushed to the `models/futo-duo` branch (model files only), which
+# is how they get back to the replay harness.
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Training time in minutes
+        default: "270"
+  push:
+    branches: [claude/rework-step11-duo-encoder]
+    paths:
+      - tools/experiment/duo_ctc.py
+      - .github/workflows/train_duo.yml
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install numpy "huggingface_hub>=0.24"
+
+      - name: Train
+        run: |
+          mkdir -p out
+          python tools/experiment/duo_ctc.py train --futo --out out/model_futo_duo_v1.kctc \
+            --minutes "${{ inputs.minutes || '270' }}" 2>&1 | tee out/train_futo_duo_v1.log
+
+      - name: Publish to the models/futo-duo branch
+        run: |
+          cp tools/experiment/duo_ctc.py out/
+          cd out
+          git init -q -b models/futo-duo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          printf 'Two-thumb swipe encoder trained by .github/workflows/train_duo.yml from %s on FUTO swipe-1 redrawn as two thumbs (MIT dataset; no FUTO weights).\n' "$GITHUB_SHA" > README.md
+          git add -A
+          git commit -qm "futo duo v1 model from $GITHUB_SHA"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" models/futo-duo

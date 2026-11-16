@@ -633,14 +633,58 @@ object ReplayCli {
                     }
                 }
             }
+            "duodata" -> {
+                // duodata FILE...: every labelled buffer as strokes in time (DuoFeatures.strokes),
+                // one JSON object per line, for tools/experiment/duo_ctc.py. Trace-derived: the
+                // output stays out of the repository. With --ctc DUO_MODEL each row also carries
+                // the encoder's greedy reading here, to check it against duo_ctc.py's.
+                val duo = opt(a, "--ctc")?.let { f -> File(f).inputStream().use { CtcScorer.load(it) } }
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                for (f in a.map { File(it) }) {
+                    for ((n, w) in read(f, sink)) {
+                        val label = w.label?.lowercase() ?: continue
+                        if (label.isEmpty() || label.length > 20 || !label.all { it in 'a'..'z' || it == '\'' }) continue
+                        val tokens = try { SwipeTrace.replayTokens(w).sortedBy { it.tStart } } catch (e: RuntimeException) { continue }
+                        if (tokens.isEmpty()) continue
+                        val p = h.predictorFor(w)
+                        val g = p.geometry ?: continue
+                        if (p.language != "en") continue
+                        val keys = (0 until com.kinetica.keyboard.engine.Alphabet.LETTERS).joinToString(",") { c ->
+                            if (g.hasKey(c)) "[%.3f,%.3f]".format(java.util.Locale.ROOT, g.centerX(c), g.centerY(c)) else "null"
+                        }
+                        val strokes = com.kinetica.keyboard.engine.DuoFeatures.strokes(tokens).joinToString(",") { s ->
+                            val t0 = tokens.first().tStart
+                            "{\"s\":${s.thumb},\"p\":[" + s.t.indices.joinToString(",") { i ->
+                                "[%.3f,%.3f,%d]".format(java.util.Locale.ROOT, s.x[i], s.y[i], s.t[i] - t0)
+                            } + "]}"
+                        }
+                        val lead = if (duo != null) {
+                            val lp = duo.logProbsDuo(com.kinetica.keyboard.engine.DuoFeatures.strokes(tokens), g)
+                            val sb = StringBuilder(); var prev = 0
+                            for (t in 0 until duo.frames) {
+                                var best = 0
+                                for (c in 1 until CtcScorer.CLASSES) if (lp[t * CtcScorer.CLASSES + c] > lp[t * CtcScorer.CLASSES + best]) best = c
+                                if (best != prev && best != 0) sb.append(if (best == 27) '\'' else 'a' + (best - 1))
+                                prev = best
+                            }
+                            sb.toString()
+                        } else p.decode(tokens, w.context).firstOrNull()?.word?.lowercase()
+                        println("{\"file\":${js(f.name)},\"n\":$n,\"label\":${js(label)},\"practice\":${w.target != null},\"lead\":${js(lead ?: "")},\"taps\":${tokens.count { it is com.kinetica.keyboard.engine.models.TapToken }},\"keys\":[$keys],\"strokes\":[$strokes]}")
+                    }
+                }
+            }
             "ctcpropose" -> {
                 // ctcpropose --ctc MODEL FILE...: what CtcProposer's lexicon beam over the encoder's
-                // frames would add to the decoder's list (#134). All-swipe buffers only; strokes'
-                // frames are set end to end in start order.
+                // frames would add to the decoder's list (#134). With a one-stroke encoder,
+                // all-swipe buffers only, strokes' frames set end to end in start order; with a
+                // two-thumb encoder (duo_ctc.py), every buffer. --propDump OUT writes a line per buffer.
                 val ctc = (opt(a, "--ctc") ?: usage()).let { f -> File(f).inputStream().use { CtcScorer.load(it) } }
                 opt(a, "--propWidth")?.let { com.kinetica.keyboard.engine.CtcProposer.WIDTH = it.toInt() }
                 opt(a, "--propLm")?.let { com.kinetica.keyboard.engine.CtcProposer.LM_WEIGHT = it.toFloat() }
                 val top = opt(a, "--propTop")?.toInt() ?: 20
+                val dump = opt(a, "--propDump")?.let { File(it).printWriter() }
                 if (a.isEmpty()) usage()
                 val h = ReplayHarness(assets)
                 val sink = ReplayReport(h.deepK)
@@ -653,20 +697,29 @@ object ReplayCli {
                         val label = w.label?.lowercase() ?: continue
                         val tokens = try { SwipeTrace.replayTokens(w).sortedBy { it.tStart } } catch (e: RuntimeException) { continue }
                         val swipes = tokens.filterIsInstance<com.kinetica.keyboard.engine.models.SwipeToken>()
-                        if (tokens.isEmpty() || swipes.size != tokens.size) continue
+                        if (tokens.isEmpty() || (!ctc.duo && swipes.size != tokens.size)) continue
+                        if (tokens.any { it is com.kinetica.keyboard.engine.models.TapToken && it.apostrophe }) continue
                         val p = h.predictorFor(w)
                         val g = p.geometry ?: continue
                         var lift = Long.MIN_VALUE; var overlap = false
                         for (t in tokens) { if (t.tStart < lift) overlap = true; lift = maxOf(lift, t.tEnd) }
-                        val bucket = if (tokens.size == 1) "one swipe" else if (overlap) "overlapped swipes" else "swipes in turn"
+                        val bucket = when {
+                            swipes.isEmpty() -> "taps only"
+                            swipes.size != tokens.size -> "taps and swipes"
+                            tokens.size == 1 -> "one swipe"
+                            overlap -> "overlapped swipes"
+                            else -> "swipes in turn"
+                        }
                         val list = p.decode(tokens, w.context).map { it.word.lowercase() }
                         val t0 = System.nanoTime()
-                        val lp = com.kinetica.keyboard.engine.CtcProposer.frames(swipes.map { ctc.logProbs(it.resampled, g) })
+                        val lp = if (ctc.duo) ctc.logProbsDuo(com.kinetica.keyboard.engine.DuoFeatures.strokes(tokens), g)
+                        else com.kinetica.keyboard.engine.CtcProposer.frames(swipes.map { ctc.logProbs(it.resampled, g) })
                         val props = com.kinetica.keyboard.engine.CtcProposer.propose(p.trie, lp, lp.size / CtcScorer.CLASSES, top)
                             .map { p.trie.wordOf(it.node).lowercase() }
                         nanos += System.nanoTime() - t0; runs++
                         val rank = props.indexOf(label)
                         val practice = w.target != null
+                        dump?.println(listOf(f.name, n, bucket, label, practice, list.indexOf(label), rank, list.firstOrNull() ?: "-", props.firstOrNull() ?: "-").joinToString("\t"))
                         for (key in listOf(bucket, "all")) {
                             val t = tallies.getOrPut(key) { Tally() }
                             t.n++
@@ -687,6 +740,7 @@ object ReplayCli {
                 for ((k, t) in tallies) {
                     println("$k: n=${t.n} decoder lead=${nf(t.lead, t.n)} in list=${nf(t.inList, t.n)} | proposer top1=${nf(t.p1, t.n)} top5=${nf(t.p5, t.n)} top$top=${nf(t.pTop, t.n)} | not in list=${t.n - t.inList}, proposer has it=${t.added} (practice: ${t.addedTrue} of ${t.missTrue})")
                 }
+                dump?.close()
                 println("proposer ms per buffer=%.2f".format(java.util.Locale.ROOT, nanos / 1e6 / maxOf(runs, 1)))
                 examples.forEach { println(it) }
             }
