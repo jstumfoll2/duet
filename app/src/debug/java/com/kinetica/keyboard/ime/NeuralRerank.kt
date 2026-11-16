@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.SystemClock
 import android.util.Log
 import com.kinetica.keyboard.engine.BoundaryModel
+import com.kinetica.keyboard.engine.LatticeDecoder
 import com.kinetica.keyboard.engine.PreviousWordFix
 import com.kinetica.keyboard.engine.ScoreModel
 import com.kinetica.keyboard.engine.ShapeModel
@@ -58,6 +59,7 @@ object NeuralRerank {
     private const val PREF_TAPS = "score_taps"
     private const val PREF_SPEED = "shape_speed"
     private const val PREF_REVISE = "previous_word_fix"
+    private const val PREF_LATTICE = "lattice_breaks"
 
     private const val TAG = "KineticaNeural"
 
@@ -130,6 +132,7 @@ object NeuralRerank {
         ScoreModel.taps = tapLikelihood
         ShapeModel.speed = speedShape
         PreviousWordFix.enabled = previousWordFix
+        LatticeDecoder.enabled = latticeBreaks
     }
 
     /**
@@ -180,6 +183,17 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_REVISE, on)?.apply()
             PreviousWordFix.enabled = on
+        }
+
+    /**
+     * Word breaks chosen by the lattice ([LatticeDecoder], decoder rework step 10, #133). Off by
+     * default, and it only acts with the language-model score on.
+     */
+    var latticeBreaks: Boolean
+        get() = prefs?.getBoolean(PREF_LATTICE, false) ?: false
+        set(on) {
+            prefs?.edit()?.putBoolean(PREF_LATTICE, on)?.apply()
+            LatticeDecoder.enabled = on
         }
 
     fun detach() {

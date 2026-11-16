@@ -175,6 +175,16 @@ class TraceActivity : AppCompatActivity() {
             text = getString(R.string.speed_explain)
             textSize = 13f
         }
+        val latticeToggle = SwitchCompat(this).apply {
+            text = getString(R.string.lattice_toggle)
+            textSize = 16f
+            isChecked = NeuralRerank.latticeBreaks
+            setOnCheckedChangeListener { _, on -> NeuralRerank.latticeBreaks = on }
+        }
+        val latticeExplain = TextView(this).apply {
+            text = getString(R.string.lattice_explain)
+            textSize = 13f
+        }
         val reviseToggle = SwitchCompat(this).apply {
             text = getString(R.string.revise_toggle)
             textSize = 16f
@@ -241,6 +251,8 @@ class TraceActivity : AppCompatActivity() {
             addView(speedExplain)
             addView(reviseToggle)
             addView(reviseExplain)
+            addView(latticeToggle)
+            addView(latticeExplain)
         }
         setContentView(ScrollView(this).apply { addView(column) })
     }

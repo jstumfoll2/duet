@@ -45,9 +45,15 @@ object PeckSplit {
         val chosen: Boolean = true,
         val swipeHead: Boolean = false,
         val total: Int = -1,
+        /**
+         * Chosen by [LatticeDecoder]: the head may be swiped, and [tap] leads with the word the
+         * lattice's path took for it.
+         */
+        val lattice: Boolean = false,
     ) {
         /** The tapped word as its own decode read it; a completion is a guess at a longer word. */
-        val tapWord: String? get() = tap.firstOrNull { it.source != WordCandidate.Source.COMPLETION }?.word
+        val tapWord: String? get() =
+            if (lattice) tap.firstOrNull()?.word else tap.firstOrNull { it.source != WordCandidate.Source.COMPLETION }?.word
         val restWord: String? get() = rest.firstOrNull()?.word
     }
 

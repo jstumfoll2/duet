@@ -99,4 +99,44 @@ class LatticeDecoderTest {
         ScoreModel.mode = ScoreModel.Mode.LOGLINEAR
         assertNull(LatticeDecoder.decode(p!!, listOf(TestData.swipe("hello", g, 1000, 500)), emptyList(), null, oneLetter))
     }
+
+    @Test
+    fun theComposerCutsASwipedHeadOffOnlyWithTheLatticeOn() {
+        val p = predictor()
+        assumeTrue(p != null)
+        ScoreModel.mode = ScoreModel.Mode.LOGLINEAR
+        val direct = java.util.concurrent.Executor { it.run() }
+        fun composer(): Pair<WordComposer, () -> List<com.kinetica.keyboard.engine.models.WordCandidate>> {
+            var last: List<com.kinetica.keyboard.engine.models.WordCandidate> = emptyList()
+            val c = WordComposer(p!!, direct, direct, object : WordComposer.Callbacks {
+                override fun onCandidates(candidates: List<com.kinetica.keyboard.engine.models.WordCandidate>, tentative: com.kinetica.keyboard.engine.models.WordCandidate?, literal: String, generation: Int) {
+                    last = candidates
+                }
+            })
+            c.oneLetterWord = oneLetter
+            c.peckSplit = true
+            val first = TestData.swipe("changes", g, 1000, 700)
+            c.onToken(first)
+            c.onToken(TestData.swipe("the", g, first.tEnd + 500, 300))
+            return c to { last }
+        }
+        val (off, _) = composer()
+        assertNull(off.split)
+        LatticeDecoder.enabled = true
+        try {
+            val (on, last) = composer()
+            val s = on.split
+            assertTrue(s != null && s.lattice && s.swipeHead)
+            assertTrue(s!!.tapWord!!.lowercase().startsWith("chang"))
+            val head = on.splitHead()
+            assertTrue(head != null)
+            assertEquals(1, on.tokenCount)
+            on.commitWord(head!!.tapWord!!.lowercase())
+            on.rejoinTail(head)
+            assertEquals("the", last().first().word.lowercase())
+            assertEquals(1, on.tokenCount)
+        } finally {
+            LatticeDecoder.enabled = false
+        }
+    }
 }

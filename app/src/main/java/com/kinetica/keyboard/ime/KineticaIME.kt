@@ -50,6 +50,7 @@ import com.kinetica.keyboard.engine.KeyboardGeometry
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.LanguageMomentum
 import com.kinetica.keyboard.engine.LanguageStreak
+import com.kinetica.keyboard.engine.LatticeDecoder
 import com.kinetica.keyboard.engine.PreviousWordFix
 import com.kinetica.keyboard.engine.RetypePenalties
 import com.kinetica.keyboard.engine.ScoreModel
@@ -1709,7 +1710,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
                 rememberWordBeforeGesture()
                 seededWithoutTokens = false
-                comp.peckSplit = comp.hasPendingWord && peckSplitAllowed()
+                comp.peckSplit = comp.hasPendingWord && (peckSplitAllowed() || latticeAllowed())
                 comp.onToken(token)
                 if (shift.state == ShiftState.State.SHIFT) {
                     shift.onLetterCommitted()
@@ -1815,11 +1816,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val s = comp.splitHead() ?: return
         splitting = true
         try {
-            val literal = comp.literal()
-            DecodeTrace.log { "  peck split commit head=$literal shown=$shown" }
+            // A head the lattice cut off may be swiped: it has no letters as tapped, and the
+            // word is the one the lattice's path read for it.
+            val swipedHead = s.lattice && comp.hasSwipeToken()
+            val literal = if (swipedHead) "" else comp.literal()
+            DecodeTrace.log { "  ${if (s.lattice) "lattice" else "peck"} split commit head=${if (swipedHead) s.tapWord else literal} shown=$shown" }
             // What the editor would hold had the swipe not come: the letters as tapped, with
             // the taps' own decode behind them for autocorrect.
-            replaceTentative(rejoined?.takeIf { it.equals(literal, ignoreCase = true) } ?: displayWord(literal))
+            replaceTentative(
+                if (swipedHead) displayWord(s.tapWord ?: return)
+                else rejoined?.takeIf { it.equals(literal, ignoreCase = true) } ?: displayWord(literal),
+            )
             lastCandidates = s.tap
             lastTentative = s.tap.firstOrNull()
             lastLiteral = literal
@@ -1845,6 +1852,20 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * only where a swiped word earns an automatic space, and only for a word of its own, not
      * the tail of `don't` or a word reopened from the editor.
      */
+    /**
+     * Whether the lattice may end a word inside the buffer in hand
+     * ([com.kinetica.keyboard.engine.LatticeDecoder], decoder rework step 10): the developer
+     * switch, the language-model score, and a word of its own. Unlike the peck split it does not
+     * wait for automatic spaces to be on: the lattice is what stands in for them.
+     */
+    private fun latticeAllowed(): Boolean {
+        if (!LatticeDecoder.enabled || !ScoreModel.logLinear) return false
+        if (config.wordEndsOnSpace || editorState.privateMode) return false
+        if (editorState.addressField || reloadedWord != null) return false
+        val joiner = ich.textBeforeCursor(tentativeLength + 1)?.dropLast(tentativeLength) ?: ""
+        return !joinsPrecedingToken(joiner)
+    }
+
     private fun peckSplitAllowed(): Boolean {
         if (!config.autospace || config.wordEndsOnSpace || editorState.privateMode) return false
         if (editorState.addressField || reloadedWord != null) return false
@@ -5097,7 +5118,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // A reopened word that spells one of the user's own words stays one word.
         val ownWord = comp.rejoinHead > 0 && !comp.hasSwipeToken() && ownSpelling(tentativeWord, whole = true)
         if (ownWord) DecodeTrace.log { "  rejoin kept own word=$tentativeWord" }
-        if (!splitting && !ownWord && comp.split != null && (comp.rejoinHead > 0 || peckSplitAllowed())) finalizeSplitHead(comp)
+        if (!splitting && !ownWord && comp.split != null &&
+            (comp.rejoinHead > 0 || peckSplitAllowed() || (comp.split?.lattice == true && latticeAllowed()))
+        ) {
+            finalizeSplitHead(comp)
+        }
 
         var finalWord = tentativeWord
         var how = if (comp.hasSwipeToken()) "tentative" else "typed"
