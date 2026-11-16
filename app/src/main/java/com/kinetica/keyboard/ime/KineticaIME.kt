@@ -53,6 +53,7 @@ import com.kinetica.keyboard.engine.LanguageStreak
 import com.kinetica.keyboard.engine.LatticeDecoder
 import com.kinetica.keyboard.engine.PreviousWordFix
 import com.kinetica.keyboard.engine.RetypePenalties
+import com.kinetica.keyboard.engine.UsageStats
 import com.kinetica.keyboard.engine.ScoreModel
 import com.kinetica.keyboard.engine.SharedWordFiling
 import com.kinetica.keyboard.engine.ShortSlips
@@ -670,11 +671,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         EdgeSwipeDefaults.applyTo(prefs)
         config = KeyboardConfig.from(prefs, systemNight())
         RetypePenalties.enabled = prefs.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
+        usageOn = prefs.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
         applyFingerOffsets()
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
             val previous = config
             config = KeyboardConfig.from(p, systemNight())
             RetypePenalties.enabled = p.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
+            usageOn = p.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
             // What decides the automatic space, whenever any of it changes and from wherever.
             if (config.autospace != previous.autospace || config.tidySpaces != previous.tidySpaces ||
                 config.wordEndsOnSpace != previous.wordEndsOnSpace ||
@@ -1529,6 +1532,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         composer?.reset()
         saveTouchModel()
         saveRetypePenalties()
+        saveUsage()
         // A notice belongs to the field it was shown in, not to the next one.
         clearSpacebarNotice()
         super.onFinishInput()
@@ -2881,8 +2885,64 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             .putString(Prefs.RETYPE_COUNTS, retypePenalties.serialize()).apply()
     }
 
+    // ------------------------------------------------------------ usage counts (#135)
+
+    /** Whether typing is counted for the accuracy screen ([Prefs.USAGE_STATS]). */
+    private var usageOn = false
+
+    /** Counts added since the preference was last written; null when there are none. */
+    private var usagePending: UsageStats? = null
+    private var usageLastCommitMs = -1L
+    private var usageTakenBack: String? = null
+    private var usagePicked = false
+
+    /** Never in a private or no-learning field, and never in incognito ([EditorState.withIncognito]). */
+    private val usageCounts: Boolean get() = usageOn && !config.incognito && !editorState.teachesNothing
+
+    private fun usageDay(): Int {
+        val now = System.currentTimeMillis()
+        return ((now + java.util.TimeZone.getDefault().getOffset(now)) / 86_400_000L).toInt()
+    }
+
+    /** The counts as stored, with what this instance has not written yet on top. */
+    private fun usageNow(): UsageStats = usagePending ?: UsageStats.parse(
+        PreferenceManager.getDefaultSharedPreferences(this).getString(Prefs.USAGE_COUNTS, null),
+    )
+
+    /** A word was committed: counted with whether it was picked and whether it replaced a deleted one. */
+    private fun noteUsageCommit(word: String) {
+        val picked = usagePicked
+        val back = usageTakenBack
+        usagePicked = false
+        usageTakenBack = null
+        val letters = word.count { it.isLetterOrDigit() }
+        if (letters == 0) return
+        val now = android.os.SystemClock.uptimeMillis()
+        val since = if (usageLastCommitMs < 0) -1L else now - usageLastCommitMs
+        usageLastCommitMs = now
+        if (!usageCounts) return
+        usagePending = usageNow().withCommit(
+            usageDay(), letters, since, picked, retyped = back != null && back != word.lowercase(),
+        )
+    }
+
+    private fun noteUsageCorrection() {
+        if (usageCounts) usagePending = usageNow().withCorrection(usageDay())
+    }
+
+    /** Written when the field is left, not on every word. */
+    private fun saveUsage() {
+        usageLastCommitMs = -1L
+        usageTakenBack = null
+        val pending = usagePending ?: return
+        usagePending = null
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+            .putString(Prefs.USAGE_COUNTS, pending.serialize()).apply()
+    }
+
     /** A retype took the commit [word] back: the next commit may say what it was meant as. */
     private fun noteRetypeTakenBack(word: String?) {
+        usageTakenBack = word?.lowercase()
         retypeTakenBack = if (RetypePenalties.enabled && !editorState.teachesNothing) word?.lowercase() else null
     }
 
@@ -5014,6 +5074,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             lastCandidates.any { displayWord(it.word).equals(word, ignoreCase = true) }
         replaceTentative(word)
         TraceRecorder.label("picked")
+        usagePicked = true
         commitWordInternal(word)
         if (outranked && lastCommitLearned == word.lowercase()) {
             learnWord(word, KineticaConstants.PICK_LEARN_UNITS - 1, lastLearnedWordLang ?: languageOf(word))
@@ -5053,6 +5114,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         lastCommit.onReplaced(replacement)
         recentWords.onReplaced(0, replacement)
         learnRetype(current, replacement, languageOf(replacement))
+        noteUsageCorrection()
         // Same transfer the unigram counts get below: the pair the wrong commit recorded
         // is taken back and the corrected one recorded in its place.
         val prevForPair = composer?.contextSnapshot()?.getOrNull(
@@ -5714,6 +5776,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         lastCommitDeliberate = nextCommitDeliberate
         nextCommitDeliberate = false
         recordTypingSpeed(word)
+        noteUsageCommit(word)
         noteLanguageMomentum(word)
         // Correction options, each a tappable zone: the committed word, the other ranked
         // candidates, then the literal tap string (the way back from a wrong autocorrect).
