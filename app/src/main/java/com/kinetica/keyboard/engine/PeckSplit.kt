@@ -100,7 +100,7 @@ object PeckSplit {
         val one = joined.firstOrNull()?.score ?: 0f
         val gap = sorted[head].tStart - sorted.subList(0, head).maxOf { it.tEnd }
         val need = ratio ?: ratioFor(gap)
-        val model = ratio == null && BoundaryModel.enabled
+        val model = ratio == null && BoundaryModel.decides
         val yes = if (model) {
             BoundaryModel.splits(tap.score, rest.score, one, gap, restSwipes = true)
         } else {
@@ -194,7 +194,7 @@ object PeckSplit {
         val rest = restList.firstOrNull()
         val one = joined.firstOrNull()?.score ?: 0f
         val restSpelled = rest != null && (restTokens.any { it !is TapToken } || restIsWord(predictor, rest, oneLetterWord))
-        val model = ratio == null && BoundaryModel.enabled
+        val model = ratio == null && BoundaryModel.decides
         val yes = rest != null && restSpelled && if (model) {
             BoundaryModel.splits(tap.score, rest.score, one, gapMs = null, restSwipes = restTokens.any { it !is TapToken })
         } else {

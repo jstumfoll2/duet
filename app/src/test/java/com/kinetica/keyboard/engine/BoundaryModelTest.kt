@@ -44,4 +44,23 @@ class BoundaryModelTest {
         val boosted = BoundaryModel.logOdds(4f, 1f, 1f, 150, true)
         assertTrue(capped == boosted)
     }
+
+    @Test
+    fun theLogLinearScoreDecidesWithItsOwnWeights() {
+        assertFalse(BoundaryModel.decides)
+        val legacy = BoundaryModel.logOdds(0.5f, 0.4f, 0.3f, null, restSwipes = false)
+        ScoreModel.mode = ScoreModel.Mode.LOGLINEAR
+        try {
+            assertTrue(BoundaryModel.decides)
+            val ll = BoundaryModel.logOdds(0.5f, 0.4f, 0.3f, null, restSwipes = false)
+            assertTrue(ll != legacy)
+            // Even odds on the scores still split a reopened word: the pause that spaced it counts.
+            assertTrue(BoundaryModel.splits(0.5f, 0.5f, 0.25f, null, restSwipes = false))
+            // A quick swipe after taps needs far more than a slow one, as on the legacy score.
+            assertFalse(BoundaryModel.splits(0.5f, 0.5f, 0.25f, 20, restSwipes = true))
+            assertTrue(BoundaryModel.splits(0.5f, 0.5f, 0.25f, 600, restSwipes = true))
+        } finally {
+            ScoreModel.mode = ScoreModel.Mode.LEGACY
+        }
+    }
 }
