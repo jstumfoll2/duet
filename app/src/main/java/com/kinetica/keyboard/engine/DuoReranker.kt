@@ -39,8 +39,6 @@ class DuoReranker(
     private val inner: CandidateReranker? = null,
 ) : CandidateReranker {
 
-    init { require(scorer.duo) { "DuoReranker needs a two-thumb encoder" } }
-
     /**
      * The encoder is skipped when the leader beats the runner-up by this much (ln of the score
      * ratio) or more. It costs about 10 ms a buffer on a JVM; at 1.5 it runs on a third of the
@@ -50,6 +48,8 @@ class DuoReranker(
 
     /** Whether buffers of taps alone are scored too. */
     @Volatile var taps = true
+
+    init { require(scorer.duo) { "DuoReranker needs a two-thumb encoder" } }
 
     override fun rerank(tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate> =
         duo(tokens, inner?.takeIf { it.reranks(false) }?.rerank(tokens, candidates) ?: candidates)
