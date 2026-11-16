@@ -107,6 +107,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".settings.UsageActivity"
+            android:label="@string/usage_title"
+            android:exported="false" />
+
+        <activity
             android:name=".settings.LicensesActivity"
             android:label="@string/licenses_title"
             android:exported="false" />

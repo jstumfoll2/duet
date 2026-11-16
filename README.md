@@ -227,6 +227,10 @@ F-Droid.
 - **Guided setup (from Kinetica 3.0).** A fresh install walks through turning Duet on, choosing it,
   then languages, height, automatic space, theme and the two-thumb tutor, one step at a time. An
   update skips it; *Run setup again* in Learn Duet starts it over.
+- **Typing accuracy screen (off by default).** *Count my typing accuracy* keeps per-day counts of
+  words, bar picks, retypes and typing time, and *Typing accuracy* shows the retype rate, the
+  share picked from the bar and words per minute for today, 7 and 30 days. Numbers only, never
+  words, kept on the phone, and nothing is counted in incognito or private fields.
 - **Word menu on the bar.** Hold a suggestion still for about a second: *Never*, *Less*, *More*,
   *Forget* and *Why?* replace the words. *Less* halves the word's score each time, so even a
   common word can drop below a rarer one (sliding only ever lowered what you had taught it);
