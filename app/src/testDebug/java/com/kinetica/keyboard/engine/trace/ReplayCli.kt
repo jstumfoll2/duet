@@ -633,6 +633,63 @@ object ReplayCli {
                     }
                 }
             }
+            "ctcpropose" -> {
+                // ctcpropose --ctc MODEL FILE...: what CtcProposer's lexicon beam over the encoder's
+                // frames would add to the decoder's list (#134). All-swipe buffers only; strokes'
+                // frames are set end to end in start order.
+                val ctc = (opt(a, "--ctc") ?: usage()).let { f -> File(f).inputStream().use { CtcScorer.load(it) } }
+                opt(a, "--propWidth")?.let { com.kinetica.keyboard.engine.CtcProposer.WIDTH = it.toInt() }
+                opt(a, "--propLm")?.let { com.kinetica.keyboard.engine.CtcProposer.LM_WEIGHT = it.toFloat() }
+                val top = opt(a, "--propTop")?.toInt() ?: 20
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                class Tally { var n = 0; var lead = 0; var inList = 0; var p1 = 0; var p5 = 0; var pTop = 0; var added = 0; var addedTrue = 0; var missTrue = 0 }
+                val tallies = LinkedHashMap<String, Tally>()
+                var nanos = 0L; var runs = 0
+                val examples = ArrayList<String>()
+                for (f in a.map { File(it) }) {
+                    for ((n, w) in read(f, sink)) {
+                        val label = w.label?.lowercase() ?: continue
+                        val tokens = try { SwipeTrace.replayTokens(w).sortedBy { it.tStart } } catch (e: RuntimeException) { continue }
+                        val swipes = tokens.filterIsInstance<com.kinetica.keyboard.engine.models.SwipeToken>()
+                        if (tokens.isEmpty() || swipes.size != tokens.size) continue
+                        val p = h.predictorFor(w)
+                        val g = p.geometry ?: continue
+                        var lift = Long.MIN_VALUE; var overlap = false
+                        for (t in tokens) { if (t.tStart < lift) overlap = true; lift = maxOf(lift, t.tEnd) }
+                        val bucket = if (tokens.size == 1) "one swipe" else if (overlap) "overlapped swipes" else "swipes in turn"
+                        val list = p.decode(tokens, w.context).map { it.word.lowercase() }
+                        val t0 = System.nanoTime()
+                        val lp = com.kinetica.keyboard.engine.CtcProposer.frames(swipes.map { ctc.logProbs(it.resampled, g) })
+                        val props = com.kinetica.keyboard.engine.CtcProposer.propose(p.trie, lp, lp.size / CtcScorer.CLASSES, top)
+                            .map { p.trie.wordOf(it.node).lowercase() }
+                        nanos += System.nanoTime() - t0; runs++
+                        val rank = props.indexOf(label)
+                        val practice = w.target != null
+                        for (key in listOf(bucket, "all")) {
+                            val t = tallies.getOrPut(key) { Tally() }
+                            t.n++
+                            if (list.firstOrNull() == label) t.lead++
+                            if (label in list) t.inList++
+                            if (rank == 0) t.p1++
+                            if (rank in 0..4) t.p5++
+                            if (rank >= 0) t.pTop++
+                            if (label !in list) {
+                                if (practice) t.missTrue++
+                                if (rank >= 0) { t.added++; if (practice) t.addedTrue++ }
+                            }
+                        }
+                        if (label !in list && rank >= 0 && examples.size < 40) examples.add("${f.name}\t$n\t$bucket\t$label\trank ${rank + 1}\tlead ${list.firstOrNull()}")
+                    }
+                }
+                fun nf(x: Int, of: Int) = "$x/$of (${if (of == 0) "-" else "%.1f%%".format(java.util.Locale.ROOT, 100.0 * x / of)})"
+                for ((k, t) in tallies) {
+                    println("$k: n=${t.n} decoder lead=${nf(t.lead, t.n)} in list=${nf(t.inList, t.n)} | proposer top1=${nf(t.p1, t.n)} top5=${nf(t.p5, t.n)} top$top=${nf(t.pTop, t.n)} | not in list=${t.n - t.inList}, proposer has it=${t.added} (practice: ${t.addedTrue} of ${t.missTrue})")
+                }
+                println("proposer ms per buffer=%.2f".format(java.util.Locale.ROOT, nanos / 1e6 / maxOf(runs, 1)))
+                examples.forEach { println(it) }
+            }
             "lattice" -> {
                 // lattice FILE...: LatticeDecoder end to end. Every real one-word buffer (its lead
                 // must stay the label where it is today), every pair of consecutive words with the
