@@ -301,6 +301,8 @@ Everything below comes from Kinetica and works the same in Duet.
 - After a commit the bar becomes a correction strip: tap another word and it replaces the one just
   written, taking its learned weight with it.
 - Next-word suggestions while nothing is being typed (Typing and correction, on).
+- Whole phrases on the next-word bar: when you nearly always go on the same way, the next two to
+  four words are one tap (Learning > *Offer whole phrases*, off; needs *Learn phrases you type*).
 - Recent words: the last two words stay on the bar, each with the words it beat; tap one to swap it
   in (off by default). They have their own text size and a swipe direction to choose.
 - A tapped word with one stray or one missing letter is offered on the bar, never changed for you.
