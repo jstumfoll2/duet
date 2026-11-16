@@ -95,6 +95,11 @@ class ReplayHarness(
      * teaches "decoded lead, meant label" after it is decoded. Null is off.
      */
     private val retypeSources: Set<String>? = null,
+    /** The two-thumb encoder scoring the decoder's candidates ([com.kinetica.keyboard.engine.DuoReranker], #134); null or beta 0 is off. */
+    private val duo: CtcScorer? = null,
+    private val duoBeta: Float = 0f,
+    private val duoTaps: Boolean = true,
+    private val duoGate: Float = 1.5f,
 ) {
     /** The retype counts learned so far; kept across files, as the preference is on a phone. */
     var retypeStore: com.kinetica.keyboard.engine.RetypePenalties = com.kinetica.keyboard.engine.RetypePenalties.EMPTY
@@ -185,9 +190,12 @@ class ReplayHarness(
             it.overlap = rerankOverlap; it.overlapOnly = rerankOverlapOnly
             it.soloBeta = soloBeta; it.soloGate = soloGate; it.soloShallow = soloShallow
         } else null
+        val r2 = if (rerank && duo != null && duoBeta != 0f) {
+            com.kinetica.keyboard.engine.DuoReranker(duo, { g }, duoBeta, r).also { it.taps = duoTaps; it.gate = duoGate }
+        } else r
         return WordPredictor(
             d.d.trie, d.bigrams, g, d.d.forms, language = lang, topK = topK,
-            reranker = r, rerankDepth = rerankDepth,
+            reranker = r2, rerankDepth = rerankDepth,
             interleave = interleave, interleaveWeight = interleaveWeight,
             heldDoubleBoost = heldDoubleBoost, heldDoubleMs = heldDoubleMs, heldDoubleEndMs = heldDoubleEndMs,
             heldDoubleMissKeep = heldDoubleMissKeep, trigramBoostMax = trigramBoost, edgeTapGapKw = edgeTapGap,
