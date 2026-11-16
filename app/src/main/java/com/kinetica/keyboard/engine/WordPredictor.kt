@@ -602,6 +602,30 @@ class WordPredictor(
     }
 
     /**
+     * `ln P(word | prev)` from the tables alone, whatever score is in use: the pair's
+     * log-probability when the table holds it, else `ln BACKOFF + ln P1(word)`. A word the
+     * dictionary does not hold counts as the rarest one.
+     */
+    fun lmOf(word: String, prev: String?): Float {
+        val node = trie.nodeFor(AccentFolder.fold(word.lowercase()))
+        val p1 = trie.logProb(if (node >= 0 && trie.isWord(node)) trie.frequency(node) else 0)
+        val prevId = prev?.let { trie.nodeFor(AccentFolder.fold(it.lowercase())) } ?: -1
+        if (node < 0 || prevId < 0) return if (prev == null) p1 else kotlin.math.ln(ScoreModel.BACKOFF) + p1
+        val b = bigrams.logCond(prevId, node)
+        return if (b.isNaN()) kotlin.math.ln(ScoreModel.BACKOFF) + p1 else b
+    }
+
+    /**
+     * What the language model says for [first] then [second] against the one word [joined],
+     * after [prev]: `ln P(first | prev) + ln P(second | first) - ln P(joined | prev)`
+     * ([BoundaryModel], decoder rework step 9). Positive favours two words.
+     */
+    fun splitLm(first: String, second: String, joined: String?, prev: String?): Float {
+        val two = lmOf(first, prev) + lmOf(second, first)
+        return if (joined == null) two - trie.logProb(0) else two - lmOf(joined, prev)
+    }
+
+    /**
      * The frequency and context factors a re-spelt candidate ([preferHeldDoubles],
      * [preferApostrophe]) takes from its own word: (fw, bm) in the legacy score, (exp(A * lm), 1)
      * in the log-linear one. [plainBm] is the plain word's applied bigram, which in the legacy

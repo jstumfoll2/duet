@@ -1157,6 +1157,8 @@ object ReplayCli {
             com.kinetica.keyboard.engine.PeckSplit.split(p, sorted, context, joined, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }) != null,
             // Whether the buffer may be read as two words at all (PeckSplit.read is not null).
             com.kinetica.keyboard.engine.PeckSplit.read(p, sorted, context, joined, { ch -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }) != null,
+            // The language model's say on two words against one (WordPredictor.splitLm, #132).
+            restList.firstOrNull()?.let { p.splitLm(tapWord, it.word, joined.firstOrNull()?.word, context.lastOrNull()) } ?: 0f,
         ).joinToString("\t")
     }
 
@@ -1203,6 +1205,7 @@ object ReplayCli {
             // Whether the rest may stand as a word (a swipe, or taps that spell one).
             rest != null && (!restTaps || (rest.source != com.kinetica.keyboard.engine.models.WordCandidate.Source.COMPLETION &&
                 (if (rest.word.length == 1) one(rest.word[0].lowercaseChar()) else p.isWord(rest.word)))),
+            if (tap != null && rest != null) p.splitLm(tap.word, rest.word, joined.firstOrNull()?.word, context.lastOrNull()) else 0f,
         ).joinToString("\t")
     }
 

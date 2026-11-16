@@ -31,6 +31,21 @@ import kotlin.math.ln1p
  * splits alone; the phone's traces should show whether that case exists.
  *
  * Off by default ([enabled]); the developer build switches it from the trace screen.
+ *
+ * The log-linear score ([ScoreModel.Mode.LOGLINEAR]) has its own weights (decoder rework step 9,
+ * #132), and decides with them whether or not [enabled] is set: its scores are on another
+ * scale, so the legacy ratios make 1,296 wrong decisions on the 18,894 rows of all trace files
+ * (2026-11-15) against 688 under the legacy score, and the legacy weights 600. Refitted on
+ * that score's own rows: 339, and held out by halves (A = files before 2026-10-22) 203 and 138
+ * against the ratios' 501 and 795. The legacy weights were checked on the same rows and stand
+ * (337 wrong against a refit's 334).
+ *
+ * Tried and left out: the language model's own say on the break,
+ * `ln P(w1 | prev) + ln P(w2 | w1) - ln P(w | prev)` ([WordPredictor.splitLm]). Its fitted
+ * weight is 0.06 on the legacy score and -0.02 on the log-linear one, and held-out errors do
+ * not move (206 -> 202 and 132 -> 135 legacy; 203 -> 202 and 138 -> 138 log-linear): the
+ * second word is already decoded after the first, so its score carries the pair. The replay
+ * rows keep the column (`tools/experiment/boundary_fit.py`) for a later refit.
  */
 object BoundaryModel {
 
@@ -44,6 +59,16 @@ object BoundaryModel {
     const val PECK_GAP = 2.036f
     const val REST_SWIPE = 7.673f
 
+    // The same terms for the log-linear score.
+    const val LL_BIAS = 0.693f
+    const val LL_EVIDENCE = 1.154f
+    const val LL_PECK = -20.311f
+    const val LL_PECK_GAP = 2.044f
+    const val LL_REST_SWIPE = 10.057f
+
+    /** Whether this model decides now: switched on, or the score is the log-linear one. */
+    val decides: Boolean get() = enabled || ScoreModel.logLinear
+
     /**
      * Log-odds that [tapScore]'s word and [restScore]'s word, typed with no space, are two
      * words rather than the one word [oneScore] reads. [gapMs] is the time from the last tap's
@@ -52,9 +77,10 @@ object BoundaryModel {
     fun logOdds(tapScore: Float, restScore: Float, oneScore: Float, gapMs: Long?, restSwipes: Boolean): Float {
         val tap = minOf(tapScore, KineticaConstants.PECK_SPLIT_TAP_CAP).toDouble()
         val evidence = ln(tap) + ln(restScore.toDouble()) - ln(oneScore.toDouble())
-        var z = BIAS + EVIDENCE * evidence
-        if (gapMs != null) z += PECK + PECK_GAP * ln1p(maxOf(gapMs, 0L).toDouble())
-        if (restSwipes) z += REST_SWIPE
+        val ll = ScoreModel.logLinear
+        var z = (if (ll) LL_BIAS else BIAS) + (if (ll) LL_EVIDENCE else EVIDENCE) * evidence
+        if (gapMs != null) z += (if (ll) LL_PECK else PECK) + (if (ll) LL_PECK_GAP else PECK_GAP) * ln1p(maxOf(gapMs, 0L).toDouble())
+        if (restSwipes) z += if (ll) LL_REST_SWIPE else REST_SWIPE
         return z.toFloat()
     }
 
