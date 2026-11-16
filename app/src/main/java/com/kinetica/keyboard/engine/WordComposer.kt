@@ -329,6 +329,28 @@ class WordComposer(
     }
 
     /**
+     * The first word [LatticeDecoder] cuts off the buffer and what follows it, when its best
+     * path has more than one word (decoder rework step 10, #133); null to keep one word. A path
+     * of three is taken a word at a time: the rest is decoded again once the head is committed.
+     */
+    private fun latticeSplit(request: DecodeRequest, active: List<WordCandidate>): PeckSplit.Split? {
+        val r = LatticeDecoder.decode(predictor, request.tokens, request.context, active, oneLetterWord) ?: return null
+        if (!r.split) return null
+        val head = r.best.arcs[0]
+        val next = r.best.arcs[1]
+        val sorted = request.tokens.sortedBy { it.tStart }
+        return PeckSplit.Split(
+            head = head.to,
+            tap = listOf(head.word) + head.list.filter { it !== head.word },
+            rest = next.list,
+            chosen = true,
+            swipeHead = sorted.subList(0, head.to).any { it !is TapToken },
+            total = request.tokens.size,
+            lattice = true,
+        )
+    }
+
+    /**
      * Applies [split]: keeps only its tapped head in the buffer, so the caller can commit it as
      * a word, and holds the rest for [rejoinTail]. Null, changing nothing, without a split.
      */
@@ -336,7 +358,7 @@ class WordComposer(
         val s = split ?: return null
         // A rejoin's head is the seeded taps, first in the list whatever their made-up times.
         val sorted = if (rejoinHead > 0) ArrayList(tokens) else tokens.sortedBy { it.tStart }
-        if (s.head >= sorted.size || sorted.take(s.head).any { it !is TapToken }) return null
+        if (s.head >= sorted.size || (!s.lattice && sorted.take(s.head).any { it !is TapToken })) return null
         split = null
         twoWords = null
         rejoinHead = 0
@@ -615,8 +637,13 @@ class WordComposer(
                 PeckSplit.readRejoin(predictor, request.tokens, request.rejoinHead, request.context, active, oneLetterWord)
             } else if (request.literal.isEmpty()) {
                 // A buffer with no tapped head may still be a swiped word and the next one.
-                (if (request.peckSplit) PeckSplit.read(predictor, request.tokens, request.context, active, oneLetterWord) else null)
-                    ?: if (request.swipeSplit) PeckSplit.readSwipe(predictor, request.tokens, request.context, oneLetterWord) else null
+                val lattice = request.peckSplit && LatticeDecoder.enabled && ScoreModel.logLinear
+                val chosen = if (lattice) latticeSplit(request, active) else null
+                // With the lattice on it alone decides: the older readings stay, unchosen, for a
+                // backspace that takes a joined word apart.
+                chosen ?: ((if (request.peckSplit) PeckSplit.read(predictor, request.tokens, request.context, active, oneLetterWord) else null)
+                    ?: if (request.swipeSplit) PeckSplit.readSwipe(predictor, request.tokens, request.context, oneLetterWord) else null)
+                    ?.let { if (lattice && it.chosen) PeckSplit.Split(it.head, it.tap, it.rest, chosen = false, swipeHead = it.swipeHead, total = it.total) else it }
             } else {
                 null
             }

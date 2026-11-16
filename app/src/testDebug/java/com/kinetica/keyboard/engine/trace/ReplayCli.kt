@@ -122,6 +122,9 @@ object ReplayCli {
         opt(a, "--tapW")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_W = it.toFloat() }
         opt(a, "--tapRadius")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_RADIUS = it.toFloat() }
         opt(a, "--tapMax")?.let { com.kinetica.keyboard.engine.ScoreModel.TAP_MAX_NATS = it.toFloat() }
+        // --latW E,B,G,PT,PTG,NT,NTG: the lattice's weights (LatticeDecoder.setWeights, #133).
+        opt(a, "--latW")?.let { w -> com.kinetica.keyboard.engine.LatticeDecoder.setWeights(w.split(',').map { it.toFloat() }.toFloatArray()) }
+        opt(a, "--latMargin")?.let { com.kinetica.keyboard.engine.LatticeDecoder.MARGIN = it.toFloat() }
         val assets = File(opt(a, "--assets") ?: defaultAssets())
         when (cmd) {
             "replay" -> {
@@ -586,6 +589,118 @@ object ReplayCli {
                         println(splitRow(h, f.name, n, "split", w, tokens + nextTokens, w.context, label, nextLabel))
                     }
                 }
+            }
+            "latticedata" -> {
+                // latticedata FILE...: one tab-separated row per place a word may end
+                // (LatticeDecoder.boundaries), for fitting the lattice's break score. kind split:
+                // a word and the word typed after it with the space left out, at the true break.
+                // kind join: a real one-word buffer, at each lift inside it.
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                val L = com.kinetica.keyboard.engine.LatticeDecoder
+                fun row(p: WordPredictor, file: String, n: Int, kind: String, label: String, label2: String,
+                        sorted: List<com.kinetica.keyboard.engine.models.InputToken>, cut: Int, context: List<String>): String {
+                    val one = { ch: Char -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }
+                    val joined = p.decode(sorted, context).firstOrNull()
+                    val headTokens = sorted.subList(0, cut)
+                    val restTokens = sorted.subList(cut, sorted.size)
+                    val head = L.arcWord(p, headTokens, p.decode(headTokens, context), one)
+                    val rest = head?.let { L.arcWord(p, restTokens, p.decode(restTokens, (context + it.word).takeLast(2)), one) }
+                    return listOf(
+                        file, n, kind, label, label2, sorted.size, cut, L.gapBefore(sorted, cut),
+                        sorted[cut - 1] is com.kinetica.keyboard.engine.models.TapToken, sorted[cut] is com.kinetica.keyboard.engine.models.TapToken,
+                        head?.word ?: "-", head?.score ?: 0f, rest?.word ?: "-", rest?.score ?: 0f,
+                        joined?.word ?: "-", joined?.score ?: 0f,
+                    ).joinToString("\t")
+                }
+                for (f in a.map { File(it) }) {
+                    val words = read(f, sink)
+                    for ((i, pair) in words.withIndex()) {
+                        val (n, w) = pair
+                        val label = w.label?.lowercase() ?: continue
+                        val tokens = try { SwipeTrace.replayTokens(w).sortedBy { it.tStart } } catch (e: RuntimeException) { continue }
+                        if (tokens.isEmpty() || tokens.any { it is com.kinetica.keyboard.engine.models.TapToken && it.apostrophe }) continue
+                        val p = h.predictorFor(w)
+                        for (cut in L.boundaries(tokens)) println(row(p, f.name, n, "join", label, "", tokens, cut, w.context))
+                        val next = words.getOrNull(i + 1)?.second ?: continue
+                        val nextLabel = next.label?.lowercase() ?: continue
+                        if (next.context.lastOrNull()?.lowercase() != w.committed?.lowercase()) continue
+                        val nextTokens = try { SwipeTrace.replayTokens(next).sortedBy { it.tStart } } catch (e: RuntimeException) { continue }
+                        if (nextTokens.isEmpty() || tokens.maxOf { it.tEnd } > nextTokens.first().tStart) continue
+                        println(row(p, f.name, n, "split", label, nextLabel, tokens + nextTokens, tokens.size, w.context))
+                    }
+                }
+            }
+            "lattice" -> {
+                // lattice FILE...: LatticeDecoder end to end. Every real one-word buffer (its lead
+                // must stay the label where it is today), every pair of consecutive words with the
+                // space left out, and every three.
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                val L = com.kinetica.keyboard.engine.LatticeDecoder
+                var singles = 0; var withCut = 0; var oneRight = 0; var latRight = 0; var broke = 0; var fixed = 0
+                var pairs = 0; var pairRight = 0; var pairJoined = 0; var pairPeck = 0
+                var triples = 0; var tripleRight = 0
+                var decodes = 0L; var nanos = 0L
+                val examples = ArrayList<String>()
+                fun nf(x: Int, of: Int) = "$x/$of (${if (of == 0) "-" else "%.1f%%".format(100.0 * x / of)})"
+                for (f in a.map { File(it) }) {
+                    val words = read(f, sink)
+                    val toks = words.map { (_, w) -> try { SwipeTrace.replayTokens(w).sortedBy { it.tStart } } catch (e: RuntimeException) { null } }
+                    fun follows(i: Int): Boolean {
+                        val w = words[i - 1].second; val next = words[i].second
+                        val t0 = toks[i - 1]; val t1 = toks[i]
+                        return w.label != null && next.label != null && t0 != null && t1 != null && t0.isNotEmpty() && t1.isNotEmpty() &&
+                            next.context.lastOrNull()?.lowercase() == w.committed?.lowercase() && t0.maxOf { it.tEnd } <= t1.first().tStart
+                    }
+                    for ((i, pair) in words.withIndex()) {
+                        val (n, w) = pair
+                        val label = w.label?.lowercase() ?: continue
+                        val tokens = toks[i] ?: continue
+                        if (tokens.isEmpty()) continue
+                        val p = h.predictorFor(w)
+                        val one = { ch: Char -> ch in ReplayHarness.ONE_LETTER_WORDS[p.language].orEmpty() }
+                        val joined = p.decode(tokens, w.context)
+                        val t0 = System.nanoTime()
+                        val r = L.decode(p, tokens, w.context, joined, one)
+                        nanos += System.nanoTime() - t0; decodes++
+                        singles++
+                        val was = joined.firstOrNull()?.word?.lowercase() == label
+                        val now = if (r == null) was else (!r.split && was)
+                        if (r != null) withCut++
+                        if (was) oneRight++
+                        if (now) latRight++
+                        if (was && !now) { broke++; if (examples.size < 40) examples.add("broke\t${f.name}\t$n\t$label\t${r?.best?.words}") }
+                        if (i + 1 < words.size && follows(i + 1)) {
+                            val l2 = words[i + 1].second.label!!.lowercase()
+                            val all = tokens + toks[i + 1]!!
+                            val j2 = p.decode(all, w.context)
+                            val r2 = L.decode(p, all, w.context, j2, one)
+                            pairs++
+                            val got = r2?.best?.words?.map { it.lowercase() } ?: listOfNotNull(j2.firstOrNull()?.word?.lowercase())
+                            if (got == listOf(label, l2)) pairRight++ else if (examples.size < 40 && pairs % 50 == 0) examples.add("pair\t${f.name}\t$n\t$label $l2\t$got")
+                            if (got.size == 1) pairJoined++
+                            val peck = com.kinetica.keyboard.engine.PeckSplit.split(p, all, w.context, j2, one)
+                            if (peck != null && peck.tapWord?.lowercase() == label && peck.restWord?.lowercase() == l2) pairPeck++
+                            if (i + 2 < words.size && follows(i + 2)) {
+                                val l3 = words[i + 2].second.label!!.lowercase()
+                                val all3 = all + toks[i + 2]!!
+                                val r3 = L.decode(p, all3, w.context, null, one)
+                                triples++
+                                if (r3?.best?.words?.map { it.lowercase() } == listOf(label, l2, l3)) tripleRight++
+                            }
+                        }
+                    }
+                }
+                println("one-word buffers=$singles with a lift inside=$withCut lead right today=${nf(oneRight, singles)} with the lattice=${nf(latRight, singles)} broke=$broke")
+                println("two words, no space: both right=${nf(pairRight, pairs)} left as one word=${nf(pairJoined, pairs)} today (peck split only)=${nf(pairPeck, pairs)}")
+                println("three words, no space: all right=${nf(tripleRight, triples)}")
+                println("lattice mean ${"%.1f".format(nanos / 1e6 / maxOf(decodes, 1))} ms on one-word buffers")
+                examples.forEach { println(it) }
             }
             "swipesplit" -> {
                 // swipesplit FILE...: what a backspace after a swipe-joined word gives back
