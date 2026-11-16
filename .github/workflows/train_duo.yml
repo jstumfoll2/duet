@@ -4,7 +4,8 @@ name: Train two-thumb swipe encoder
 # runners, which can reach Hugging Face. FUTO's MIT swipe DATASET only, each one-finger swipe
 # redrawn as two thumbs would type it - never FUTO's released model weights or their outputs.
 #
-# By hand only. Real user traces never reach this job: they are not in the repo.
+# Runs when the training code changes on its branch, or by hand. Real user traces never
+# reach this job: they are not in the repo.
 #
 # The model and its log are pushed to the `models/futo-duo` branch (model files only), which
 # is how they get back to the replay harness.
@@ -15,6 +16,11 @@ on:
       minutes:
         description: Training time in minutes
         default: "270"
+  push:
+    branches: [claude/rework-step11-duo-encoder]
+    paths:
+      - tools/experiment/duo_ctc.py
+      - .github/workflows/train_duo.yml
 
 permissions:
   contents: write
@@ -38,7 +44,7 @@ jobs:
         run: |
           mkdir -p out
           python tools/experiment/duo_ctc.py train --futo --out out/model_futo_duo_v1.kctc \
-            --minutes "${{ inputs.minutes }}" 2>&1 | tee out/train_futo_duo_v1.log
+            --minutes "${{ inputs.minutes || '270' }}" 2>&1 | tee out/train_futo_duo_v1.log
 
       - name: Publish to the models/futo-duo branch
         run: |
