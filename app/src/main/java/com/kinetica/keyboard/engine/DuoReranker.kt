@@ -66,8 +66,6 @@ class DuoReranker(
      */
     @Volatile var ahead = true
 
-    init { require(scorer.duo) { "DuoReranker needs a two-thumb encoder" } }
-
     /** The encoder's frames for one buffer on one board, being computed or done. */
     private class Frames(val tokens: List<InputToken>, val g: KeyboardGeometry, val result: Future<FloatArray>)
 
@@ -80,6 +78,8 @@ class DuoReranker(
     private val worker = ThreadPoolExecutor(1, 1, 30L, TimeUnit.SECONDS, LinkedBlockingQueue()) { r ->
         Thread(r, "kinetica-duo").apply { isDaemon = true }
     }.apply { allowCoreThreadTimeOut(true) }
+
+    init { require(scorer.duo) { "DuoReranker needs a two-thumb encoder" } }
 
     override fun prepare(tokens: List<InputToken>) {
         inner?.prepare(tokens)
