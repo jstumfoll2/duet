@@ -433,6 +433,77 @@ object ReplayCli {
                 }
                 println("extra decodes=$decodes")
             }
+            "sentfix" -> {
+                // sentfix [replay flags] [--gap G] [--margin M] [--alts N] [--examples] FILE...: the
+                // "fix this sentence" pass (SentenceFix, issue #139) over each run of consecutive
+                // free-typed words, every word committed as replay's own lead. Counts changes that
+                // fix a word (lead wrong, changed to the label), break one (lead was the label) or
+                // swap one wrong word for another, by whether the label is the user's own.
+                val ctc = opt(a, "--ctc")?.let { f -> File(f).inputStream().use { CtcScorer.load(it) } }
+                val beta = opt(a, "--beta")?.toFloat() ?: 0f
+                val ctcilOnly = a.remove("--ctcilonly")
+                opt(a, "--gap")?.let { com.kinetica.keyboard.engine.SentenceFix.GAP = it.toFloat() }
+                opt(a, "--margin")?.let { com.kinetica.keyboard.engine.SentenceFix.MARGIN = it.toFloat() }
+                opt(a, "--alts")?.let { com.kinetica.keyboard.engine.SentenceFix.MAX_ALTERNATES = it.toInt() }
+                val maxLen = opt(a, "--maxlen")?.toInt() ?: 12
+                val examples = a.remove("--examples")
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets, ctc = ctc, beta = beta, aim = aimModel, rerankOverlap = ctcilOnly, rerankOverlapOnly = ctcilOnly)
+                val sink = ReplayReport(h.deepK)
+                // [true labels, accepted labels] x [words, lead right, fixed, broke, swapped]
+                val tally = Array(2) { IntArray(5) }
+                var sentences = 0; var changed = 0
+                fun flush(run: List<Pair<SwipeTrace.Word, ReplayHarness.Result>>) {
+                    if (run.size < 2) return
+                    sentences++
+                    val p = h.predictorFor(run[0].first)
+                    val words = run.map { (_, r) ->
+                        com.kinetica.keyboard.engine.SentenceFix.Word(
+                            r.shipping[0].word,
+                            r.shipping.map { com.kinetica.keyboard.engine.PreviousWordFix.Reading(it.word, it.score) },
+                        )
+                    }
+                    val changes = com.kinetica.keyboard.engine.SentenceFix.fix(words, run[0].first.context.lastOrNull()) { w, prev -> p.lmOf(w, prev) }
+                    if (changes.isNotEmpty()) changed++
+                    val to = changes.associate { it.index to it.to }
+                    for ((i, wr) in run.withIndex()) {
+                        val (w, r) = wr
+                        val label = w.label!!.lowercase()
+                        val own = w.how == "retyped" || w.how == "reswiped" || w.how == "corrected" || w.how == "confirmed" || w.how == "picked"
+                        val t = tally[if (own) 0 else 1]
+                        t[0]++
+                        val lead = r.shipping[0].word.lowercase()
+                        val was = lead == label
+                        if (was) t[1]++
+                        val flip = to[i]?.lowercase() ?: continue
+                        val now = flip == label
+                        when {
+                            !was && now -> t[2]++
+                            was && !now -> t[3]++
+                            else -> t[4]++
+                        }
+                        if (examples) println("${if (!was && now) "FIX " else if (was) "BREAK" else "SWAP"} $lead -> $flip (label $label) in '${run.joinToString(" ") { it.second.shipping[0].word }}'")
+                    }
+                }
+                for (f in a.map { File(it) }) {
+                    val run = ArrayList<Pair<SwipeTrace.Word, ReplayHarness.Result>>()
+                    for ((_, w) in read(f, sink)) {
+                        val r = try { h.replay(w) } catch (e: RuntimeException) { null }
+                        val usable = r != null && w.target == null && w.label != null && w.committed != null && r.shipping.isNotEmpty()
+                        // Consecutive in the text: this word's context ends in the word before it.
+                        val follows = usable && run.isNotEmpty() && w.context.lastOrNull().equals(run.last().first.committed, ignoreCase = true)
+                        if (!follows || run.size >= maxLen) { flush(run); run.clear() }
+                        if (usable) run.add(w to r!!)
+                    }
+                    flush(run)
+                }
+                for ((i, name) in listOf("your own labels", "accepted decodes").withIndex()) {
+                    val t = tally[i]
+                    println(String.format(java.util.Locale.ROOT, "%-17s words=%d lead right=%.1f%% fixed=%d broke=%d swapped=%d -> %.1f%%",
+                        name, t[0], 100.0 * t[1] / maxOf(t[0], 1), t[2], t[3], t[4], 100.0 * (t[1] + t[2] - t[3]) / maxOf(t[0], 1)))
+                }
+                println("sentences=$sentences changed=$changed")
+            }
             "tappoints" -> {
                 // tappoints FILE...: on gold all-tap words (practice prompts and the user's own
                 // fixes, never words the decoder chose), which point of each tap lands nearest the

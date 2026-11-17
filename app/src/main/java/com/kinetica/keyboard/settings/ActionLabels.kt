@@ -28,6 +28,7 @@ object ActionLabels {
         EditorAction.ENTER -> R.string.action_enter
         EditorAction.COPY_LINE -> R.string.action_copy_line
         EditorAction.CLEAN_LINKS -> R.string.action_clean_links
+        EditorAction.FIX_SENTENCE -> R.string.action_fix_sentence
         EditorAction.TOGGLE_NEXT_WORD -> R.string.action_toggle_next_word
         EditorAction.TOGGLE_RECENT_WORDS -> R.string.action_toggle_recent_words
         EditorAction.TOGGLE_NUMBER_ROW -> R.string.action_toggle_number_row
@@ -113,7 +114,7 @@ object ActionLabels {
         EditorAction.TOGGLE_TYPING_SPEED, EditorAction.TOGGLE_PECK_MODE, EditorAction.CTRL_NEXT,
         EditorAction.TOGGLE_INCOGNITO, EditorAction.TOGGLE_FLOATING, EditorAction.CLIPBOARD, EditorAction.VOICE,
         EditorAction.CASE_LOWER, EditorAction.CASE_TITLE, EditorAction.CASE_UPPER,
-        EditorAction.EDIT_PAGE, EditorAction.SELECT_MODE,
+        EditorAction.EDIT_PAGE, EditorAction.SELECT_MODE, EditorAction.FIX_SENTENCE,
         -> null
     }
 }
