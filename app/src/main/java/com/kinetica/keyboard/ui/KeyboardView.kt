@@ -1043,9 +1043,17 @@ class KeyboardView @JvmOverloads constructor(
             rects.add(floatArrayOf(r.left, r.top, r.right, r.bottom))
             codes.add(l.alphabet.apostrophe)
         }
-        val g = KeyboardGeometry.fromPx(
+        val letters = KeyboardGeometry.fromPx(
             minLetterW, (blockLeft + blockRight) / 2f, rects, codes.toIntArray(), l.alphabet,
         )
+        // The spacebar rides along too, for a stroke that dips to it between words (SpaceDip).
+        val space = l.keys.indexOfFirst { it.type == KeyType.SPACE }
+        val g = if (space == -1) {
+            letters
+        } else {
+            val r = keyRects[space]
+            letters.withSpace(floatArrayOf(r.left / minLetterW, r.top / minLetterW, r.right / minLetterW, r.bottom / minLetterW))
+        }
         engine?.setGeometry(g, KineticaConstants.TAP_MAX_DISP_DP * density)
         listener?.onGeometryChanged(g)
     }

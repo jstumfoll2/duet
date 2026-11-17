@@ -936,6 +936,106 @@ object ReplayCli {
                 println("pairs=$pairs joined-wrong=${nf(joinedWrong, pairs)} no-reading=$none both-back=${nf(both, pairs)} both-back-when-joined-wrong=${nf(bothWhenWrong, joinedWrong)}")
                 println("real buffers with a pause between swipes=$real, joined word right=${nf(realOne, real)}")
             }
+            "spacedip" -> {
+                // spacedip [--dipGap KW] [--dipDepth KW] FILE...: the spacebar dip (SpaceDip, #141).
+                // No trace holds one, so two checks stand in. real: every recorded stroke, run
+                // with the split on, must come back whole. synth: a swiped word and the swiped
+                // word after it, joined by straight legs down to the spacebar and back, scored
+                // on getting both words back against decoding the two strokes apart.
+                val gap = opt(a, "--dipGap")?.toFloat() ?: 0f
+                val depth = opt(a, "--dipDepth")?.toFloat() ?: 1.0f
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                fun nf(x: Int, of: Int) = "$x/$of (${if (of == 0) "-" else "%.1f%%".format(100.0 * x / of)})"
+                fun spaceOf(geo: SwipeTrace.Geometry): FloatArray {
+                    val letters = geo.keys.filterKeys { it != com.kinetica.keyboard.engine.Alphabet.APOSTROPHE }.values
+                    val bottom = letters.maxOf { it[3] }
+                    return floatArrayOf(letters.minOf { it[0] } + 2.5f, bottom + gap, letters.maxOf { it[2] } - 2.5f, bottom + gap + 1.4f)
+                }
+                fun run(geo: SwipeTrace.Geometry, samples: List<SwipeTrace.Sample>): List<com.kinetica.keyboard.engine.models.InputToken>? {
+                    val out = ArrayList<com.kinetica.keyboard.engine.models.InputToken>()
+                    val e = com.kinetica.keyboard.engine.GestureEngine(object : com.kinetica.keyboard.engine.GestureEngine.Listener {
+                        override fun onTokenFinalized(token: com.kinetica.keyboard.engine.models.InputToken) { out.add(token) }
+                        override fun onKeyTransition(streamId: com.kinetica.keyboard.engine.models.StreamId, code: Int) = Unit
+                        override fun onAllPointersUp() = Unit
+                    })
+                    e.spaceDip = true
+                    e.setGeometry(geo.build().withSpace(spaceOf(geo)), geo.tapMaxDispPx)
+                    if (!e.onPointerDown(0, samples[0].x, samples[0].y, samples[0].t)) return null
+                    for (i in 1 until samples.size - 1) e.onPointerMove(0, samples[i].x, samples[i].y, samples[i].t)
+                    val up = samples.last()
+                    e.onPointerUp(0, up.x, up.y, up.t)
+                    return out
+                }
+                fun leg(from: SwipeTrace.Sample, toX: Float, toY: Float, stepPx: Float): List<SwipeTrace.Sample> {
+                    val dx = toX - from.x
+                    val dy = toY - from.y
+                    val n = maxOf(1, (Math.hypot(dx.toDouble(), dy.toDouble()) / stepPx).toInt())
+                    return (1..n).map { SwipeTrace.Sample(from.x + dx * it / n, from.y + dy * it / n, from.t + 8L * it) }
+                }
+                var strokes = 0; var falseSplits = 0
+                var pairs = 0; var found = 0; var baseBoth = 0; var dipBoth = 0; var dip1 = 0; var dip2 = 0; var base1 = 0; var base2 = 0
+                for (f in a.map { File(it) }) {
+                    val words = read(f, sink)
+                    for ((i, pair) in words.withIndex()) {
+                        val (n, w) = pair
+                        for (t in w.tokens) {
+                            if (t !is SwipeTrace.Gesture || t.samples.size < 2) continue
+                            val out = run(w.geometry, t.samples) ?: continue
+                            strokes++
+                            if (out.size > 1) {
+                                falseSplits++
+                                println("real\t${f.name}\t$n\t${w.label}\tpieces=${out.size}")
+                            }
+                        }
+                        val label = w.label?.lowercase() ?: continue
+                        val g1 = w.tokens.singleOrNull() as? SwipeTrace.Gesture ?: continue
+                        val next = words.getOrNull(i + 1)?.second ?: continue
+                        val nextLabel = next.label?.lowercase() ?: continue
+                        val g2 = next.tokens.singleOrNull() as? SwipeTrace.Gesture ?: continue
+                        if (next.context.lastOrNull()?.lowercase() != w.committed?.lowercase()) continue
+                        if (!w.geometry.sameAs(next.geometry)) continue
+                        val t1 = try { SwipeTrace.replayTokens(w) } catch (e: RuntimeException) { continue }
+                        val t2 = try { SwipeTrace.replayTokens(next) } catch (e: RuntimeException) { continue }
+                        if (t1.single() !is com.kinetica.keyboard.engine.models.SwipeToken || t2.single() !is com.kinetica.keyboard.engine.models.SwipeToken) continue
+                        val kw = w.geometry.keyWidthPx
+                        val space = spaceOf(w.geometry)
+                        val end = g1.samples.last()
+                        val start = g2.samples.first()
+                        val dipX = ((end.x + start.x) / 2f).coerceIn((space[0] + 0.3f) * kw, (space[2] - 0.3f) * kw)
+                        val dipY = (space[1] + depth) * kw
+                        val joined = ArrayList(g1.samples)
+                        joined.addAll(leg(joined.last(), dipX, dipY, 0.15f * kw))
+                        joined.addAll(leg(joined.last(), start.x, start.y, 0.15f * kw))
+                        val shift = joined.last().t + 8L - start.t
+                        for (k in 1 until g2.samples.size) joined.add(g2.samples[k].let { SwipeTrace.Sample(it.x, it.y, it.t + shift) })
+                        val out = run(w.geometry, joined) ?: continue
+                        val p = h.predictorFor(w)
+                        pairs++
+                        val b1 = p.decode(t1, w.context).firstOrNull()?.word?.lowercase() == label
+                        val b2 = p.decode(t2, next.context).firstOrNull()?.word?.lowercase() == nextLabel
+                        if (b1) base1++
+                        if (b2) base2++
+                        if (b1 && b2) baseBoth++
+                        var d1: String? = null
+                        var d2: String? = null
+                        if (out.size == 2) {
+                            found++
+                            d1 = p.decode(listOf(out[0]), w.context).firstOrNull()?.word?.lowercase()
+                            d2 = p.decode(listOf(out[1]), next.context).firstOrNull()?.word?.lowercase()
+                        }
+                        if (d1 == label) dip1++
+                        if (d2 == nextLabel) dip2++
+                        if (d1 == label && d2 == nextLabel) dipBoth++
+                        println("synth\t${f.name}\t$n\t$label $nextLabel\tpieces=${out.size}\t$d1 $d2\t${if (b1) "+" else "-"}${if (b2) "+" else "-"}")
+                    }
+                }
+                println("real strokes=$strokes split=${nf(falseSplits, strokes)}")
+                println("synth pairs=$pairs split-in-two=${nf(found, pairs)} apart: first=${nf(base1, pairs)} second=${nf(base2, pairs)} both=${nf(baseBoth, pairs)}")
+                println("synth dipped: first=${nf(dip1, pairs)} second=${nf(dip2, pairs)} both=${nf(dipBoth, pairs)}")
+            }
             "spacesplit" -> {
                 // spacesplit FILE...: every tapped word of four letters or more that is no word but
                 // cuts into two, with today's split (pairs only), the pause-aware split, the pause

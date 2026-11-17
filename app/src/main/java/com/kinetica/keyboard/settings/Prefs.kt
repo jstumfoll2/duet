@@ -268,6 +268,20 @@ object Prefs {
     const val RETYPE_AVOIDS_REJECTED = "pref_retype_avoids_rejected"
 
     /**
+     * Count where each word is typed (chat, email, search, code or other, from the field's own
+     * type) and cut a word's personal boost in the kinds of field it is not used in
+     * (engine.FieldWords, issue #136).
+     */
+    const val FIELD_LEARNING = "pref_field_learning"
+    const val DEFAULT_FIELD_LEARNING = false
+
+    /**
+     * The counts behind [FIELD_LEARNING] (engine.FieldWords.serialize). Not on any settings
+     * screen; a string preference, so the settings backup carries it.
+     */
+    const val FIELD_COUNTS = "pref_field_counts"
+
+    /**
      * Learn "the keyboard wrote Y, I meant X" from retypes and correction picks, and score Y
      * down when both are candidates again (engine.RetypePenalties, decoder rework step 8).
      */
@@ -468,6 +482,13 @@ object Prefs {
      */
     const val SPACELESS_SPACE = "pref_spaceless_space"
 
+    /**
+     * A stroke that dips to the spacebar and comes back up ends the word there and starts the
+     * next, so a phrase can be drawn without lifting (engine.SpaceDip, issue #141). A rule on
+     * the path, applied when the stroke lifts. Off by default.
+     */
+    const val SPACE_DIP = "pref_space_dip"
+
     /** A second spacebar tap inside the double-tap window ends the sentence. */
     const val DOUBLE_SPACE_PERIOD = "pref_double_space_period"
 
@@ -539,6 +560,13 @@ object Prefs {
      * and not part of the personal-dictionary export.
      */
     const val LEARN_PHRASES = "pref_learn_phrases"
+
+    /**
+     * Offer the two to four words this user nearly always types next as one zone of the
+     * next-word bar (engine.PhraseContinuation, issue #137). Built from the pairs
+     * [LEARN_PHRASES] keeps, so it does nothing without it.
+     */
+    const val PHRASE_CHIP = "pref_phrase_chip"
 
     /**
      * The words of contact names become dictionary words, read on this phone at dictionary load
@@ -853,6 +881,7 @@ object Prefs {
     const val DEFAULT_SPACEBAR_WORD_SLIDE = false
     const val DEFAULT_SHIFT_SWAPS_SLIDES = false
     const val DEFAULT_SPACELESS_SPACE = false
+    const val DEFAULT_SPACE_DIP = false
     const val DEFAULT_DOUBLE_SPACE_PERIOD = false
     const val DEFAULT_TIDY_SPACES = false
 
@@ -908,6 +937,7 @@ object Prefs {
     const val DEFAULT_NO_PRIMARY = false
     const val DEFAULT_EDIT_FROM_MENU = false
     const val DEFAULT_LEARN_PHRASES = false
+    const val DEFAULT_PHRASE_CHIP = false
     const val DEFAULT_CONTACT_NAMES = false
     const val DEFAULT_NEXT_WORD = true
     const val DEFAULT_SMS_CODES = false

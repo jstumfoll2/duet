@@ -49,6 +49,8 @@ import com.kinetica.keyboard.engine.HarperLints
 import com.kinetica.keyboard.engine.KeyboardGeometry
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.LanguageMomentum
+import com.kinetica.keyboard.engine.FieldClass
+import com.kinetica.keyboard.engine.FieldWords
 import com.kinetica.keyboard.engine.LanguageStreak
 import com.kinetica.keyboard.engine.LatticeDecoder
 import com.kinetica.keyboard.engine.PreviousWordFix
@@ -275,6 +277,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     )
 
     private var expansionChoice: ExpansionChoice? = null
+
+    /**
+     * A whole phrase offered as one zone of the idle bar (#137): [text] is the zone, [words] what
+     * a pick commits one by one, [shown] the bar it sits on.
+     */
+    private class PhraseOffer(val text: String, val words: List<String>, val shown: List<String>)
+
+    private var phraseOffer: PhraseOffer? = null
+
+    /** Prefs.PHRASE_CHIP. Counts only with phrase learning on, where the pairs come from. */
+    private var phraseChipOn = false
 
     /**
      * Clips or one-time codes on the bar, until one is picked or the bar moves on. [texts] is
@@ -675,17 +688,23 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         EdgeSwipeDefaults.applyTo(prefs)
+        FieldWords.enabled = prefs.getBoolean(Prefs.FIELD_LEARNING, Prefs.DEFAULT_FIELD_LEARNING)
         config = KeyboardConfig.from(prefs, systemNight())
         RetypePenalties.enabled = prefs.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
+        phraseChipOn = prefs.getBoolean(Prefs.PHRASE_CHIP, Prefs.DEFAULT_PHRASE_CHIP)
         usageOn = prefs.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
+        engine.spaceDip = prefs.getBoolean(Prefs.SPACE_DIP, Prefs.DEFAULT_SPACE_DIP)
         applyFingerOffsets()
         livePreviewOn = prefs.getBoolean(Prefs.LIVE_PREVIEW, Prefs.DEFAULT_LIVE_PREVIEW)
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
             livePreviewOn = p.getBoolean(Prefs.LIVE_PREVIEW, Prefs.DEFAULT_LIVE_PREVIEW)
             val previous = config
+            FieldWords.enabled = p.getBoolean(Prefs.FIELD_LEARNING, Prefs.DEFAULT_FIELD_LEARNING)
             config = KeyboardConfig.from(p, systemNight())
             RetypePenalties.enabled = p.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
+            phraseChipOn = p.getBoolean(Prefs.PHRASE_CHIP, Prefs.DEFAULT_PHRASE_CHIP)
             usageOn = p.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
+            engine.spaceDip = p.getBoolean(Prefs.SPACE_DIP, Prefs.DEFAULT_SPACE_DIP)
             // What decides the automatic space, whenever any of it changes and from wherever.
             if (config.autospace != previous.autospace || config.tidySpaces != previous.tidySpaces ||
                 config.wordEndsOnSpace != previous.wordEndsOnSpace ||
@@ -991,6 +1010,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         applyWordPenalties()
                         applyRetypePenalties(reload = true)
                         applySessionWords()
+                        applyFieldWords(reload = true)
                         composer = WordComposer(
                             p, decodeExecutor, mainExecutor, this, alternateDecodeExecutor, extraDecodeExecutor,
                         ).also {
@@ -1411,6 +1431,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         super.onStartInput(attribute, restarting)
         // Ctrl held for the next key, and Select, belong to the field they were set in.
         if (!restarting) {
+            dipWords.clear()
             ctrlPending = false
             setSelecting(false)
             lineEdges.clear()
@@ -1422,6 +1443,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         synchronizeLanguageOnStart()
         fieldState = EditorState.from(attribute)
         editorState = fieldState.withIncognito(config.incognito)
+        fieldClass = FieldClass.of(attribute?.inputType ?: 0, attribute?.imeOptions ?: 0)
+        applyFieldWords(reload = false)
         // The DEV build's trace names what is typed; a private field leaves no line in it.
         DecodeTrace.suppressed = editorState.teachesNothing
         applySessionWords()
@@ -1546,6 +1569,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         abandonWord()
         composer?.reset()
         saveTouchModel()
+        saveFieldWords()
         saveRetypePenalties()
         saveUsage()
         // A notice belongs to the field it was shown in, not to the next one.
@@ -1634,8 +1658,49 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     // -------------------------------------------------- engine listener (UI)
 
+    /**
+     * The words still owed from a stroke that dipped to the spacebar ([Prefs.SPACE_DIP]). Each
+     * waits for the decode of the word before it, because a space ends a word with what its
+     * decode wrote, and that arrives after the lift.
+     */
+    private val dipWords = ArrayDeque<InputToken>()
+    private var payingDip = false
+
+    private val payDip = Runnable {
+        val next = dipWords.removeFirstOrNull() ?: return@Runnable
+        if (composer?.hasPendingWord != true) {
+            // The word before the dip is gone (a field change, a cursor move): so is the rest.
+            dipWords.clear()
+            return@Runnable
+        }
+        DecodeTrace.log { "  space dip pays space, left=${dipWords.size}" }
+        TraceRecorder.key("space", SystemClock.uptimeMillis())
+        payingDip = true
+        try {
+            onSpace()
+            onTokenFinalized(next)
+        } finally {
+            payingDip = false
+        }
+    }
+
+    override fun onSpaceDip(words: List<InputToken>) {
+        // Peck mode ignores swipes, and with no dictionary there is no decode to wait for.
+        if (config.peckMode || composer == null) {
+            words.forEach { onTokenFinalized(it) }
+            return
+        }
+        onTokenFinalized(words[0])
+        dipWords.addAll(words.subList(1, words.size))
+    }
+
     override fun onTokenFinalized(token: InputToken) {
         endPreview()
+        // A new touch while a dip's words are still owed: the user has moved on.
+        if (!payingDip && dipWords.isNotEmpty()) {
+            mainHandler.removeCallbacks(payDip)
+            dipWords.clear()
+        }
         shift.onOtherKey()
         autocorrectUndo = null
         autoFixUndo = null
@@ -1866,6 +1931,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             tentative
         }
         onCandidatesRanked(ranked, lead, literal)
+        // The word before a spacebar dip has its decode: the space and the next word follow.
+        if (dipWords.isNotEmpty()) {
+            mainHandler.removeCallbacks(payDip)
+            mainHandler.post(payDip)
+        }
     }
 
     // True while finalizeSplitHead commits the tapped head, which goes through
@@ -2638,8 +2708,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val idle = quiet && config.nextWord && !editorState.privateMode && tentativeLength == 0 &&
             composer?.hasPendingWord != true
         if (!idle) {
-            if (barPredictions.isNotEmpty()) {
+            if (barPredictions.isNotEmpty() || phraseOffer != null) {
                 barPredictions = emptyList()
+                phraseOffer = null
                 if (quiet) bar.clearSuggestions()
             }
             return
@@ -2647,21 +2718,54 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val prev = previousWordForPrediction(ich.textBeforeCursor(PREDICT_TAIL_CHARS))
         val found = if (prev == null) emptyList() else predictNext(prev).filter { it.word.lowercase() !in blockedSpellings }
         // The pronoun's own capital, which a prediction never went through displayWord for.
-        val shown = found.map { AutoCapitalization.forWord(it.word, config.language, it.language.ifEmpty { config.language }) }
+        val words = found.map { AutoCapitalization.forWord(it.word, config.language, it.language.ifEmpty { config.language }) }
+        val phrase = if (prev == null) emptyList() else phraseAfter(prev)
+        val phraseText = phrase.joinToString(" ")
+        // After the likeliest single word, which is most often the phrase's own first word.
+        val shown = if (phrase.isEmpty()) words else words.take(1) + phraseText + words.drop(1)
+        val offer = if (phrase.isEmpty()) null else PhraseOffer(phraseText, phrase, shown)
         // Against what the bar shows now: it can be cleared behind these predictions' back.
-        if (found.isNotEmpty() && bar.showsWords(shown)) {
+        if (shown.isNotEmpty() && bar.showsWords(shown)) {
             barPredictions = found
+            phraseOffer = offer
             return
         }
         barPredictions = found
-        if (found.isEmpty()) {
+        phraseOffer = offer
+        if (shown.isEmpty()) {
             bar.clearSuggestions()
             return
         }
         candidateLanguages = found.filter { it.language.isNotEmpty() }
             .associate { it.word.lowercase() to it.language }
-        bar.setSuggestions(shown.map { barSuggestion(it) })
-        DecodeTrace.log { "  predict next prev=$prev n=${found.size} first=${found.first().word}" }
+        bar.setSuggestions(shown.map { if (it == offer?.text) SuggestionBarView.Suggestion(it, 0) else barSuggestion(it) })
+        DecodeTrace.log { "  predict next prev=$prev n=${found.size} first=${found.firstOrNull()?.word} phrase=${phrase.size}" }
+    }
+
+    /**
+     * The phrase chip's words after [prev], or none: the switch is on, pairs are being learned,
+     * and this field may show what was learned. The typing language's own pairs only.
+     */
+    private fun phraseAfter(prev: String): List<String> {
+        if (!phraseChipOn || !config.learnPhrases || editorState.teachesNothing) return emptyList()
+        return predictor?.phraseAfter(prev) { it.lowercase() !in blockedSpellings }.orEmpty()
+            .map { AutoCapitalization.forWord(it, config.language, config.language) }
+    }
+
+    /**
+     * Commits a picked phrase one word at a time, each as a pick of a predicted word: every
+     * word and pair is learned as itself, and one backspace run takes the words back singly.
+     */
+    private fun pickPhrase(offer: PhraseOffer) {
+        DecodeTrace.log { "  phrase pick words=${offer.words.size}" }
+        for (w in offer.words) {
+            // Each word follows the one on screen, as a predicted word does.
+            previousWordForPrediction(ich.textBeforeCursor(PREDICT_TAIL_CHARS))
+                ?.let { composer?.anchorContext(it) }
+            barPredictions = emptyList()
+            phraseOffer = null
+            onSuggestionPicked(w)
+        }
     }
 
     /**
@@ -2922,6 +3026,44 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         extraLanguage?.let { extraPredictor?.penalties = wordPenalties.forLanguage(it) }
     }
 
+    // Per-field learning (#136): where each word was typed, the class of the field at hand, and
+    // whether the counts have changed since they were stored. Main thread only; the predictors
+    // read the same store, which is safe to read while it is written.
+    private var fieldWords = FieldWords()
+    private var fieldClass = FieldClass.OTHER
+    private var fieldWordsDirty = false
+
+    /**
+     * Hands each resident predictor the per-field counts and this field's class. With [reload]
+     * the counts are read from the preference first, so a restored backup is picked up, unless
+     * this instance holds counts it has not stored yet.
+     */
+    private fun applyFieldWords(reload: Boolean) {
+        if (reload && !fieldWordsDirty) {
+            fieldWords = FieldWords.parse(
+                PreferenceManager.getDefaultSharedPreferences(this).getString(Prefs.FIELD_COUNTS, null),
+            )
+        }
+        for (p in listOfNotNull(predictor, secondaryPredictor, extraPredictor)) {
+            p.fieldWords = fieldWords
+            p.fieldClass = fieldClass
+        }
+    }
+
+    private fun saveFieldWords() {
+        if (!fieldWordsDirty) return
+        fieldWordsDirty = false
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+            .putString(Prefs.FIELD_COUNTS, fieldWords.serialize()).apply()
+    }
+
+    /** A learned commit of [word], counted for this field's class. Stored when the field is left. */
+    private fun noteFieldCommit(word: String) {
+        if (!FieldWords.enabled || config.incognito || editorState.teachesNothing) return
+        fieldWords.add(word, fieldClass)
+        fieldWordsDirty = true
+    }
+
     // Retype penalties (decoder rework step 8, #131): the "decoded Y, meant X" counts, the
     // commit a retype has just taken back (the Y of the next commit, if that one is close to
     // it), and whether the counts have changed since they were stored. Main thread only.
@@ -3079,6 +3221,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             suggestionBar?.showWordNote(explainWord(word, lang))
             return
         }
+        // A phrase chip is not a word: nothing to weigh, block or forget.
+        if (' ' in word) return
         if (editorState.teachesNothing) {
             DecodeTrace.log { "  word menu refused word=$word action=$action src=teaches-nothing" }
             return
@@ -3098,6 +3242,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 if (steps > 0) setWordPenalty(word, lang, 0)
                 if (count > 0) learnWord(word, -count, lang)
                 forgetRetypes(word, lang)
+                if (fieldWords.remove(word)) fieldWordsDirty = true
             }
             BarAdjust.WordMenuAction.WHY -> Unit
         }
@@ -3122,7 +3267,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private fun onSuggestionBlocked(word: String, source: BarAdjust.BlockSource) {
         if (editorState.teachesNothing || word.isEmpty()) return
-        if (expansionsOnBar()) {
+        if (expansionsOnBar() || ' ' in word) {
             DecodeTrace.log { "  weight refused word=$word src=expansion" }
             return
         }
@@ -3217,7 +3362,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     /** Long-press weight adjustment from the bar: signed, scaled by config. */
     private fun onSuggestionReinforced(word: String, delta: Int) {
         if (editorState.teachesNothing || delta == 0) return
-        if (expansionsOnBar()) {
+        if (expansionsOnBar() || ' ' in word) {
             DecodeTrace.log { "  weight refused word=$word src=expansion" }
             return
         }
@@ -5110,6 +5255,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 return
             }
         }
+        val phrase = phraseOffer
+        if (phrase != null) {
+            phraseOffer = null
+            if (word == phrase.text && keptBar == null && tentativeLength == 0 &&
+                suggestionBar?.showsWords(phrase.shown) == true
+            ) {
+                pickPhrase(phrase)
+                return
+            }
+        }
         if (barPredictions.isNotEmpty() && keptBar == null && tentativeLength == 0) {
             // The pair is learned from the word on screen, not from whatever the composer last
             // committed: a cursor move can put a prediction after any word.
@@ -5921,6 +6076,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             if (!swipeDecodeEmpty && learnsOnCommit(word, reloadedWord)) {
                 val filed = filingLanguage(word, lang)
                 learnWord(word, lang = filed)
+                noteFieldCommit(word)
                 noticeWrongLanguage(word, filed)
                 lastCommitLearned = word.lowercase()
                 val held = predictorFor(filed)?.holdsExactSpelling(word) == true
