@@ -68,6 +68,9 @@ class ScoreTerms private constructor(private val v: FloatArray) {
         /** A rarer word typed in this session's recent commits ([SessionWords]). */
         SESSION("session"),
 
+        /** The user's own stored path fitting better than the key-centre one ([ShapeTemplates]). */
+        TEMPLATE("template"),
+
         /** A word the user keeps getting in place of another listed one ([RetypePenalties]). */
         RETYPE("retype"),
 
