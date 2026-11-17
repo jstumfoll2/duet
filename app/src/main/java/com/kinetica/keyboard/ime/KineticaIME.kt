@@ -6478,7 +6478,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val (before, shown) = words
         val prev = shown.lowercase()
         if (composer?.contextSnapshot()?.let { it.size >= 2 && it[it.size - 2] == prev } != true) return
-        val fixed = GrammarCheck.fixPrevious(before?.lowercase(), prev, word.lowercase()) { a, b -> p.pairByte(a, b) }
+        val lm = if (GrammarCheck.USE_LM) p.grammarLm() else null
+        val fixed = GrammarCheck.fixPrevious(before?.lowercase(), prev, word.lowercase(), { a, b -> p.pairByte(a, b) }, lm)
             ?: return
         val replacement = GrammarCheck.inCaseOf(shown, fixed)
         val span = shown.length + 1 + word.length
@@ -6780,7 +6781,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
         // Its own file, not the settings: per-key averages, kept out of a settings backup.
         const val TOUCH_MODEL_PREFS = Prefs.TOUCH_MODEL_FILE
-        const val TOUCH_MODEL_KEY = "model"
+        const val TOUCH_MODEL_KEY = Prefs.TOUCH_MODEL_KEY
 
         /** Commits kept with their readings for the "fix this sentence" action. */
         const val SENTENCE_WORDS_KEPT = 24
@@ -6789,7 +6790,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         const val SENTENCE_TAIL_CHARS = 300
         /** Swipes in a row on another layout before the stored shape templates start again for it. */
         const val SHAPE_MISFITS_TO_RESTART = 30
-        const val AIM_MODEL_KEY = "aim"
+        const val AIM_MODEL_KEY = Prefs.AIM_MODEL_KEY
         const val USER_DICT_LIMIT = 5000
         const val USER_PAIR_LIMIT = 5000
         // Undone autocorrects remembered at once: more distinct words than one session undoes.

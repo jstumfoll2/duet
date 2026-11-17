@@ -72,6 +72,16 @@ class BigramTable private constructor(
     /** The pair's boost byte in the table behind [multiplier]: the wide one when there is one. */
     fun contextByte(prevWordId: Int, nextWordId: Int): Int = (context ?: this).boostByte(prevWordId, nextWordId)
 
+    /**
+     * `ln C(prev)` in the table behind [multiplier]: how often anything was counted after
+     * [prevWordId], NaN when the table has no counts or none for it. Says whether a pair's
+     * probability rests on enough text to trust (#108).
+     */
+    fun lnContextCount(prevWordId: Int): Float = (context ?: this).compact?.lnContext(prevWordId) ?: Float.NaN
+
+    /** [successors] of the table behind [multiplier]: the wide one when there is one (#108). */
+    fun contextSuccessors(prevWordId: Int, limit: Int): List<Pair<Int, Int>> = (context ?: this).successors(prevWordId, limit)
+
     /** Pairs behind [multiplier]: the wide table's when there is one. */
     val contextSize: Int get() = (context ?: this).size
 
@@ -164,6 +174,12 @@ class BigramTable private constructor(
             val totals = lnTotal ?: return Float.NaN
             val l = logCond(prevNode, nextNode)
             return if (l.isNaN()) Float.NaN else totals[indexOf(prevNode)] + l
+        }
+
+        fun lnContext(prevNode: Int): Float {
+            val totals = lnTotal ?: return Float.NaN
+            val p = indexOf(prevNode)
+            return if (p < 0) Float.NaN else totals[p]
         }
 
         fun successors(prevNode: Int, limit: Int): List<Pair<Int, Int>> {

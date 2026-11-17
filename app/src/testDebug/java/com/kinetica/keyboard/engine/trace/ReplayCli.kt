@@ -26,7 +26,11 @@ import java.io.File
  *       --taps [--tapSigma S] [--tapW W] [--tapRadius R] [--tapMax N] (any command): continuous
  *       tap likelihood over the keys near each tap (ScoreModel.taps, issue #127).
  *   replay|ranks --personal BACKUP: decode with the learned words, counts and pairs of a
- *       settings backup (Settings > Back up), frozen unless ranks is given --learn as well.
+ *       settings backup (Settings > Back up), frozen unless ranks is given --learn as well, and
+ *       with its bar-menu downranks and (when that switch was on) its retype penalties.
+ *   replay --state: decode with the touch and aim models of the last `state` line in the
+ *       files (a DEV word export ends with one), frozen; with --touch S or --aim S they keep
+ *       learning from the labels on top.
  *   ranks [--learn words|phrases] [--pickw N] [--seed FILE] [--hdfree] TRACE.jsonl...
  *       One tab-separated row per scored line. --learn replays the files in order and learns
  *       each label after decoding it, as the keyboard does; --seed merges lang<TAB>word rows
@@ -137,6 +141,7 @@ object ReplayCli {
                 val tri = opt(a, "--tri")?.toFloat() ?: KineticaConstants.TRIGRAM_BOOST_MAX
                 // --touch S: the per-user touch model, learning online at strength S (0 = off).
                 val touch = touchModel(opt(a, "--touch"))
+                val stateOn = a.remove("--state")
                 // --edge G: the near-edge tap pass's gap in kw (0 = off).
                 val edge = opt(a, "--edge")?.toFloat() ?: KineticaConstants.EDGE_TAP_GAP_KW
                 // --nosplit: a tapped word followed by a swipe always stays one word.
@@ -184,13 +189,23 @@ object ReplayCli {
                 // --dump OUT: one JSON object per scored line (label, source, context, rank and the
                 // bar's list with each candidate's score terms), for studying rank 2-10 losses.
                 dump = opt(a, "--dump")?.let { File(it).printWriter() }
+                personal?.retype?.let { com.kinetica.keyboard.engine.RetypePenalties.enabled = true }
                 if (a.isEmpty()) usage()
+                // --state: the phone's touch and aim models at export time (#97).
+                val state = if (stateOn) lastState(a.map { File(it) }) else null
+                if (stateOn) {
+                    if (state == null) System.err.println("--state: no state line in these files; models start empty")
+                    else System.err.println("--state: touch ${if (state.touch != null) "loaded" else "absent"}, aim ${if (state.aim != null) "loaded" else "absent"}")
+                }
+                val touchUsed = if (state != null) (touch ?: com.kinetica.keyboard.engine.TouchModel()).also { it.restore(state.touch) } else touch
+                val aimUsed = if (state != null) (aimModel ?: com.kinetica.keyboard.engine.AimModel()).also { it.restore(state.aim) } else aimModel
                 val harness = ReplayHarness(
                     assets, k, ctc, beta, depth,
                     interleave = ilw?.let { it > 0f } ?: KineticaConstants.INTERLEAVE_ENABLED,
                     interleaveWeight = ilw ?: KineticaConstants.INTERLEAVE_WEIGHT,
-                    touch = touch,
-                    aim = aimModel,
+                    touch = touchUsed,
+                    aim = aimUsed,
+                    modelsLearn = state == null || touch != null || aimModel != null,
                     trigramBoost = tri,
                     edgeTapGap = edge,
                     peckSplit = split,
@@ -1181,7 +1196,8 @@ object ReplayCli {
                         val next = words.drop(i + 1).take(4).joinToString(" ") { it.second.committed ?: "?" }
                         val cutText = cuts.joinToString(",") { c ->
                             val hd = literal.take(c); val tl = literal.drop(c)
-                            "$hd|$tl:pair=${p.pairByte(hd, tl)}:f=${p.frequencyByte(hd)}/${p.frequencyByte(tl)}:paused=${p.pausedAt(pauses, c)}"
+                            "$hd|$tl:pair=${p.pairByte(hd, tl)}:lp=${"%.1f".format(p.pairLogP(hd, tl))}:pmi=${"%.1f".format(p.pairLogP(hd, tl) - p.lmOf(tl, null))}:lnC=${"%.1f".format(p.contextLnCount(hd))}" +
+                                ":f=${p.frequencyByte(hd)}/${p.frequencyByte(tl)}:paused=${p.pausedAt(pauses, c)}"
                         }
                         println(listOf(f.name, n, literal, w.committed ?: "-", w.how ?: "-",
                             old?.let { "${it.first} ${it.second}" } ?: "-",
@@ -1194,6 +1210,16 @@ object ReplayCli {
                 // grammar FILE...: the grammar pass (GrammarCheck) over each committed English word
                 // and the two before it, as the keyboard runs it when the word lands: every rewrite
                 // it would make, with the word pairs it read (#55).
+                // [--lmMargin M]: confusion sets on the web pairs' probabilities (#108), as shipped;
+                // --pairs: the older bundled-byte rule instead.
+                a.remove("--lm")
+                val useLm = !a.remove("--pairs") && com.kinetica.keyboard.engine.GrammarCheck.USE_LM
+                // --swap: recall on made-up errors (each confusion word swapped for its partners).
+                val swap = a.remove("--swap")
+                var swaps = 0
+                var restored = 0
+                var swapWrong = 0
+                opt(a, "--lmMargin")?.let { com.kinetica.keyboard.engine.GrammarCheck.LM_MARGIN = it.toFloat() }
                 if (a.isEmpty()) usage()
                 retypes = false
                 val h = ReplayHarness(assets)
@@ -1208,14 +1234,67 @@ object ReplayCli {
                     val before = ctx.getOrNull(ctx.size - 2)
                     val p = h.predictorFor(w)
                     checked++
-                    val fix = com.kinetica.keyboard.engine.GrammarCheck.fixPrevious(before, prev, word) { x, y -> p.pairByte(x, y) } ?: continue
+                    val lm = if (useLm) p.grammarLm() else null
+                    if (swap) {
+                        // A confusion-set word as typed, swapped for each other member: does the
+                        // pass put it back? Free-typed text only, and words the pass leaves alone.
+                        if (w.target != null) continue
+                        val set = com.kinetica.keyboard.engine.GrammarCheck.CONFUSIONS.firstOrNull { prev in it } ?: continue
+                        if (com.kinetica.keyboard.engine.GrammarCheck.fixPrevious(before, prev, word, { x, y -> p.pairByte(x, y) }, lm) != null) continue
+                        for (alt in set) {
+                            if (alt == prev) continue
+                            swaps++
+                            val back = com.kinetica.keyboard.engine.GrammarCheck.fixPrevious(before, alt, word, { x, y -> p.pairByte(x, y) }, lm)
+                            when (back) {
+                                null -> {}
+                                prev -> restored++
+                                else -> swapWrong++
+                            }
+                        }
+                        continue
+                    }
+                    val fix = com.kinetica.keyboard.engine.GrammarCheck.fixPrevious(before, prev, word, { x, y -> p.pairByte(x, y) }, lm) ?: continue
                     fixed++
+                    fun lmText(x: String) = "%.1f".format(p.lmOf(x, before) + p.lmOf(word, x))
                     println(listOf(f.name, n, "${before ?: "^"} $prev $word", "$prev->$fix",
                         "pairs prev+next=${p.pairByte(prev, word)} fix+next=${p.pairByte(fix, word)} " +
-                            "before+prev=${before?.let { p.pairByte(it, prev) } ?: "-"} before+fix=${before?.let { p.pairByte(it, fix) } ?: "-"}",
+                            "before+prev=${before?.let { p.pairByte(it, prev) } ?: "-"} before+fix=${before?.let { p.pairByte(it, fix) } ?: "-"} " +
+                            "lm prev=${lmText(prev)} fix=${lmText(fix)}",
                     ).joinToString("\t"))
                 }
                 println("checked $checked rewrites $fixed")
+                if (swap) println("swapped $swaps restored $restored wrong $swapWrong")
+            }
+            "nextword" -> {
+                // nextword [--wide] FILE...: how often the idle bar's next-word guesses after each
+                // committed English word's previous word hold the word committed next, top 1 and
+                // top 3, bundled pairs against the web pairs (#108). Practice lines are left out:
+                // their words follow a prompt, not the text.
+                if (a.isEmpty()) usage()
+                retypes = false
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                val hits = IntArray(4)
+                val wideHits = IntArray(4)
+                var n = 0
+                for (f in a.map { File(it) }) for ((_, w) in read(f, sink)) {
+                    if (w.config.language != "en" || w.target != null) continue
+                    val word = w.committed?.lowercase() ?: continue
+                    val prev = w.context.lastOrNull()?.lowercase() ?: continue
+                    val p = h.predictorFor(w)
+                    if (!p.isWordIgnoringCase(word)) continue
+                    n++
+                    for (wideOn in listOf(false, true)) {
+                        KineticaConstants.NEXT_WORD_WIDE = wideOn
+                        val at = p.nextWords(prev, 3, personal = false).indexOfFirst { it.word.lowercase() == word }
+                        if (at >= 0) (if (wideOn) wideHits else hits)[at]++
+                    }
+                    KineticaConstants.NEXT_WORD_WIDE = false
+                }
+                fun pct(x: Int) = "%.1f%%".format(100.0 * x / maxOf(n, 1))
+                println("words $n")
+                println("bundled  top1 ${pct(hits[0])} top3 ${pct(hits[0] + hits[1] + hits[2])}")
+                println("web      top1 ${pct(wideHits[0])} top3 ${pct(wideHits[0] + wideHits[1] + wideHits[2])}")
             }
             "autofix" -> {
                 val lexicon = a.remove("--lexicon")
@@ -1506,6 +1585,7 @@ object ReplayCli {
                         }
                         is SwipeTrace.Line.Discard -> if (!skipped) { words.removeLastOrNull(); chain = ArrayList() }
                         is SwipeTrace.Line.Key -> if (!skipped && l.name == "backspace" && chain.isNotEmpty()) undone = true
+                        is SwipeTrace.Line.State -> {} // read by --state before the replay; see [lastState]
                         is SwipeTrace.Line.Confirm -> if (!skipped) confirm(words, l, report)
                         is SwipeTrace.Line.Correction -> if (!skipped) {
                             val k = words.indexOfLast { it.second.committed.equals(l.from, ignoreCase = true) }
@@ -1796,6 +1876,8 @@ object ReplayCli {
      */
     fun personalOf(backup: File, learns: Boolean = false, pickWeight: Int = KineticaConstants.PICK_LEARN_UNITS): ReplayHarness.Learner {
         val l = ReplayHarness.Learner(phrases = true, pickWeight = pickWeight, frozen = !learns)
+        var retypeCounts: String? = null
+        var retypeOn = false
         backup.forEachLine { line ->
             val f = line.split('\t')
             when {
@@ -1803,10 +1885,37 @@ object ReplayCli {
                 f.size >= 5 && f[0] == "phrase" -> f[4].toIntOrNull()?.let {
                     l.pairsOf(f[1])[com.kinetica.keyboard.engine.WordPredictor.pairKey(f[2].lowercase(), f[3].lowercase())] = it
                 }
+                // pref<TAB>type<TAB>key<TAB>value (Backup): the bar menu's downranks and the retype counts.
+                f.size >= 4 && f[0] == "pref" -> when (f[2]) {
+                    PREF_WORD_PENALTIES -> l.penalties = com.kinetica.keyboard.engine.WordPenalties.parse(f[3])
+                    PREF_RETYPE_COUNTS -> retypeCounts = f[3]
+                    PREF_RETYPE_ON -> retypeOn = f[3] == "true"
+                }
             }
         }
+        if (retypeOn && retypeCounts != null) l.retype = com.kinetica.keyboard.engine.RetypePenalties.parse(retypeCounts)
         return l
     }
+
+    // Settings keys (app Prefs, which this JVM build cannot import): WORD_PENALTIES,
+    // RETYPE_COUNTS, RETYPE_PENALTIES.
+    private const val PREF_WORD_PENALTIES = "pref_word_penalties"
+    private const val PREF_RETYPE_COUNTS = "pref_retype_counts"
+    private const val PREF_RETYPE_ON = "pref_retype_penalties"
+
+    /** The last `state` line across [files] in order (a later export is the newer state), or null. */
+    fun lastState(files: List<File>): SwipeTrace.Line.State? {
+        var last: SwipeTrace.Line.State? = null
+        for (f in files) f.useLines { lines ->
+            for (line in lines) {
+                if (!line.startsWith(STATE_HEAD)) continue
+                (runCatching { SwipeTrace.decodeLine(line) }.getOrNull() as? SwipeTrace.Line.State)?.let { last = it }
+            }
+        }
+        return last
+    }
+
+    private val STATE_HEAD = "{\"v\":${SwipeTrace.VERSION},\"type\":\"state\""
 
     /** A fresh online-learning touch model at strength [s], or null when [s] is absent or 0. */
     private fun touchModel(s: String?): com.kinetica.keyboard.engine.TouchModel? {
