@@ -326,6 +326,8 @@ Everything below comes from Kinetica and works the same in Duet.
 - Fix this sentence (a shortcut action, `:fix_sentence`): reads the sentence again as a whole from
   each word's runners-up and offers the changed words on the bar; nothing changes until you tap
   it. Needs the DEV *Language-model score* switch. `replay sentfix` scores it.
+- Your own swipe shapes (Learning > *Learn how you draw your words*, off): the last few paths of
+  each word you swipe are matched beside the key-centre path. `replay --templates all` scores it.
 - Words learned per kind of field (Learning > *Learn words per kind of field*, off): a word you
   only type in search boxes or code keeps its boost there and loses most of it in a chat.
 - A retype button (off by default) takes the word back, and the bar then offers what else the

@@ -58,6 +58,7 @@ import com.kinetica.keyboard.engine.RetypePenalties
 import com.kinetica.keyboard.engine.UsageStats
 import com.kinetica.keyboard.engine.ScoreModel
 import com.kinetica.keyboard.engine.SentenceFix
+import com.kinetica.keyboard.engine.ShapeTemplates
 import com.kinetica.keyboard.engine.SharedWordFiling
 import com.kinetica.keyboard.engine.ShortSlips
 import com.kinetica.keyboard.engine.SpellLexicon
@@ -698,7 +699,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         usageOn = prefs.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
         engine.spaceDip = prefs.getBoolean(Prefs.SPACE_DIP, Prefs.DEFAULT_SPACE_DIP)
         applyFingerOffsets()
+        ShapeTemplates.enabled = prefs.getBoolean(Prefs.SHAPE_TEMPLATES, Prefs.DEFAULT_SHAPE_TEMPLATES)
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
+            ShapeTemplates.enabled = p.getBoolean(Prefs.SHAPE_TEMPLATES, Prefs.DEFAULT_SHAPE_TEMPLATES)
             val previous = config
             FieldWords.enabled = p.getBoolean(Prefs.FIELD_LEARNING, Prefs.DEFAULT_FIELD_LEARNING)
             config = KeyboardConfig.from(p, systemNight())
@@ -1003,6 +1006,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         }
                         applyWordPenalties()
                         applyRetypePenalties(reload = true)
+                        applyShapeTemplates(reload = true)
                         applySessionWords()
                         applyFieldWords(reload = true)
                         composer = WordComposer(
@@ -1564,6 +1568,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         containerView?.proofStrip?.show(null)
         abandonWord()
         composer?.reset()
+        saveShapeTemplates()
         saveTouchModel()
         saveFieldWords()
         saveRetypePenalties()
@@ -3093,8 +3098,77 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             .putString(Prefs.USAGE_COUNTS, pending.serialize()).apply()
     }
 
+    // Shape templates (#138): the user's own swipe paths for the words they swipe, bound to the
+    // layout they were drawn on, whether they changed since they were stored, and how many
+    // swipes in a row were drawn on some other layout. Main thread only.
+    private var shapeTemplates: ShapeTemplates? = null
+    private var shapeTemplatesDirty = false
+    private var shapeMisfits = 0
+
+    /**
+     * Hands each resident predictor the stored paths. With [reload] they are read from the
+     * preference first, so a restored backup is picked up, unless this instance holds paths it
+     * has not stored yet.
+     */
+    private fun applyShapeTemplates(reload: Boolean) {
+        if (reload && !shapeTemplatesDirty) {
+            val stored = PreferenceManager.getDefaultSharedPreferences(this).getString(Prefs.SHAPE_PATHS, null)
+            // Under the stored layout, whatever it is: a store for another layout waits its turn.
+            shapeTemplates = stored?.let { ShapeTemplates.parse(it, it.substringBefore(',')) }
+        }
+        for (p in listOfNotNull(predictor, secondaryPredictor, extraPredictor)) p.shapeTemplates = shapeTemplates
+    }
+
+    private fun saveShapeTemplates() {
+        if (!shapeTemplatesDirty) return
+        shapeTemplatesDirty = false
+        val s = shapeTemplates ?: return
+        PreferenceManager.getDefaultSharedPreferences(this).edit().putString(Prefs.SHAPE_PATHS, s.serialize()).apply()
+    }
+
+    /**
+     * The path of the word in hand when it is one whole swipe, for [noteShapeTemplate]. Read
+     * before the commit empties the composer.
+     */
+    private fun shapePathInHand(): FloatArray? {
+        if (!ShapeTemplates.enabled || config.incognito || editorState.teachesNothing) return null
+        val t = composer?.tokensSnapshot()?.singleOrNull() as? SwipeToken ?: return null
+        return if (t.softStart || t.softEnd || t.apostrophe) null else t.resampled
+    }
+
+    /**
+     * A learned commit of [word], drawn as [path]: kept as one of its templates. A store drawn
+     * on another layout is left alone until [SHAPE_MISFITS_TO_RESTART] swipes in a row say this
+     * layout is the one in use now, so a turn of the phone does not cost the paths.
+     */
+    private fun noteShapeTemplate(word: String, path: FloatArray?) {
+        if (path == null) return
+        val g = currentGeometry ?: return
+        var store = shapeTemplates ?: ShapeTemplates.empty(ShapeTemplates.layoutOf(g))
+        if (!store.fits(g)) {
+            if (!store.isEmpty && ++shapeMisfits < SHAPE_MISFITS_TO_RESTART) return
+            store = ShapeTemplates.empty(ShapeTemplates.layoutOf(g))
+        }
+        shapeMisfits = 0
+        shapeTemplates = store.with(AccentFolder.fold(word.lowercase()), path)
+        shapeTemplatesDirty = true
+        applyShapeTemplates(reload = false)
+    }
+
+    /** [word]'s paths go, or only the newest when [lastOnly] (its commit was taken back). */
+    private fun dropShapeTemplates(word: String, lastOnly: Boolean) {
+        val store = shapeTemplates ?: return
+        val key = AccentFolder.fold(word.lowercase())
+        val next = if (lastOnly) store.withoutLast(key) else store.without(key)
+        if (next === store) return
+        shapeTemplates = next
+        shapeTemplatesDirty = true
+        applyShapeTemplates(reload = false)
+    }
+
     /** A retype took the commit [word] back: the next commit may say what it was meant as. */
     private fun noteRetypeTakenBack(word: String?) {
+        if (word != null) dropShapeTemplates(word, lastOnly = true)
         usageTakenBack = word?.lowercase()
         retypeTakenBack = if (RetypePenalties.enabled && !editorState.teachesNothing) word?.lowercase() else null
     }
@@ -3186,6 +3260,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 if (steps > 0) setWordPenalty(word, lang, 0)
                 if (count > 0) learnWord(word, -count, lang)
                 forgetRetypes(word, lang)
+                dropShapeTemplates(word, lastOnly = false)
                 if (fieldWords.remove(word)) fieldWordsDirty = true
             }
             BarAdjust.WordMenuAction.WHY -> Unit
@@ -6012,6 +6087,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun commitWordInternal(word: String) {
         joinedCommit = null
         // Read before composer.commitWord empties the tokens.
+        val shapePath = shapePathInHand()
         wholeWordArmStart = if (word.isNotEmpty() && composer?.hasSwipeToken() == true) cursorExpected() - word.length else -1
         val previousDeliberate = lastCommitDeliberate
         lastCommitDeliberate = nextCommitDeliberate
@@ -6102,6 +6178,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             if (!swipeDecodeEmpty && learnsOnCommit(word, reloadedWord)) {
                 val filed = filingLanguage(word, lang)
                 learnWord(word, lang = filed)
+                noteShapeTemplate(word, shapePath)
                 noteFieldCommit(word)
                 noticeWrongLanguage(word, filed)
                 lastCommitLearned = word.lowercase()
@@ -6621,6 +6698,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
         /** Text read before the cursor to find the sentence to fix. */
         const val SENTENCE_TAIL_CHARS = 300
+        /** Swipes in a row on another layout before the stored shape templates start again for it. */
+        const val SHAPE_MISFITS_TO_RESTART = 30
         const val AIM_MODEL_KEY = "aim"
         const val USER_DICT_LIMIT = 5000
         const val USER_PAIR_LIMIT = 5000

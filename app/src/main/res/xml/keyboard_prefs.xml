@@ -460,6 +460,12 @@
                         android:targetClass="com.kinetica.keyboard.settings.UsageActivity" />
                 </Preference>
                 <SwitchPreferenceCompat
+                    android:key="pref_shape_templates"
+                    android:title="@string/pref_shape_templates_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_shape_templates_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
                     android:key="pref_delete_on_block"
                     android:title="@string/pref_delete_on_block_title"
                     app:singleLineTitle="false"
