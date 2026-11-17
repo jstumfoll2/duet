@@ -325,6 +325,9 @@ Everything below comes from Kinetica and works the same in Duet.
   `pozno` -> `późno`), and backspace right after it puts back what you typed.
 - Live word preview (off by default): the spacebar shows what a swipe reads as so far, before
   the lift. `replay preview` scores it.
+- Fix this sentence (a shortcut action, `:fix_sentence`): reads the sentence again as a whole from
+  each word's runners-up and offers the changed words on the bar; nothing changes until you tap
+  it. Needs the DEV *Language-model score* switch. `replay sentfix` scores it.
 - Your own swipe shapes (Learning > *Learn how you draw your words*, off): the last few paths of
   each word you swipe are matched beside the key-centre path. `replay --templates all` scores it.
 - Words learned per kind of field (Learning > *Learn words per kind of field*, off): a word you

@@ -57,6 +57,7 @@ import com.kinetica.keyboard.engine.PreviousWordFix
 import com.kinetica.keyboard.engine.RetypePenalties
 import com.kinetica.keyboard.engine.UsageStats
 import com.kinetica.keyboard.engine.ScoreModel
+import com.kinetica.keyboard.engine.SentenceFix
 import com.kinetica.keyboard.engine.ShapeTemplates
 import com.kinetica.keyboard.engine.SharedWordFiling
 import com.kinetica.keyboard.engine.ShortSlips
@@ -301,8 +302,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val shown: List<String>,
         val images: List<ClipboardHistory.Image?> = emptyList(),
     ) {
-        enum class Kind { CLIPS, FRESH_CLIP, CODES, GOLD }
+        enum class Kind { CLIPS, FRESH_CLIP, CODES, GOLD, SENTENCE }
     }
+
+    // The words committed lately with the ranked readings each came from, oldest first, for the
+    // "fix this sentence" action ([SentenceFix], #139). A word the user typed, picked or
+    // corrected has no readings. In memory only; a new field starts it again.
+    private val sentenceWords = ArrayList<SentenceFix.Word>()
+
+    // The fix a SENTENCE offer is showing, until it is answered or the bar moves on.
+    private var sentencePlan: SentenceFix.Plan? = null
 
     // The retype a GOLD offer asks about: the word committed first and the word typed instead.
     private var goldAsked: Pair<String, String>? = null
@@ -1446,6 +1455,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         synchronizeLanguageOnStart()
         fieldState = EditorState.from(attribute)
+        sentenceWords.clear()
+        sentencePlan = null
         editorState = fieldState.withIncognito(config.incognito)
         fieldClass = FieldClass.of(attribute?.inputType ?: 0, attribute?.imeOptions ?: 0)
         applyFieldWords(reload = false)
@@ -3491,7 +3502,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.RETYPE, EditorAction.EXPANDIFY, EditorAction.SETTINGS,
             EditorAction.NEXT_LANGUAGE, EditorAction.TOGGLE_AUTOSPACE,
             EditorAction.ONE_HANDED, EditorAction.DATE, EditorAction.TIME,
-            EditorAction.ENTER, EditorAction.COPY_LINE, EditorAction.CLEAN_LINKS, EditorAction.TOGGLE_NEXT_WORD,
+            EditorAction.ENTER, EditorAction.COPY_LINE, EditorAction.CLEAN_LINKS, EditorAction.FIX_SENTENCE,
+            EditorAction.TOGGLE_NEXT_WORD,
             EditorAction.TOGGLE_RECENT_WORDS, EditorAction.TOGGLE_NUMBER_ROW,
             EditorAction.TOGGLE_TIDY_SPACES, EditorAction.TOGGLE_TYPING_SPEED,
             EditorAction.TOGGLE_PECK_MODE, EditorAction.TOGGLE_INCOGNITO,
@@ -3568,6 +3580,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             EditorAction.EDIT_PAGE -> toggleEditPage()
             EditorAction.SELECT_MODE -> setSelecting(!selecting)
             EditorAction.CLEAN_LINKS -> cleanLinks()
+            EditorAction.FIX_SENTENCE -> fixSentence()
             EditorAction.TOGGLE_NEXT_WORD -> togglePref(Prefs.NEXT_WORD, !config.nextWord)
             EditorAction.TOGGLE_RECENT_WORDS -> togglePref(Prefs.RECENT_WORDS, !config.recentWords)
             EditorAction.TOGGLE_NUMBER_ROW -> togglePref(Prefs.NUMBER_ROW, !config.numberRow)
@@ -3920,7 +3933,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             when (kind) {
                 BarOffer.Kind.CLIPS -> preview
                 BarOffer.Kind.FRESH_CLIP -> "📋 " + preview
-                BarOffer.Kind.CODES, BarOffer.Kind.GOLD -> t
+                BarOffer.Kind.CODES, BarOffer.Kind.GOLD, BarOffer.Kind.SENTENCE -> t
             }
         }
         val shown = ExpansionRows.distinctLabels(labels)
@@ -3931,6 +3944,72 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     /** The bar moved on from an offer; a fresh clip left unpicked is not offered by itself again. */
+    /**
+     * The "fix this sentence" action ([SentenceFix], #139): reads the sentence before the cursor
+     * again from the readings kept for its words and offers the words that change on the bar,
+     * with a way to keep the sentence as it is. Nothing is written until the offer is picked.
+     * Only under the log-linear score, whose scores add up; a private field keeps no readings.
+     */
+    private fun fixSentence() {
+        val bar = suggestionBar ?: return
+        val p = predictor
+        val plan = if (p == null || !ScoreModel.logLinear || editorState.privateMode || selectionLength() != 0 ||
+            tentativeLength > 0 || composer?.hasPendingWord == true
+        ) {
+            null
+        } else {
+            ich.textBeforeCursor(SENTENCE_TAIL_CHARS)?.toString()
+                ?.let { tail -> SentenceFix.plan(tail, sentenceWords) { w, prev -> p.lmOf(w, prev) } }
+        }
+        DecodeTrace.log { "  fix sentence words=${sentenceWords.size} changes=${plan?.changes?.size ?: 0}" }
+        if (plan == null) {
+            bar.showWordNote(getString(R.string.fix_sentence_none))
+            return
+        }
+        sentencePlan = plan
+        val shown = listOf(plan.label, getString(R.string.fix_sentence_keep))
+        barOffer = BarOffer(BarOffer.Kind.SENTENCE, listOf(plan.text, ""), shown)
+        barPredictions = emptyList()
+        containerView?.hideInlineStrip()
+        bar.setSuggestions(shown.map { SuggestionBarView.Suggestion(it, 0) })
+    }
+
+    /**
+     * Writes [plan] over the end of the text, where it still stands as it was read: the first
+     * changed word and everything after it up to the cursor, as a proofread fix is written.
+     * Each changed word moves its learned count to the word it became.
+     */
+    private fun applySentenceFix(plan: SentenceFix.Plan) {
+        if (selectionLength() != 0 || tentativeLength > 0 || composer?.hasPendingWord == true) return
+        val span = plan.span.length
+        if (ich.textBeforeCursor(span)?.toString() != plan.span) {
+            DecodeTrace.log { "  fix sentence refused" }
+            return
+        }
+        ich.replaceBeforeCursor(span, plan.text)
+        expectAfter(span, plan.text.length, rewritesWord = true)
+        for ((i, c) in plan.changes.withIndex()) {
+            val back = plan.backs[i]
+            val old = c.from.lowercase()
+            val new = c.to.lowercase()
+            composer?.replaceCommit(back, old, new)
+            // Now a word the user chose: not read again, and its neighbours read after it.
+            val at = sentenceWords.size - 1 - back
+            if (at in sentenceWords.indices) sentenceWords[at] = SentenceFix.Word(c.to)
+            if (!editorState.teachesNothing) {
+                unlearnWord(old)
+                learnWord(new)
+            }
+        }
+        clearCorrection()
+        autocorrectUndo = null
+        autoFixUndo = null
+        wholeWordArmStart = -1
+        revisable = null
+        updateAutoShift()
+        DecodeTrace.log { "  fix sentence applied changes=${plan.changes.size}" }
+    }
+
     private fun dropBarOffer() {
         if (barOffer?.kind == BarOffer.Kind.FRESH_CLIP) clipboardHistory.markFreshUsed()
         barOffer = null
@@ -3939,6 +4018,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun pickBarOffer(offer: BarOffer, index: Int) {
         if (offer.kind == BarOffer.Kind.FRESH_CLIP) clipboardHistory.markFreshUsed()
         suggestionBar?.clearSuggestions()
+        if (offer.kind == BarOffer.Kind.SENTENCE) {
+            val plan = sentencePlan
+            sentencePlan = null
+            if (index == 0 && plan != null) applySentenceFix(plan)
+            refreshPredictions()
+            return
+        }
         if (offer.kind == BarOffer.Kind.GOLD) {
             // An answer, not text: nothing is written to the field.
             goldAsked?.let { (from, to) -> TraceRecorder.goldAnswer(from, to, index == 0) }
@@ -6126,6 +6212,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             null
         }
         reviseGeneration++
+        if (word.isNotEmpty()) {
+            val decoded = !lastCommitDeliberate && lastCandidates.firstOrNull()?.word.equals(word, ignoreCase = true)
+            sentenceWords.add(
+                SentenceFix.Word(word, if (decoded) lastCandidates.map { PreviousWordFix.Reading(it.word, it.score) } else emptyList()),
+            )
+            if (sentenceWords.size > SENTENCE_WORDS_KEPT) sentenceWords.removeAt(0)
+        }
         composer?.commitWord(word.lowercase())
         grammarFix = null
         if (!previousDeliberate) fixPreviousWord(word)
@@ -6668,6 +6761,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         const val TOUCH_MODEL_PREFS = Prefs.TOUCH_MODEL_FILE
         const val TOUCH_MODEL_KEY = "model"
 
+        /** Commits kept with their readings for the "fix this sentence" action. */
+        const val SENTENCE_WORDS_KEPT = 24
+
+        /** Text read before the cursor to find the sentence to fix. */
+        const val SENTENCE_TAIL_CHARS = 300
         /** Swipes in a row on another layout before the stored shape templates start again for it. */
         const val SHAPE_MISFITS_TO_RESTART = 30
         const val AIM_MODEL_KEY = "aim"

@@ -44,6 +44,7 @@ object ActionRow {
         EditorAction.CUT_LINE_AFTER,
         EditorAction.CUT_LINE_BEFORE,
         EditorAction.CLEAN_LINKS,
+        EditorAction.FIX_SENTENCE,
         EditorAction.TOGGLE_NEXT_WORD,
         EditorAction.TOGGLE_RECENT_WORDS,
         EditorAction.TOGGLE_NUMBER_ROW,
@@ -109,6 +110,7 @@ object ActionRow {
         EditorAction.CUT_LINE_AFTER -> "✂↓"
         EditorAction.CUT_LINE_BEFORE -> "✂↑"
         EditorAction.CLEAN_LINKS -> "⚯"       // a link with its chain broken
+        EditorAction.FIX_SENTENCE -> "\u2714"  // a heavy check mark
         EditorAction.TOGGLE_NEXT_WORD -> "⇢"  // the word that comes next
         EditorAction.TOGGLE_RECENT_WORDS -> "☰" // rows of words
         EditorAction.TOGGLE_NUMBER_ROW -> "123" // not `#`, which a letter's list may hold as text
@@ -307,8 +309,8 @@ object ActionRow {
             nextLanguage(before.languages, before.language)?.let { Notice.Language(it) }
         EditorAction.ONE_HANDED ->
             Notice.Layout(oneHandedToggle(before.layoutMode, before.rememberedOneHanded).mode)
-        // The clips on the bar, or another keyboard, say what happened.
-        EditorAction.CLIPBOARD, EditorAction.VOICE -> null
+        // The clips or the fix on the bar, or another keyboard, say what happened.
+        EditorAction.CLIPBOARD, EditorAction.VOICE, EditorAction.FIX_SENTENCE -> null
         EditorAction.UNDO, EditorAction.REDO, EditorAction.PASTE, EditorAction.COPY,
         EditorAction.CUT, EditorAction.SELECT_ALL, EditorAction.RETYPE, EditorAction.EXPANDIFY,
         EditorAction.DATE, EditorAction.TIME, EditorAction.ENTER, EditorAction.COPY_LINE,
