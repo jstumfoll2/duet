@@ -150,6 +150,23 @@ class GestureStream(
         dwells.removeAt(shortest)
     }
 
+    /**
+     * The swipe so far as the token a lift right now would make, or null while the pointer
+     * could still be a tap (issue #140: a decode while the thumb is down). Reads only: the
+     * stream goes on as if it had not been asked. The apostrophe trip is left in; a preview
+     * does not need it cut out.
+     */
+    fun preview(): SwipeToken? {
+        if (maxDispSqKw < tapDispSqKw || points.size < 2) return null
+        val t = points[points.size - 1].t
+        val seen = ArrayList(contacts)
+        if (currentKey != -1) seen.add(KeyContact(currentKey, currentEnter, t))
+        val path = ArrayList(points)
+        val resampled = FloatArray(2 * KineticaConstants.RESAMPLE_N)
+        RESAMPLER.resample(path, resampled)
+        return SwipeToken(streamId, path, resampled, seen, arcLen, downTime, t, dwells = ArrayList(dwells))
+    }
+
     fun finish(t: Long): InputToken {
         // The open run is not closed: a pause with no following leg is not a boundary, so a
         // thumb resting before it lifts must not segment the gesture.

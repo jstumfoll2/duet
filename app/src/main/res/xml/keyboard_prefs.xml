@@ -892,6 +892,12 @@
                     android:summary="@string/pref_emoji_key_summary"
                     android:defaultValue="true" />
                 <SwitchPreferenceCompat
+                    android:key="pref_live_preview"
+                    android:title="@string/pref_live_preview_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_live_preview_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
                     android:key="pref_typing_speed"
                     android:title="@string/pref_typing_speed_title"
                     app:singleLineTitle="false"

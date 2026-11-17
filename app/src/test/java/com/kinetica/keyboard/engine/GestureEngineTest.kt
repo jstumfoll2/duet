@@ -230,4 +230,34 @@ class GestureEngineTest {
         assertEquals('j' - 'a', split.letterNear(9.0f, 2.25f))
         assertEquals('h' - 'a', split.letterNear(7.52f, 1.52f))
     }
+
+    @Test
+    fun aSwipeInProgressPreviewsAsTheTokenALiftNowWouldMake() {
+        // Issue #140: nothing to preview while the pointer could still be a tap.
+        assertTrue(engine.previewTokens().isEmpty())
+        down(0, 't', 0)
+        assertTrue(engine.previewTokens().isEmpty())
+        move(0, 'h', 40)
+        move(0, 'e', 80)
+        val live = engine.previewTokens().single()
+        assertEquals(listOf('t' - 'a', 'h' - 'a', 'e' - 'a'), live.keyContacts.map { it.code }.distinct().filter { it == 't' - 'a' || it == 'h' - 'a' || it == 'e' - 'a' })
+        assertEquals(80, live.tEnd)
+        // Asking changes nothing: the lift makes the same token as it would have.
+        engine.previewTokens()
+        up(0, 'e', 80)
+        val done = tokens.single() as com.kinetica.keyboard.engine.models.SwipeToken
+        assertEquals(done.resampled.toList(), live.resampled.toList())
+        assertEquals(done.keyContacts, live.keyContacts)
+        assertEquals(done.arcLen, live.arcLen, 0f)
+        assertTrue(engine.previewTokens().isEmpty())
+    }
+
+    @Test
+    fun twoSwipesInProgressPreviewInStartOrder() {
+        down(0, 'a', 0)
+        down(1, 'l', 10)
+        move(1, 'o', 30)
+        move(0, 'e', 40)
+        assertEquals(listOf(0L, 10L), engine.previewTokens().map { it.tStart })
+    }
 }

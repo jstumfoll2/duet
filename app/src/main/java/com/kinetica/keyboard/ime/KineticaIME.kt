@@ -150,6 +150,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         Thread(r, "kinetica-decode").apply { priority = Thread.NORM_PRIORITY + 1 }
     }
 
+    // The live word preview (#140) decodes here with a predictor of its own, below the real
+    // decodes' priority, so a preview never stands in a commit's way.
+    private val previewExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "kinetica-preview").apply { priority = Thread.NORM_PRIORITY - 1 }
+    }
+
     // The second language's decode runs here, beside the first.
     private val alternateDecodeExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "kinetica-decode-alt").apply { priority = Thread.NORM_PRIORITY + 1 }
@@ -673,7 +679,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         RetypePenalties.enabled = prefs.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
         usageOn = prefs.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
         applyFingerOffsets()
+        livePreviewOn = prefs.getBoolean(Prefs.LIVE_PREVIEW, Prefs.DEFAULT_LIVE_PREVIEW)
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
+            livePreviewOn = p.getBoolean(Prefs.LIVE_PREVIEW, Prefs.DEFAULT_LIVE_PREVIEW)
             val previous = config
             config = KeyboardConfig.from(p, systemNight())
             RetypePenalties.enabled = p.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
@@ -786,6 +794,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // work to a closed executor and throw on the main thread.
         mainHandler.removeCallbacksAndMessages(null)
         decodeExecutor.shutdown()
+        previewExecutor.shutdown()
         alternateDecodeExecutor.shutdown()
         extraDecodeExecutor.shutdown()
         dbExecutor.shutdown()
@@ -946,6 +955,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         p.aimModel = aimModel
                         p.trigrams = trigrams
                         predictor = p
+                        // No reranker and no touch or aim model: a preview is a first reading,
+                        // and those models are written on the decode thread.
+                        previewPredictor = WordPredictor(
+                            dict.trie, bigrams, currentGeometry, dict.forms, counts, pairs, lang,
+                            learnedOnly = dict.ownWords,
+                        ).also { it.trigrams = trigrams }
                         val altCounts = ConcurrentHashMap<String, Int>(altRows.size * 2)
                         for (row in altRows) altCounts[row.word] = row.frequency
                         secondaryCounts = altCounts
@@ -1620,6 +1635,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // -------------------------------------------------- engine listener (UI)
 
     override fun onTokenFinalized(token: InputToken) {
+        endPreview()
         shift.onOtherKey()
         autocorrectUndo = null
         autoFixUndo = null
@@ -1772,9 +1788,59 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     override fun onKeyTransition(streamId: StreamId, code: Int) {
         keyboardView?.onEngineKeyTransition(streamId, code)
+        requestPreview()
     }
 
-    override fun onAllPointersUp() = Unit
+    override fun onAllPointersUp() = endPreview()
+
+    // The live word preview (#140): the word the swipe in progress reads as so far, on the
+    // spacebar. Asked for at every key a swipe enters; one decode at a time, and a request
+    // that arrives during one is run once after it. Main thread only.
+    private var previewPredictor: WordPredictor? = null
+    private var livePreviewOn = false
+    private var previewRunning = false
+    private var previewPending = false
+    private var previewGeneration = 0
+
+    private fun requestPreview() {
+        if (!livePreviewOn || editorState.privateMode) return
+        if (previewRunning) {
+            previewPending = true
+            return
+        }
+        val p = previewPredictor ?: return
+        val live = engine.previewTokens()
+        if (live.isEmpty()) return
+        // The taps and swipes of this word already lifted, then the ones still down.
+        val tokens = (composer?.tokensSnapshot().orEmpty() + live).sortedBy { it.tStart }
+        val context = composer?.contextSnapshot().orEmpty()
+        val generation = previewGeneration
+        previewRunning = true
+        previewExecutor.execute {
+            val lead = try {
+                // Held and dropped: a preview's lines would read as real decodes in the trace.
+                DecodeTrace.holding { p.decode(tokens, context) }.first.firstOrNull()?.word
+            } catch (e: RuntimeException) {
+                null
+            }
+            mainHandler.post {
+                previewRunning = false
+                if (generation != previewGeneration) return@post
+                keyboardView?.previewLabel = lead?.let { displayWord(it) }
+                if (previewPending) {
+                    previewPending = false
+                    requestPreview()
+                }
+            }
+        }
+    }
+
+    /** The swipe ended or was dropped: the preview goes, and a decode still running shows nothing. */
+    private fun endPreview() {
+        previewGeneration++
+        previewPending = false
+        keyboardView?.previewLabel = null
+    }
 
     // -------------------------------------------------- composer callbacks
 
@@ -2158,6 +2224,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         override fun onGeometryChanged(geometry: KeyboardGeometry) {
             currentGeometry = geometry
             predictor?.geometry = geometry
+            previewPredictor?.geometry = geometry
             secondaryPredictor?.geometry = geometry
             extraPredictor?.geometry = geometry
         }
@@ -6195,6 +6262,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     private fun abandonWord() {
+        endPreview()
         keptBar = null
         midWordOffer = null
         midWordHistory = null

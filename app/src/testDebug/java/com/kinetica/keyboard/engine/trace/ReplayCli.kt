@@ -433,6 +433,58 @@ object ReplayCli {
                 }
                 println("extra decodes=$decodes")
             }
+            "preview" -> {
+                // preview [replay flags] FILE...: the live word preview (#140) on one-swipe lines.
+                // The swipe is cut at 50, 75, 90 and 100% of its time, each cut decoded as a lift
+                // there would be. Reports how often the lead is already the label and what a
+                // preview decode costs on this JVM (no rerank: the preview predictor has none).
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets, aim = aimModel)
+                val sink = ReplayReport(h.deepK)
+                val fractions = floatArrayOf(0.5f, 0.75f, 0.9f, 1f)
+                val right = IntArray(fractions.size)
+                val same = IntArray(fractions.size)
+                val micros = ArrayList<Long>()
+                var n = 0
+                val dtw = com.kinetica.keyboard.engine.DtwMatcher()
+                for (f in a.map { File(it) }) {
+                    for ((_, w) in read(f, sink)) {
+                        val label = w.label?.lowercase() ?: continue
+                        val tokens = try { SwipeTrace.replayTokens(w) } catch (e: RuntimeException) { continue }
+                        val s = tokens.singleOrNull() as? com.kinetica.keyboard.engine.models.SwipeToken ?: continue
+                        if (s.rawPath.size < 4) continue
+                        val p = h.predictorFor(w)
+                        n++
+                        val leads = arrayOfNulls<String>(fractions.size)
+                        for ((i, fr) in fractions.withIndex()) {
+                            val cutT = s.tStart + ((s.tEnd - s.tStart) * fr).toLong()
+                            val path = s.rawPath.filter { it.t <= cutT }.ifEmpty { s.rawPath.take(2) }.let { if (it.size < 2) s.rawPath.take(2) else it }
+                            var arc = 0f
+                            for (k in 1 until path.size) arc += kotlin.math.hypot(path[k].x - path[k - 1].x, path[k].y - path[k - 1].y)
+                            val res = FloatArray(2 * KineticaConstants.RESAMPLE_N)
+                            dtw.resample(path, res)
+                            val contacts = s.keyContacts.filter { it.tEnter <= cutT }
+                                .map { if (it.tExit > cutT) it.copy(tExit = cutT) else it }
+                            val cut = com.kinetica.keyboard.engine.models.SwipeToken(s.streamId, path, res, contacts, arc, s.tStart, path.last().t)
+                            val t0 = System.nanoTime()
+                            val lead = p.decode(listOf(cut), w.context).firstOrNull()?.word?.lowercase()
+                            micros.add((System.nanoTime() - t0) / 1000)
+                            leads[i] = lead
+                            if (lead == label) right[i]++
+                        }
+                        for (i in fractions.indices) if (leads[i] != null && leads[i] == leads.last()) same[i]++
+                    }
+                }
+                micros.sort()
+                for ((i, fr) in fractions.withIndex()) {
+                    println(String.format(java.util.Locale.ROOT, "at %3.0f%% of the swipe: lead is the label %.1f%%, lead is the final lead %.1f%%",
+                        fr * 100, 100.0 * right[i] / maxOf(n, 1), 100.0 * same[i] / maxOf(n, 1)))
+                }
+                if (micros.isNotEmpty()) {
+                    println(String.format(java.util.Locale.ROOT, "one-swipe lines=%d preview decode ms p50=%.1f p95=%.1f",
+                        n, micros[micros.size / 2] / 1000.0, micros[(micros.size * 95) / 100] / 1000.0))
+                }
+            }
             "tappoints" -> {
                 // tappoints FILE...: on gold all-tap words (practice prompts and the user's own
                 // fixes, never words the decoder chose), which point of each tap lands nearest the

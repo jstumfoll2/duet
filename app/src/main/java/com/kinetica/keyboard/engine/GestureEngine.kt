@@ -222,6 +222,13 @@ class GestureEngine(private val listener: Listener) {
     fun swipeHeldSince(t: Long): Boolean =
         streams.any { it != null && it.isSwipeCommitted && it.downTime < t }
 
+    /**
+     * Every swipe in progress as the token a lift right now would make, in start order
+     * ([GestureStream.preview]). Empty while no pointer has left its first key. Main thread.
+     */
+    fun previewTokens(): List<SwipeToken> =
+        streams.mapNotNull { it?.preview() }.sortedBy { it.tStart }
+
     /** Whether a pointer other than [pointerId] holds a stream. */
     fun otherTracking(pointerId: Int): Boolean =
         streams.any { it != null && it.pointerId != pointerId }

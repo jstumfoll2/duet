@@ -90,6 +90,7 @@ object SettingsSynonyms {
         Prefs.FLOATING to listOf("float", "move", "undock", "window", "drag", "small"),
         Prefs.FLOAT_WIDTH_PCT to listOf("float", "narrow", "wide", "size"),
         Prefs.EMOJI_SUGGESTIONS to listOf("emoji", "emoticon", "smiley", "suggest", "icon"),
+        Prefs.LIVE_PREVIEW to listOf("preview", "live", "while swiping", "mid swipe", "spacebar", "word"),
         Prefs.NEXT_WORD to listOf("predict", "prediction", "next word", "suggest", "autocomplete", "context"),
         Prefs.EDIT_FROM_MENU to listOf("long press", "long-press", "menu", "edit", "alternates", "accents"),
         Prefs.NO_PRIMARY to listOf("language", "languages", "mix", "multilingual", "primary", "equal", "detect"),
