@@ -406,6 +406,18 @@ class KeyboardView @JvmOverloads constructor(
         }
 
     /**
+     * The word a swipe in progress reads as so far, across the spacebar, or null (#140). The
+     * overlay draws it, so it changes mid-swipe without redrawing every key.
+     */
+    var previewLabel: String? = null
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
+
+    /**
      * Words per minute at the spacebar's bottom-right, or null. The overlay draws it, not the
      * static layer, so it changes at every commit without redrawing every key.
      */
@@ -1207,9 +1219,20 @@ class KeyboardView @JvmOverloads constructor(
             }
         }
         drawSpeed(canvas)
+        drawPreview(canvas)
         drawGhost(canvas)
         popup?.let { if (!it.elevated) drawPopup(canvas, it) }
         deletePreview?.let { drawDeletePreview(canvas, it) }
+    }
+
+    /** The live word across the spacebar's free middle; not while a notice is there. */
+    private fun drawPreview(canvas: Canvas) {
+        val text = previewLabel ?: return
+        if (spacebarNotice != null) return
+        val l = layout ?: return
+        val idx = l.keys.indexOfFirst { it.type == KeyType.SPACE }
+        if (idx < 0 || idx !in keyInsets.indices) return
+        drawSpacebarNotice(canvas, text, keyInsets[idx])
     }
 
     /** The speed in the spacebar's free corner; not while it is held or a notice covers it. */

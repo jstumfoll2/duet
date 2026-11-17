@@ -423,6 +423,8 @@
     <string name="notice_name_typing_speed">Typing speed</string>
     <string name="pref_no_primary_title">Follow the language I type (experimental)</string>
     <string name="pref_no_primary_summary">Up to three enabled languages count as equals; the one you are typing weighs most. Another language\'s words go in on their own far more often, right or wrong. Works without Mix enabled languages</string>
+    <string name="pref_live_preview_title">Show the word while swiping</string>
+    <string name="pref_live_preview_summary">The spacebar shows what the swipe reads as so far, before you lift, so a misread shows early. It is a first reading and can differ from the word that is written</string>
     <string name="pref_typing_speed_title">Typing speed on the spacebar</string>
     <string name="pref_typing_speed_summary">Words per minute over the last few seconds, in a corner of the spacebar while you type. Gone after a pause</string>
     <string name="typing_speed_label">%d wpm</string>

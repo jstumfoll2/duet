@@ -56,6 +56,13 @@ object Prefs {
     const val NEXT_WORD = "pref_next_word"
 
     /**
+     * Show the word a swipe reads as so far on the spacebar while the thumb is still down
+     * (issue #140). A first reading, decoded on its own thread at every key the swipe enters.
+     */
+    const val LIVE_PREVIEW = "pref_live_preview"
+    const val DEFAULT_LIVE_PREVIEW = false
+
+    /**
      * Offer the one-time code from a text message that arrived in the last ten minutes, in a
      * field that asks for one. Off by default: it needs the READ_SMS permission, which the
      * settings screen asks for when this is turned on; the keyboard only reads, never sends.

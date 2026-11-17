@@ -367,6 +367,8 @@
     <string name="notice_name_typing_speed">Velocità di scrittura</string>
     <string name="pref_no_primary_title">Segui la lingua in cui scrivo (sperimentale)</string>
     <string name="pref_no_primary_summary">Fino a tre lingue attive alla pari, e conta di più quella che stai usando. Le parole di un\'altra lingua entrano da sole molto più spesso, giuste o sbagliate. Funziona anche senza Mescola le lingue attive</string>
+    <string name="pref_live_preview_title">Mostra la parola mentre scorri</string>
+    <string name="pref_live_preview_summary">La barra spaziatrice mostra come viene letto il tracciato finora, prima di alzare il dito, così un errore di lettura si vede subito. È una prima lettura e può differire dalla parola scritta</string>
     <string name="pref_typing_speed_title">Velocità di scrittura sulla barra spaziatrice</string>
     <string name="pref_typing_speed_summary">Parole al minuto degli ultimi secondi, in un angolo della barra spaziatrice mentre scrivi. Sparisce dopo una pausa</string>
     <string name="typing_speed_label">%d ppm</string>

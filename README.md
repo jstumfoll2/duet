@@ -323,6 +323,8 @@ Everything below comes from Kinetica and works the same in Duet.
   zone, so a word the dictionary lacks goes in with one tap.
 - Tap autocorrect with three levels. It restores missing accents (`perche` -> `perché`,
   `pozno` -> `późno`), and backspace right after it puts back what you typed.
+- Live word preview (off by default): the spacebar shows what a swipe reads as so far, before
+  the lift. `replay preview` scores it.
 - Fix this sentence (a shortcut action, `:fix_sentence`): reads the sentence again as a whole from
   each word's runners-up and offers the changed words on the bar; nothing changes until you tap
   it. Needs the DEV *Language-model score* switch. `replay sentfix` scores it.
