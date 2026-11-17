@@ -111,7 +111,7 @@ internal fun opensOnLetters(restarting: Boolean, enabled: Boolean, onLetters: Bo
     enabled && !restarting && !onLetters
 
 /** The symbol pages a space may leave ([lettersAfterSpace]), by layout name. */
-internal val SYMBOL_PAGES = setOf("symbols", "symbols2")
+internal val SYMBOL_PAGES = com.kinetica.keyboard.layout.SymbolRows.PAGES
 
 /**
  * Whether a space typed on [board] brings the letters back: the setting on and a symbol page

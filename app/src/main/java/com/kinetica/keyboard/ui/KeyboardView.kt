@@ -29,6 +29,7 @@ import com.kinetica.keyboard.layout.LayoutMode
 import com.kinetica.keyboard.layout.LayoutMutations
 import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutTransforms
+import com.kinetica.keyboard.layout.SymbolRows
 import com.kinetica.keyboard.engine.models.StreamId
 import com.kinetica.keyboard.keys.ActionRow
 import com.kinetica.keyboard.keys.BackspaceController
@@ -101,6 +102,9 @@ class KeyboardView @JvmOverloads constructor(
 
         /** A letter's long-press menu was held still: open its list in settings (#8). */
         fun onEditAlternates(letter: Char) = Unit
+
+        /** A symbol page key's held menu: open its long-press list in settings (#120). */
+        fun onEditSymbolAlternates(symbol: String) = Unit
 
         /** A different board went up: the editing page's Select ends on any other. */
         fun onBoardShown(name: String) = Unit
@@ -758,6 +762,9 @@ class KeyboardView @JvmOverloads constructor(
     var editFromMenu = false
     private var editPid = -1
     private var editLetter = ' '
+
+    /** The symbol whose list the held menu opens, or null for a letter's. */
+    private var editSymbol: String? = null
     private var editX = 0f
     private var editY = 0f
     private val editRunnable = Runnable {
@@ -767,7 +774,8 @@ class KeyboardView @JvmOverloads constructor(
         dismissPopup()
         // The lift that follows must type nothing.
         routeByPointer[pid] = ROUTE_NONE
-        listener?.onEditAlternates(editLetter)
+        val symbol = editSymbol
+        if (symbol != null) listener?.onEditSymbolAlternates(symbol) else listener?.onEditAlternates(editLetter)
     }
 
     private fun cancelEditHold() {
@@ -1816,11 +1824,14 @@ class KeyboardView @JvmOverloads constructor(
                 // Base char first, then the alternates; the first alternate is
                 // pre-selected so a plain lift commits it immediately.
                 val cells = listOf(base) + alts
-                // Any letter has a list to edit, in any script, and so does a numbers-row digit.
-                if ((key.isLetter || LayoutMutations.isNumberRowKey(key)) && editFromMenu) {
+                // Any letter has a list to edit, in any script, and so does a numbers-row digit
+                // and a symbol page's key.
+                val symbolList = SymbolRows.carriesList(layout?.name, key)
+                if ((key.isLetter || LayoutMutations.isNumberRowKey(key) || symbolList) && editFromMenu) {
                     cancelEditHold()
                     editPid = pid
                     editLetter = key.output[0]
+                    editSymbol = key.output.takeIf { symbolList }
                     editX = downXByPointer[pid]
                     editY = downYByPointer[pid]
                     holdHandler.postDelayed(editRunnable, EDIT_HOLD_MS)

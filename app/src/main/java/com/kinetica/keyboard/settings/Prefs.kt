@@ -382,6 +382,31 @@ object Prefs {
      */
     fun letterAlternatesKey(letter: Char): String = "pref_alt_$letter"
 
+    /**
+     * Row [row] (1 to 3) of symbol page [page] (1 or 2), keys apart by spaces, absent for the
+     * built-in row (SymbolRows). A key a row, so a value never holds a newline.
+     */
+    fun symbolRowKey(page: Int, row: Int): String = "pref_symbols_${page}_row_$row"
+
+    /**
+     * One string per symbol-page key: its long-press list, space-separated, absent for the
+     * built-in one. Keyed by the symbol's code points in hex (`$` is `pref_alt_sym_24`), since a
+     * symbol may be any character, a quote or a slash among them.
+     */
+    fun symbolAlternatesKey(symbol: String): String =
+        SYMBOL_ALTERNATES_PREFIX + symbol.codePoints().toArray().joinToString("_") { Integer.toHexString(it) }
+
+    /** The symbol a [symbolAlternatesKey] names, or null for any other key. */
+    fun symbolOfAlternatesKey(key: String): String? {
+        if (!key.startsWith(SYMBOL_ALTERNATES_PREFIX)) return null
+        val points = key.removePrefix(SYMBOL_ALTERNATES_PREFIX).split('_').map { hex ->
+            hex.toIntOrNull(16)?.takeIf { Character.isValidCodePoint(it) } ?: return null
+        }
+        return String(points.toIntArray(), 0, points.size)
+    }
+
+    private const val SYMBOL_ALTERNATES_PREFIX = "pref_alt_sym_"
+
     /** Comma-key role: keep | remove | char | text | paste | select_all. */
     const val COMMA_MODE = "pref_comma_mode"
 
@@ -544,6 +569,15 @@ object Prefs {
 
     /** The bar's words sit at their own width with a small gap, instead of in equal zones. */
     const val BAR_COMPACT = "pref_bar_compact"
+
+    /** Suggestion bar: cut a too-long word in the middle, keeping its start and end. */
+    const val BAR_MIDDLE_CUT = "pref_bar_middle_cut"
+
+    /** Suggestion bar: bold only the word space writes, the tapped letters second. */
+    const val BAR_SPACE_BOLD = "pref_bar_space_bold"
+
+    /** Suggestion bar: mark words `+` learned at commit, `?` unknown, `C` personal. */
+    const val BAR_WORD_MARKS = "pref_bar_word_marks"
 
     /** The suggestion bar shows the autospace wait as a shrinking band. */
     const val AUTOSPACE_TIMER = "pref_autospace_timer"
@@ -922,6 +956,9 @@ object Prefs {
 
     /** On: words a gap apart read as one line and fit more to a page; a word is still its own target. */
     const val DEFAULT_BAR_COMPACT = true
+    const val DEFAULT_BAR_MIDDLE_CUT = false
+    const val DEFAULT_BAR_SPACE_BOLD = false
+    const val DEFAULT_BAR_WORD_MARKS = false
 
     /** On: a pause that ends a word is easier to time when the wait can be seen. */
     const val DEFAULT_AUTOSPACE_TIMER = true

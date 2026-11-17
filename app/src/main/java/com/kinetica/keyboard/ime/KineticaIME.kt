@@ -93,6 +93,7 @@ import com.kinetica.keyboard.layout.KeyboardLayout
 import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutLoader
 import com.kinetica.keyboard.layout.LayoutMutations
+import com.kinetica.keyboard.layout.SymbolRows
 import com.kinetica.keyboard.settings.ActionLabels
 import com.kinetica.keyboard.settings.ChordDefaults
 import com.kinetica.keyboard.settings.EdgeSwipeDefaults
@@ -109,6 +110,7 @@ import com.kinetica.keyboard.ui.EmojiPickerView
 import com.kinetica.keyboard.ui.EmojiSuggest
 import com.kinetica.keyboard.ui.FloatingFrame
 import com.kinetica.keyboard.ui.BarAdjust
+import com.kinetica.keyboard.ui.BarMark
 import com.kinetica.keyboard.ui.InputContainerView
 import com.kinetica.keyboard.ui.Hsv
 import com.kinetica.keyboard.ui.KeyboardTheme
@@ -794,6 +796,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             ) {
                 closeEmojiPicker()
                 keyboardView?.setKeyboardLayout(alphaLayout())
+            } else if (config.symbolRowLines != previous.symbolRowLines || config.symbolAlternates != previous.symbolAlternates) {
+                // An edit made with a symbol page up shows at once; otherwise the next page switch reads it.
+                val shown = keyboardView?.shownBoard
+                if (shown != null && shown in SymbolRows.PAGES) keyboardView?.setKeyboardLayout(symbolLayout(shown))
             } else if (config.editPage != previous.editPage && keyboardView?.shownBoard == EditPage.NAME) {
                 keyboardView?.setKeyboardLayout(config.editPage.layout())
             }
@@ -1236,6 +1242,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun layoutFor(name: String): KeyboardLayout =
         layouts.getOrPut(name) { LayoutLoader.load(assets, "layouts/$name.json") }
 
+    /**
+     * Symbol page `symbols` or `symbols2` with the user's rows over the bundled ones, and the
+     * user's long-press lists over theirs; an action written by name in a list runs, as in a
+     * letter's (#120).
+     */
+    private fun symbolLayout(name: String): KeyboardLayout {
+        val page = SymbolRows.pageOf(name)
+        val rows = SymbolRows.apply(layoutFor(name), page, config.symbolRows(page))
+        val lists = config.symbolAlternates.mapValues { (_, list) -> list.map(AlphaLayouts::cell) }
+        return SymbolRows.withLists(rows, lists)
+    }
+
     // Bounds arithmetic lives in KeyboardHeights, which is pure and testable: an inverted
     // min..max range once made coerceIn throw and crashed the process.
     private fun minKeyboardPx(): Int = numberRowPx(
@@ -1327,7 +1345,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         kv.edgeSwipeBindings = if (config.alternateSwipes) {
             // And both symbol pages: up on their top row, down on their lowest symbol row (upstream 3.0.2).
             EdgeSwipeBindings.withImplicitAlternates(
-                alphaLayout(), config.edgeSwipes, listOf(layoutFor("symbols"), layoutFor("symbols2")),
+                alphaLayout(), config.edgeSwipes, listOf(symbolLayout("symbols"), symbolLayout("symbols2")),
             )
         } else {
             config.edgeSwipes
@@ -1338,6 +1356,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         suggestionBar?.textScale = config.barTextScale
         suggestionBar?.recentTextScale = config.recentTextScale
         suggestionBar?.compactWords = config.barCompact
+        suggestionBar?.middleCut = config.barMiddleCut
         suggestionBar?.recentSwipeReversed = config.recentSwipeReversed
         suggestionBar?.retypeButton = config.retypeButton
         suggestionBar?.retypeButtonDp = config.retypeButtonDp
@@ -2304,8 +2323,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
                 // ?123 always lands on page 1, so leaving and re-entering the
                 // symbols layer resets any page-2 state.
-                KeyType.MODE_SYMBOLS -> keyboardView?.setKeyboardLayout(layoutFor("symbols"))
-                KeyType.MODE_SYMBOLS2 -> keyboardView?.setKeyboardLayout(layoutFor("symbols2"))
+                KeyType.MODE_SYMBOLS -> keyboardView?.setKeyboardLayout(symbolLayout("symbols"))
+                KeyType.MODE_SYMBOLS2 -> keyboardView?.setKeyboardLayout(symbolLayout("symbols2"))
                 KeyType.MODE_ALPHA -> keyboardView?.setKeyboardLayout(alphaLayout())
                 KeyType.MODE_NUMPAD -> keyboardView?.setKeyboardLayout(layoutFor("numpad"))
                 KeyType.EMOJI -> openEmojiPicker()
@@ -2439,6 +2458,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         override fun onEditAlternates(letter: Char) {
             vibrateForKeyPress()
             openSettings(SettingsSynonyms.LONGPRESS_GROUP, Prefs.letterAlternatesKey(letter))
+        }
+
+        override fun onEditSymbolAlternates(symbol: String) {
+            vibrateForKeyPress()
+            openSettings(SettingsSynonyms.SYMBOL_PAGES_GROUP, Prefs.symbolAlternatesKey(symbol))
         }
 
         override fun onMenuAction(index: Int) = this@KineticaIME.performMenuAction(index)
@@ -2830,11 +2854,62 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val decoded = lastCandidates.map { displayWord(it.word) }.let {
             if (seededWithoutTokens) reloadWords(it, reloadHistory, tentativeWord) else it
         }
-        suggestionBar?.setSuggestions(
-            suggestionZoneWords(notBlocked(midWordWords(decoded, midWordHistory, midWordOffer), blockedSpellings), literal)
-                .map { barSuggestion(it) },
+        val spaceBold = config.barSpaceBold
+        val words = suggestionZoneWords(
+            notBlocked(midWordWords(decoded, midWordHistory, midWordOffer), blockedSpellings),
+            literal,
+            literalSecond = spaceBold,
         )
+        val bold = if (spaceBold) boldIndex(words, spaceWord()) else 0
+        suggestionBar?.setSuggestions(words.map { barSuggestion(it) }, bold)
         updateBarWordPending()
+    }
+
+    /**
+     * What a space would write now, or null for nothing or for a commit the bar cannot name (a
+     * pecked head split off the word): [finalizePendingWord]'s choice, read before it, for the
+     * space-bold switch (#115). Keep the two in step.
+     */
+    private fun spaceWord(): String? {
+        if (midWordOffer != null) return null
+        val comp = composer ?: return null
+        if (!comp.hasPendingWord) return null
+        val ownWord = comp.rejoinHead > 0 && !comp.hasSwipeToken() && ownSpelling(tentativeWord, whole = true)
+        if (!splitting && !ownWord && comp.split != null &&
+            (comp.rejoinHead > 0 || peckSplitAllowed() || (comp.split?.lattice == true && latticeAllowed()))
+        ) {
+            return null
+        }
+        val dangling = !comp.hasSwipeToken() && tentativeWord.length > 1 && tentativeWord.endsWith("'")
+        val tentative = if (dangling) tentativeWord.dropLast(1) else tentativeWord
+        val p = predictor
+        val threshold = config.autocorrectConfidence
+        val keeps = keepsTypedLetters(
+            editedByHand = reloadedWord != null && reloadedByHand,
+            rejected = lastLiteral.lowercase() in rejectedCorrections,
+        )
+        return spaceCommitWord(
+            tentative = tentative,
+            hasSwipe = comp.hasSwipeToken(),
+            mayCorrect = p != null && threshold != null && lastLiteral.isNotEmpty() &&
+                !editorState.privateMode && !dangling,
+        ) {
+            val target = if (!keeps) {
+                p!!.tapAutocorrect(lastLiteral, lastTentative, threshold!!, lastCandidates)
+                    ?.takeUnless { heldOutsideActive(lastLiteral) }
+            } else {
+                null
+            }
+            val slip = if (target == null && !keeps && config.slipCorrection) shortSlip(lastLiteral) else null
+            when {
+                target != null -> displayWord(target.word)
+                slip != null -> displayWord(slip)
+                // A put-back space writes two words, which no bar zone shows.
+                !keeps && !editorState.addressField &&
+                    p!!.spaceSplit(tentativeWord, pausesMs = comp.tapPauses()?.takeIf { it.size == tentativeWord.length }) != null -> ""
+                else -> null
+            }
+        }.takeIf { it.isNotEmpty() }
     }
 
     private fun barSuggestion(display: String): SuggestionBarView.Suggestion {
@@ -2843,6 +2918,24 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             display,
             tier = KineticaConstants.personalTier(count),
             count = count,
+            mark = if (config.barWordMarks) markOf(display) else BarMark.NONE,
+        )
+    }
+
+    /** [display]'s mark, read across every resident list; none before any list is loaded (#115). */
+    private fun markOf(display: String): BarMark {
+        val langs = residentLanguages()
+        val lexicons = langs.mapNotNull { predictorFor(it) }
+        if (lexicons.isEmpty()) return BarMark.NONE
+        val w = display.lowercase()
+        return wordMark(
+            inList = lexicons.any { it.holdsListSpelling(display) },
+            // A learned-only spelling is in the trie but not the list; a count below the merge
+            // floor is in the counts only.
+            personal = langs.any { (countsFor(it)[w] ?: 0) > 0 } || lexicons.any { it.holdsSpelling(display) },
+            learnable = learnable(w),
+            teachesNothing = editorState.teachesNothing,
+            blocked = w in blockedSpellings,
         )
     }
 
@@ -6922,8 +7015,5 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // it. Nothing the keyboard writes after a word is longer, and `going...` needs three;
         // past this the word is not where the caller thinks, and the span is refused.
         const val COMMIT_TAIL_CHARS = 8
-
-        // Any-letter (accented Italian included) with internal apostrophes.
-        val WORD_RE = Regex("^\\p{L}+(?:'\\p{L}+)*$")
     }
 }

@@ -39,6 +39,7 @@ object SettingsSynonyms {
 
     /** The long-press screen; its per-letter rows are built in code and are not searchable. */
     const val LONGPRESS_GROUP = "pref_group_longpress"
+    const val SYMBOL_PAGES_GROUP = "pref_group_symbol_pages"
 
     private val TERMS: Map<String, List<String>> = mapOf(
         EXPANSIONS_ROW to listOf(
@@ -112,6 +113,9 @@ object SettingsSynonyms {
         Prefs.CHORD_LABELS to listOf("chord", "chords", "labels", "glyphs", "show", "hold", "shortcut"),
         Prefs.RECENT_SWIPE_REVERSED to listOf("scroll", "direction", "reverse", "invert", "natural", "recent", "wheel"),
         Prefs.BAR_COMPACT to listOf("spacing", "gap", "dense", "compact", "suggestions", "words", "closer"),
+        Prefs.BAR_MIDDLE_CUT to listOf("ellipsis", "truncate", "long words", "middle", "cut", "ending", "elide"),
+        Prefs.BAR_WORD_MARKS to listOf("mark", "icon", "plus", "unknown", "custom", "learned", "new word", "dictionary"),
+        Prefs.BAR_SPACE_BOLD to listOf("bold", "highlight", "space", "typed", "literal", "first page", "commit"),
         Prefs.AUTOSPACE_TIMER to listOf("autospace", "timer", "countdown", "progress", "delay", "wait"),
         Prefs.TIDY_SPACES to listOf("space", "spaces", "double space", "compress", "quote", "autospace"),
         Prefs.NUMBER_ROW to listOf("digits", "numbers", "number row", "numeric", "1234"),
@@ -131,6 +135,9 @@ object SettingsSynonyms {
         Prefs.PLAIN_LETTER_ALTERNATES to listOf("accent", "long press", "popup", "alternates"),
         Prefs.POPUP_SHAPE to
             listOf("grid", "square", "3x3", "4x3", "5x3", "shape", "row", "long press", "popup", "menu", "accent"),
+        SYMBOL_PAGES_GROUP to listOf(
+            "symbols", "numbers", "punctuation", "custom", "layout", "123", "long press", "hold", "currency",
+        ),
         LONGPRESS_GROUP to listOf(
             "accent", "accents", "diacritics", "long press", "hold", "secondary", "corner", "hint",
             "popup", "symbols",

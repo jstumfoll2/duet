@@ -101,9 +101,10 @@ class SuggestionBarView @JvmOverloads constructor(
     /**
      * One candidate zone. [tier] is the personal-weight badge level 0..7: 0 draws nothing, 1 a
      * center dot, 2..7 add hexagon-corner dots. [count] is the raw personal count behind the
-     * tier, which the badge preview needs during a weight-adjust slide.
+     * tier, which the badge preview needs during a weight-adjust slide. [mark] is drawn left of
+     * the word when the word marks are on.
      */
-    data class Suggestion(val word: String, val tier: Int, val count: Int = 0)
+    data class Suggestion(val word: String, val tier: Int, val count: Int = 0, val mark: BarMark = BarMark.NONE)
 
     var listener: Listener? = null
 
@@ -113,6 +114,19 @@ class SuggestionBarView @JvmOverloads constructor(
      * mode.
      */
     var flickEnabled = false
+
+    /** A word too wide for its place keeps its start and its end, cut in the middle. */
+    var middleCut = false
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
+
+    // The composition word drawn bold: the first, or with the space-bold switch the one space
+    // writes (-1 none).
+    private var boldAt = 0
 
     /** Configured manual boost magnitude: what a release in place adds. */
     var reinforceIncrement = 1
@@ -468,6 +482,10 @@ class SuggestionBarView @JvmOverloads constructor(
     private val chipPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val dividerPaint = Paint()
     private val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val markPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.RIGHT
+        typeface = Typeface.DEFAULT_BOLD
+    }
     private val timerPaint = Paint()
 
     // The autospace countdown, in uptime milliseconds; a zero duration draws nothing.
@@ -523,15 +541,17 @@ class SuggestionBarView @JvmOverloads constructor(
         dividerPaint.color = theme.keyHint
         dividerPaint.alpha = 60
         badgePaint.color = theme.accent
+        markPaint.color = theme.accent
         timerPaint.color = theme.accent
         timerPaint.alpha = TIMER_ALPHA
     }
 
-    /** Composition mode: ranked candidates for the word in progress. */
-    fun setSuggestions(candidates: List<Suggestion>) {
+    /** Composition mode: ranked candidates for the word in progress, [bold] drawn bold (-1 none). */
+    fun setSuggestions(candidates: List<Suggestion>, bold: Int = 0) {
         if (candidates.isNotEmpty()) menuOpen = false
         if (candidates.map { it.word } != words.map { it.word }) closeWordMenu()
         words = candidates
+        boldAt = bold
         correctionMode = false
         selectedIndex = -1
         page = 0
@@ -622,8 +642,18 @@ class SuggestionBarView @JvmOverloads constructor(
         val pad = TEXT_INSET_DP * density * orn
         val badge = 2f * (BADGE_GAP_DP + BADGE_REACH_DP) * density * orn
         return words.map {
-            primaryPaint.measureText(it.word) + pad + if (it.tier > 0) badge else 0f
+            primaryPaint.measureText(it.word) + pad + (if (it.tier > 0) badge else 0f) + markReach(it.mark, primaryPaint, orn)
         }
+    }
+
+    /**
+     * The width a [mark] takes from its word's zone, counted on both sides because the text is
+     * centred, as the badge's is. Sets [markPaint]'s size from [paint], so the drawing reads it next.
+     */
+    private fun markReach(mark: BarMark, paint: Paint, orn: Float): Float {
+        val glyph = mark.glyph ?: return 0f
+        markPaint.textSize = paint.textSize * MARK_TEXT_FRACTION
+        return 2f * (MARK_GAP_DP * density * orn + markPaint.measureText(glyph))
     }
 
     /**
@@ -748,9 +778,9 @@ class SuggestionBarView @JvmOverloads constructor(
             val left = layout.bounds[i]
             val zoneW = layout.bounds[i + 1] - left
             val cx = layout.centers[i]
-            // Bold goes to the overall top candidate, or the committed word, on whatever page it
-            // falls.
-            val emphasized = if (correctionMode) fullIdx == selectedIndex else fullIdx == 0
+            // Bold goes to the overall top candidate (with the switch, the word space writes, or
+            // none), or the committed word, on whatever page it falls.
+            val emphasized = if (correctionMode) fullIdx == selectedIndex else fullIdx == boldAt
             if (correctionMode && fullIdx == selectedIndex) {
                 val pad = 4f * density * orn
                 // Compact zones run to the bar's edges; the chip hugs the word instead.
@@ -764,8 +794,13 @@ class SuggestionBarView @JvmOverloads constructor(
                 canvas.drawRoundRect(zoneRect, corner, corner, chipPaint)
             }
             val paint = if (emphasized) primaryPaint else textPaint
-            val shown = fit(s.word, paint, zoneW)
+            val shown = fit(s.word, paint, zoneW - markReach(s.mark, paint, orn))
             canvas.drawText(shown, cx, baseY, paint)
+            // Left of the word, its top on the word's: the badge holds the right.
+            s.mark.glyph?.let { glyph ->
+                val markX = cx - paint.measureText(shown) / 2f - MARK_GAP_DP * density * orn
+                canvas.drawText(glyph, markX, baseY + paint.ascent() - markPaint.ascent(), markPaint)
+            }
             // While a slide is armed on this zone, the badge previews the pending tier.
             val blockArmed = adjustArmed && i == adjustZone &&
                 BarAdjust.blockArmed(s.count, adjustSteps)
@@ -900,12 +935,7 @@ class SuggestionBarView @JvmOverloads constructor(
 
     private fun fit(word: String, paint: Paint, maxW: Float): String {
         val inset = TEXT_INSET_DP * density * BarMetrics.scale(rowHeight(), density)
-        if (paint.measureText(word) <= maxW - inset) return word
-        var s = word
-        while (s.length > 3 && paint.measureText("$s…") > maxW - inset) {
-            s = s.dropLast(1)
-        }
-        return "$s…"
+        return BarFit.fit(word, maxW - inset, middleCut) { paint.measureText(it) }
     }
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
@@ -1211,6 +1241,10 @@ class SuggestionBarView @JvmOverloads constructor(
     }
 
     private companion object {
+        // A word's mark, left of it: small enough to read as a note on the word, not a letter.
+        const val MARK_GAP_DP = 3f
+        const val MARK_TEXT_FRACTION = 0.5f
+
         /** Most zones one page may hold, whatever the words measure. */
         const val MAX_ZONES = 5
 

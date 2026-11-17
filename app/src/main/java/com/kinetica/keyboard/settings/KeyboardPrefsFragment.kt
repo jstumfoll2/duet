@@ -45,6 +45,7 @@ import com.kinetica.keyboard.keys.ActionRow
 import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutLoader
 import com.kinetica.keyboard.layout.LayoutTransforms
+import com.kinetica.keyboard.layout.SymbolRows
 import com.kinetica.keyboard.ui.Hsv
 import com.kinetica.keyboard.ui.KeyboardTheme
 import com.kinetica.keyboard.ui.ThemePresets
@@ -95,6 +96,8 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
             true
         }
         if (rootKey == SettingsSynonyms.LONGPRESS_GROUP) addLetterRows()
+        if (rootKey == SettingsSynonyms.SYMBOL_PAGES_GROUP) addSymbolRows()
+        wireSymbolRows()
         wireTraceScreen()
         dropIconSpace(preferenceScreen)
         wireThemePreview(night = false)
@@ -579,6 +582,130 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         )
     }
 
+    // ------------------------------------------------------------------ symbol pages (#120)
+
+    /** Each symbol page's row opens its editor and says whether its rows are edited. */
+    private fun wireSymbolRows() {
+        val prefs = preferenceManager.sharedPreferences ?: return
+        for (page in 1..2) {
+            val row = findPreference<Preference>("pref_symbol_rows_$page") ?: continue
+            val ctx = row.context
+            row.summary = SymbolRowsDialog.summary(ctx, prefs, page)
+            row.setOnPreferenceClickListener {
+                SymbolRowsDialog.show(ctx, prefs, page) { row.summary = SymbolRowsDialog.summary(ctx, prefs, page) }
+                true
+            }
+        }
+    }
+
+    /**
+     * One symbol per row below the symbol pages' editors, the two pages as they are now,
+     * typed rows included; a symbol on both pages once. Each shows its built-in list and opens
+     * pre-filled with it. Built in code because the pages are the user's; a page that cannot be
+     * read leaves its rows out instead of taking the screen down.
+     */
+    private fun addSymbolRows() {
+        val screen = preferenceScreen ?: return
+        val ctx = context ?: return
+        val prefs = preferenceManager.sharedPreferences ?: return
+        val config = KeyboardConfig.from(prefs)
+        val note = getString(R.string.pref_symbol_alternates_note_summary) + ". " +
+            getString(R.string.pref_letter_alternates_names, ActionRow.listTokenNames())
+        findPreference<Preference>(SYMBOL_NOTE_KEY)?.summary = note
+        val shown = HashSet<String>()
+        val rows = ArrayList<EditTextPreference>()
+        for (page in 1..2) {
+            val name = SymbolRows.pageName(page)
+            val built = try {
+                SymbolRows.apply(LayoutLoader.load(ctx.assets, "layouts/$name.json"), page, config.symbolRows(page))
+            } catch (e: IOException) {
+                Log.w(TAG, "symbol page $name", e)
+                continue
+            } catch (e: JSONException) {
+                Log.w(TAG, "symbol page $name", e)
+                continue
+            }
+            val group = PreferenceCategory(ctx).apply {
+                title = getString(if (page == 2) R.string.pref_symbol_alternates_page2_title else R.string.pref_symbol_alternates_page1_title)
+                isIconSpaceReserved = false
+            }
+            screen.addPreference(group)
+            for (symbol in SymbolRows.symbolsOf(built)) {
+                if (!shown.add(symbol)) continue
+                val own = built.keys.firstOrNull { it.output == symbol }?.alternates.orEmpty()
+                rows.add(addSymbolRow(group, symbol, own, note))
+            }
+        }
+        // Last, below the lists; every list goes, those of symbols no longer on a page too.
+        val reset = findPreference<Preference>(SYMBOL_RESET_KEY) ?: return
+        screen.removePreference(reset)
+        screen.addPreference(reset)
+        reset.setOnPreferenceClickListener {
+            AlertDialog.Builder(ctx)
+                .setTitle(R.string.pref_letter_alternates_reset_title)
+                .setMessage(R.string.pref_symbol_alternates_reset_message)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    rows.forEach { it.text = null }
+                    val e = prefs.edit()
+                    for (k in prefs.all.keys) if (Prefs.symbolOfAlternatesKey(k) != null) e.remove(k)
+                    e.apply()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            true
+        }
+    }
+
+    /**
+     * One symbol's row: its built-in list as the summary and the starting text, and a button that
+     * fills the built-in list back in. The built-in list typed back, or nothing, is stored as no list.
+     */
+    private fun addSymbolRow(group: PreferenceGroup, symbol: String, own: List<String>, note: String): EditTextPreference {
+        val ownText = own.joinToString(" ")
+        val row = EditTextPreference(group.context)
+        row.key = Prefs.symbolAlternatesKey(symbol)
+        row.title = symbol
+        row.isSingleLineTitle = false
+        row.dialogTitle = getString(R.string.pref_letter_alternates_dialog_title, symbol)
+        row.dialogMessage = note
+        row.summaryProvider = Preference.SummaryProvider<EditTextPreference> { p ->
+            val t = p.text
+            when {
+                !t.isNullOrBlank() -> t
+                own.isEmpty() -> getString(R.string.pref_letter_alternates_none)
+                else -> getString(R.string.pref_letter_alternates_builtin, ownText)
+            }
+        }
+        row.setOnBindEditTextListener { edit ->
+            if (row.text.isNullOrBlank() && ownText.isNotEmpty()) {
+                edit.setText(ownText)
+                edit.setSelection(ownText.length)
+            }
+            if (ownText.isNotEmpty()) {
+                (edit.parent as? ViewGroup)?.addView(
+                    Button(edit.context).apply {
+                        text = getString(R.string.pref_symbol_alternates_builtin_button)
+                        setOnClickListener {
+                            edit.setText(ownText)
+                            edit.setSelection(ownText.length)
+                        }
+                    },
+                )
+            }
+        }
+        row.setOnPreferenceChangeListener { _, value ->
+            val list = KeyboardConfig.parseAlternates(value as? String, KeyboardConfig.MAX_LETTER_ALTERNATES)
+            if (list.isEmpty() || list == own) {
+                row.text = null
+                false
+            } else {
+                true
+            }
+        }
+        group.addPreference(row)
+        return row
+    }
+
     /** One letter's row: its built-in list as the summary and the starting text, and Default. */
     private fun addLetterRow(
         group: PreferenceGroup,
@@ -1045,6 +1172,8 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
         const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
         const val RESET_LETTER_LISTS_KEY = "pref_letter_alternates_reset"
         const val LETTER_NOTE_KEY = "pref_letter_alternates_note"
+        const val SYMBOL_NOTE_KEY = "pref_symbol_alternates_note"
+        const val SYMBOL_RESET_KEY = "pref_symbol_alternates_reset"
         const val PREVIEW_KEY = "pref_theme_preview"
         const val BACKDROP_ROW_KEY = "pref_backdrop_image"
         const val TRAIL_DOT_DP = 24f
