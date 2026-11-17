@@ -81,8 +81,17 @@ object ScoreModel {
      */
     @Volatile @JvmField var TAP_SIGMA = 0.4f
 
-    /** Shape-distance kw charged per nat of tap log-likelihood. */
-    @Volatile @JvmField var TAP_W = 0.1f
+    /**
+     * Shape-distance kw charged per nat of tap log-likelihood. 0.1 at first; at that weight a
+     * short all-tap word whose exact keys were tapped lost to a commoner word one key over
+     * (two letters are little evidence against the language model). Fitted again with the
+     * two-thumb encoder on, on the trace files before 2026-10-22: 0.15 was best there for
+     * all-tap words (82.2 -> 82.7%) and all words (83.0 -> 83.2%), true-label words 75.6 -> 75.5.
+     * Held out on the later files: all-tap 82.9 -> 83.4% (legacy score 83.8), all words
+     * 82.4 -> 82.5 (legacy 82.5), true-label 70.1 both. 0.2 and 0.3 gain a little more on taps
+     * held out and lose true-label words.
+     */
+    @Volatile @JvmField var TAP_W = 0.15f
 
     /** Keys farther than this from the touch are never tried. */
     @Volatile @JvmField var TAP_RADIUS = 1.2f
