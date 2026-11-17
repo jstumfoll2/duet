@@ -383,7 +383,12 @@ class WordPredictor(
         val key = AccentFolder.fold(prev.lowercase())
         val prevId = trie.nodeFor(key)
         val score = HashMap<Int, Float>()
-        for ((next, byte) in bigrams.successors(prevId, KineticaConstants.NEXT_WORD_POOL)) {
+        val pool = if (KineticaConstants.NEXT_WORD_WIDE) {
+            bigrams.contextSuccessors(prevId, KineticaConstants.NEXT_WORD_POOL)
+        } else {
+            bigrams.successors(prevId, KineticaConstants.NEXT_WORD_POOL)
+        }
+        for ((next, byte) in pool) {
             if (trie.isWord(next)) score[next] = 1f + KineticaConstants.BIGRAM_BOOST_MAX * byte / 255f
         }
         if (personal && personalBigrams.isNotEmpty()) {
@@ -511,6 +516,26 @@ class WordPredictor(
             trie.nodeFor(AccentFolder.fold(prev.lowercase())),
             trie.nodeFor(AccentFolder.fold(next.lowercase())),
         )
+
+    /**
+     * `ln P(next | prev)` from the pair table with probabilities (the million web pairs where the
+     * language has them), NaN when the pair is absent (#108).
+     */
+    fun pairLogP(prev: String, next: String): Float =
+        bigrams.logCond(
+            trie.nodeFor(AccentFolder.fold(prev.lowercase())),
+            trie.nodeFor(AccentFolder.fold(next.lowercase())),
+        )
+
+    /** These tables as the grammar pass's word probabilities ([GrammarCheck.Lm], #108). */
+    fun grammarLm(): GrammarCheck.Lm = object : GrammarCheck.Lm {
+        override fun logp(word: String, prev: String?) = lmOf(word, prev)
+        override fun isWord(word: String) = isWordIgnoringCase(word)
+    }
+
+    /** `ln C(prev)`: how much text [pairLogP] rests on after [prev]; NaN when unknown. */
+    fun contextLnCount(prev: String): Float =
+        bigrams.lnContextCount(trie.nodeFor(AccentFolder.fold(prev.lowercase())))
 
     /** The frequency byte fw is built from, of [word]'s own spelling; -1 when it is not a word. */
     fun frequencyByte(word: String): Int {
@@ -1418,6 +1443,9 @@ class WordPredictor(
             val head = w.substring(0, i)
             val tail = w.substring(i)
             if (!isWordIgnoringCase(head) || !isWordIgnoringCase(tail)) continue
+            // The bundled list, not the web pairs: on 21 trace files the web pairs' probability
+            // (alone, against the head's count, or as PMI) split as many typos and compounds as
+            // the bundled bytes do and lost `to feel`, `as long`, `we collect` (#108).
             val byte = pairByte(head, tail)
             // A cut the pairs hold wins over a paused one; the first paused cut is kept in case.
             if (paused == null && byte < KineticaConstants.SPACE_SPLIT_MIN_PAIR_BYTE && pausesMs != null &&

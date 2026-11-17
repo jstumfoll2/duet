@@ -15,7 +15,9 @@ package com.kinetica.keyboard.engine
  * - Agreement after a subject pronoun ([AGREEMENT]): `he don't` becomes `he doesn't`, `they
  *   doesn't` becomes `they don't`, `you was` becomes `you were`. Only the pronoun right before
  *   is read, so the rules are the ones no context can make right.
- * - Confusion sets ([CONFUSIONS]): a member is swapped for another when the bundled word pairs
+ * - Confusion sets ([CONFUSIONS]), with [Lm] ([USE_LM]): a member is swapped for another when
+ *   its probability between the word before and the word after beats the word as written by
+ *   [LM_MARGIN] nats. Without it, the older byte rule: a member is swapped when the bundled word pairs
  *   favour the other with the next word by [KineticaConstants.GRAMMAR_PAIR_GAP] boost bytes, the
  *   pair is a real one ([KineticaConstants.GRAMMAR_MIN_PAIR_BYTE]), and the pair with the word
  *   before does not favour the word as written by as much. Word pairs are counted from Tatoeba,
@@ -31,6 +33,38 @@ object GrammarCheck {
     fun interface Pairs {
         fun byte(prev: String, next: String): Int
     }
+
+    /**
+     * Word probabilities for the confusion sets on the web pairs (#108): `ln P(word | prev)`
+     * (prev null at the start of the text), and whether the dictionary spells a word.
+     */
+    interface Lm {
+        fun logp(word: String, prev: String?): Float
+        fun isWord(word: String): Boolean
+    }
+
+    /**
+     * Nats by which an alternative's `ln P(alt | before) + ln P(next | alt)` must beat the word as
+     * written for the [Lm] path to swap it: the prior that the user meant what they typed.
+     */
+    @Volatile @JvmField var LM_MARGIN = 4f
+
+    /**
+     * Whether the keyboard decides the confusion sets on [Lm] (the million web pairs) rather
+     * than the bundled pair bytes. On 21 trace files (#108), swapping each confusion-set word the
+     * user typed for its partners: the bytes put back 262 of 637 with 4 wrong; [Lm] at 4 nats
+     * 312 of 652 with 4 wrong. On the text as typed it rewrites fewer words (21 against 29
+     * outside the article rule) and drops `through a` -> `threw a` and `we're leaving` ->
+     * `were leaving`.
+     */
+    @Volatile @JvmField var USE_LM = true
+
+    /**
+     * Nats by which the word before may favour the word as written over an alternative before
+     * the [Lm] path leaves it: `the there an` stays, since `the they're` is no pair however
+     * well `they're an` reads.
+     */
+    @Volatile @JvmField var LM_LEFT_VETO = 2f
 
     /** Words often written for one another, each set read as alternatives for its members. */
     val CONFUSIONS: List<Set<String>> = listOf(
@@ -90,7 +124,7 @@ object GrammarCheck {
      * The word [prev] should be, given [before] it (null at the start of the text) and [next]
      * after it, or null to leave it. Lowercase in and out; the caller restores the case.
      */
-    fun fixPrevious(before: String?, prev: String, next: String, pairs: Pairs): String? {
+    fun fixPrevious(before: String?, prev: String, next: String, pairs: Pairs, lm: Lm? = null): String? {
         if (prev.isEmpty() || next.isEmpty()) return null
         article(prev, next)?.let { return it }
         if (prev == "of" && before in MODALS && next.firstOrNull()?.isLetter() == true) return "have"
@@ -98,7 +132,34 @@ object GrammarCheck {
         val set = CONFUSIONS.firstOrNull { prev in it } ?: return null
         // `of of` is a word typed twice, not `off of`.
         if (next == prev) return null
-        return confusion(before, prev, next, set, pairs)
+        return if (lm != null) confusionLm(before, prev, next, set, lm) else confusion(before, prev, next, set, pairs)
+    }
+
+    /**
+     * The confusion sets on [lm]: the member whose two pairs, with the word before and the word
+     * after, are likeliest, when it beats the word as written by [LM_MARGIN] nats. A member the
+     * dictionary cannot spell is never written, and a word it cannot spell is never replaced: its
+     * probability is the floor, so anything would beat it (`i'll be` read as `ill be`).
+     */
+    private fun confusionLm(before: String?, prev: String, next: String, set: Set<String>, lm: Lm): String? {
+        if (!lm.isWord(prev) || !lm.isWord(next)) return null
+        // `off off the`, `your your for`: a word typed twice, not a confusion.
+        if (before == prev) return null
+        fun score(w: String) = lm.logp(w, before) + lm.logp(next, w)
+        val asTyped = score(prev)
+        val leftAsTyped = if (before != null) lm.logp(prev, before) else 0f
+        var best: String? = null
+        var bestScore = asTyped + LM_MARGIN
+        for (alt in set) {
+            if (alt == prev || !lm.isWord(alt)) continue
+            if (before != null && leftAsTyped - lm.logp(alt, before) > LM_LEFT_VETO) continue
+            val s = score(alt)
+            if (s >= bestScore) {
+                best = alt
+                bestScore = s
+            }
+        }
+        return best
     }
 
     /** `a`/`an` for [next], or null when [prev] is no article or already right. */

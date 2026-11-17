@@ -106,6 +106,11 @@ class ReplayHarness(
      * these sources (`all` for every label, `practice` for prompted words). Null is off.
      */
     private val templateSources: Set<String>? = null,
+    /**
+     * Whether [touch] and [aim] learn from each line's label. Off when they hold a phone's
+     * exported state (`--state`), which already learned from these words.
+     */
+    private val modelsLearn: Boolean = true,
 ) {
     /** The retype counts learned so far; kept across files, as the preference is on a phone. */
     var retypeStore: com.kinetica.keyboard.engine.RetypePenalties = com.kinetica.keyboard.engine.RetypePenalties.EMPTY
@@ -131,6 +136,12 @@ class ReplayHarness(
         /** A store read from a backup and left as it is: lines decode with it and teach nothing. */
         val frozen: Boolean = false,
     ) {
+        /** The bar menu's downranks (Never / Less / More), from a backup's `pref_word_penalties`. */
+        var penalties: com.kinetica.keyboard.engine.WordPenalties = com.kinetica.keyboard.engine.WordPenalties.parse(null)
+
+        /** Retype counts from a backup's `pref_retype_counts`, when its switch was on; null otherwise. */
+        var retype: com.kinetica.keyboard.engine.RetypePenalties? = null
+
         val counts = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
         val pairs = HashMap<String, java.util.concurrent.ConcurrentHashMap<String, Int>>()
         internal var sinceReload = 0
@@ -215,6 +226,7 @@ class ReplayHarness(
             it.touchModel = touch
             it.aimModel = aim
             it.trigrams = d.trigrams
+            learner?.let { l -> it.penalties = l.penalties.forLanguage(lang) }
         }
     }
 
@@ -250,6 +262,9 @@ class ReplayHarness(
         if (retypeSources != null) {
             active.retypeCounts = retypeStore.forLanguage(cfg.language)
             cfg.alternate?.let { alt?.retypeCounts = retypeStore.forLanguage(it) }
+        } else learner?.retype?.let { r ->
+            active.retypeCounts = r.forLanguage(cfg.language)
+            cfg.alternate?.let { alt?.retypeCounts = r.forLanguage(it) }
         }
         val layout = if (templateSources != null) com.kinetica.keyboard.engine.ShapeTemplates.layoutOf(g) else ""
         if (templateSources != null) {
@@ -295,11 +310,11 @@ class ReplayHarness(
                 dicts.clear()
             }
         }
-        if (touch != null && label != null) {
+        if (touch != null && modelsLearn && label != null) {
             val codes = active.alphabet.encode(com.kinetica.keyboard.engine.AccentFolder.fold(label))
             if (codes != null) touch.learn(codes, tokens, g)
         }
-        if (aim != null && label != null) {
+        if (aim != null && modelsLearn && label != null) {
             val codes = active.alphabet.encode(com.kinetica.keyboard.engine.AccentFolder.fold(label))
             if (codes != null) aim.learn(codes, tokens, g)
         }

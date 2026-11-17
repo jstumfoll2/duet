@@ -27,6 +27,12 @@ object MarkedContractions {
         "shed" to "she'd",
     )
 
+    /** True when one of [language]'s contractions here starts with [prefix] (`i'` for `i'll`). */
+    fun startsWith(language: String, prefix: String): Boolean = when (language) {
+        "en" -> EN.values.any { it.startsWith(prefix) }
+        else -> false
+    }
+
     /** The contraction a marked [word] stands for in [language], or null. */
     fun of(language: String, word: String): String? = when (language) {
         "en" -> EN[word]

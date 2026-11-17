@@ -38,6 +38,7 @@ import com.kinetica.keyboard.data.KineticaDb
 import com.kinetica.keyboard.data.UserBigram
 import com.kinetica.keyboard.data.UserWord
 import com.kinetica.keyboard.engine.AccentFolder
+import com.kinetica.keyboard.engine.ApostropheJoin
 import com.kinetica.keyboard.engine.DecodeTrace
 import com.kinetica.keyboard.engine.Alphabet
 import com.kinetica.keyboard.engine.DictionaryLoader
@@ -2065,7 +2066,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 ich.textBeforeCursor(tentativeLength + 1)?.dropLast(tentativeLength) ?: ""
             // A word reopened by a retraction and read as two is judged by its second word.
             val spaced = autospaceLiteral(literal)
-            if (autospacesTappedWord(
+            // `I'` waits for the rest of its word (#164).
+            if (!tentativeWord.endsWith("'") && autospacesTappedWord(
                     enabled = config.autospaceTappedWords,
                     hasSwipeToken = false,
                     literal = spaced,
@@ -2287,7 +2289,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 else -> null
             }?.let { TraceRecorder.key(it, android.os.SystemClock.uptimeMillis()) }
             when (key.type) {
-                KeyType.CHAR -> if (!markApostrophe(key)) onPunctuation(key.output)
+                KeyType.CHAR -> if (!markApostrophe(key) && !joinApostrophe(key)) onPunctuation(key.output)
                 KeyType.SPACE -> {
                     onSpace()
                     if (lettersAfterSpace(config.lettersAfterSpace, keyboardView?.shownBoard)) {
@@ -5107,6 +5109,43 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         return true
     }
 
+    /**
+     * A tap on the apostrophe key after a pecked word joins that word when a contraction can
+     * follow ([ApostropheJoin], #164, after upstream Kinetica 3.0.2): `I` `'` `d` stays one word,
+     * `I'd`, so learning, autocorrect and reopening see it whole. The apostrophe goes on screen
+     * where it was tapped and the word stays in hand, marked ([WordComposer.markApostrophe]), so
+     * the decode offers the apostrophe spellings (`i'd`, not `id`). A tapped word whose automatic
+     * space already went in is reopened first, as a letter would reopen it. True when the tap
+     * was taken that way; anywhere else the apostrophe ends the word as punctuation.
+     */
+    private fun joinApostrophe(key: Key): Boolean {
+        if (key.id != LayoutMutations.APOSTROPHE_KEY_ID || config.peckMode || editorState.privateMode) return false
+        val comp = composer ?: return false
+        if (comp.hasSwipeToken() || comp.apostropheMarked || engine.hasActivePointers()) return false
+        if (tentativeLength == 0 && !comp.hasPendingWord) {
+            // `I`, its automatic space, then the apostrophe: the space goes and the word comes back.
+            if (!autospaceFromTaps || !autospaceInserted) return false
+            if (SystemClock.uptimeMillis() - autospaceAt > config.autospaceRetractMs) return false
+            val base = wordBeforeAutospace(ich.textBeforeCursor(KineticaConstants.MAX_WORD_LEN + 2) ?: "")
+            if (!apostropheJoins(base)) return false
+            retractAutospace(SystemClock.uptimeMillis())
+        }
+        if (tentativeLength == 0 || !comp.hasPendingWord || !apostropheJoins(tentativeWord)) return false
+        cancelAutospace()
+        clearCorrection()
+        commitTracked("'")
+        tentativeLength += 1
+        tentativeWord += "'"
+        comp.markApostrophe()
+        DecodeTrace.log { "  apostrophe join word=$tentativeWord" }
+        return true
+    }
+
+    private fun apostropheJoins(word: String): Boolean =
+        ApostropheJoin.joins(word, config.language) { prefix ->
+            predictor?.isLivePrefix(prefix) == true || secondaryPredictor?.isLivePrefix(prefix) == true
+        }
+
     private fun onPunctuation(text: String) {
         if (text.length == 1 && consumeCtrl(text.lowercase())) return
         // Read before cancelAutospace and commitTracked clear them.
@@ -5590,13 +5629,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             finalizeSplitHead(comp)
         }
 
+        // A joined apostrophe with nothing after it (`I'` then a space): the word ends as it would
+        // have, with the apostrophe typed after it. Its decode was marked, so autocorrect is off
+        // for it: the marked list would turn `I` into `I'm` (#164).
+        val dangling = !comp.hasSwipeToken() && tentativeWord.length > 1 && tentativeWord.endsWith("'")
+        if (dangling) replaceTentative(tentativeWord.dropLast(1))
         var finalWord = tentativeWord
         var how = if (comp.hasSwipeToken()) "tentative" else "typed"
         lastAutocorrect = null
         val p = predictor
         val threshold = config.autocorrectConfidence
         if (p != null && !comp.hasSwipeToken() && lastLiteral.isNotEmpty() &&
-            !editorState.privateMode
+            !editorState.privateMode && !dangling
         ) {
             val keeps = keepsTypedLetters(
                 editedByHand = reloadedWord != null && reloadedByHand,
@@ -5672,7 +5716,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // A word marked by a tap on the apostrophe key that has no apostrophe spelling
         // ("dogs" swiped, then ') still gets the apostrophe the user tapped, at the end,
         // where a tap after the word would have put it.
-        if (comp.apostropheMarked && finalWord.none { it == '\'' || it == '\u2019' }) {
+        if (comp.apostropheMarked && !dangling && finalWord.none { it == '\'' || it == '\u2019' }) {
             val withApostrophe = "$finalWord'"
             replaceTentative(withApostrophe)
             finalWord = withApostrophe
@@ -5697,6 +5741,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val rest = comp.twoWords?.takeIf { !it.swipeHead && (reloadedWord == null || comp.rejoinHead > 0) && it.tapWord != null }?.restWord
         val swiped = swipeJoin(comp, finalWord)
         commitWordInternal(finalWord)
+        if (dangling) commitTracked("'")
         if (joinedAt > 0 && autoFixUndo == null) {
             joinedCommit = JoinedCommit(finalWord, joinedAt, cursorExpected(), rest)
             DecodeTrace.log { "  joined word=$finalWord head=${finalWord.take(joinedAt)} rest=${rest ?: "-"}" }
@@ -6478,7 +6523,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val (before, shown) = words
         val prev = shown.lowercase()
         if (composer?.contextSnapshot()?.let { it.size >= 2 && it[it.size - 2] == prev } != true) return
-        val fixed = GrammarCheck.fixPrevious(before?.lowercase(), prev, word.lowercase()) { a, b -> p.pairByte(a, b) }
+        val lm = if (GrammarCheck.USE_LM) p.grammarLm() else null
+        val fixed = GrammarCheck.fixPrevious(before?.lowercase(), prev, word.lowercase(), { a, b -> p.pairByte(a, b) }, lm)
             ?: return
         val replacement = GrammarCheck.inCaseOf(shown, fixed)
         val span = shown.length + 1 + word.length
@@ -6780,7 +6826,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
         // Its own file, not the settings: per-key averages, kept out of a settings backup.
         const val TOUCH_MODEL_PREFS = Prefs.TOUCH_MODEL_FILE
-        const val TOUCH_MODEL_KEY = "model"
+        const val TOUCH_MODEL_KEY = Prefs.TOUCH_MODEL_KEY
 
         /** Commits kept with their readings for the "fix this sentence" action. */
         const val SENTENCE_WORDS_KEPT = 24
@@ -6789,7 +6835,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         const val SENTENCE_TAIL_CHARS = 300
         /** Swipes in a row on another layout before the stored shape templates start again for it. */
         const val SHAPE_MISFITS_TO_RESTART = 30
-        const val AIM_MODEL_KEY = "aim"
+        const val AIM_MODEL_KEY = Prefs.AIM_MODEL_KEY
         const val USER_DICT_LIMIT = 5000
         const val USER_PAIR_LIMIT = 5000
         // Undone autocorrects remembered at once: more distinct words than one session undoes.

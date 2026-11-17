@@ -14,6 +14,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.view.setPadding
 import com.kinetica.keyboard.R
+import com.kinetica.keyboard.engine.trace.SwipeTrace
+import com.kinetica.keyboard.settings.Prefs
 import java.io.IOException
 
 /**
@@ -32,7 +34,7 @@ class TraceActivity : AppCompatActivity() {
 
     private val createWordExport =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/x-ndjson")) { uri ->
-            if (uri != null) write(uri, TraceRecorder.words.readAll())
+            if (uri != null) write(uri, withState(TraceRecorder.words.readAll()))
         }
 
     private val createExport =
@@ -314,6 +316,16 @@ class TraceActivity : AppCompatActivity() {
     }
 
     private fun export(uri: Uri) = write(uri, TraceRecorder.readAll())
+
+    /**
+     * [words] with a closing state line: the learned touch and aim models as they stand now, so
+     * `replay --state` decodes with what the phone used (#97). Per-key averages only.
+     */
+    private fun withState(words: String): String {
+        val f = getSharedPreferences(Prefs.TOUCH_MODEL_FILE, MODE_PRIVATE)
+        val state = SwipeTrace.encodeState(f.getString(Prefs.TOUCH_MODEL_KEY, null), f.getString(Prefs.AIM_MODEL_KEY, null))
+        return if (words.isEmpty() || words.endsWith("\n")) words + state + "\n" else words + "\n" + state + "\n"
+    }
 
     private fun write(uri: Uri, text: String) {
         val ok = try {

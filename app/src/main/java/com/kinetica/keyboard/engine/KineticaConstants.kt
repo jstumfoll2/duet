@@ -944,6 +944,13 @@ object KineticaConstants {
      */
     const val NEXT_WORD_POOL = 32
 
+    /**
+     * Next-word predictions from the million web pairs (#108) instead of the bundled list. On
+     * 15,097 free-typed English words of 21 trace files, the word typed next was among the bar's
+     * three 14.5% of the time on the web pairs and 12.1% on the bundled list (first: 7.7%, 6.5%).
+     */
+    @Volatile @JvmField var NEXT_WORD_WIDE = true
+
     // Personal words merge into the active language's trie at dictionary load, scaled by
     // USER_FREQ_SCALE so a few real uses compete with corpus counts in the millions, once
     // committed PERSONAL_MERGE_MIN_COUNT times. One stray commit (a language-swap misfire, a
