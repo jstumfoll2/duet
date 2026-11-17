@@ -60,6 +60,22 @@ class GrammarLmTest {
         }
     }
 
+    @Test
+    fun peckedContractionsDecodeWithTheMark() {
+        // A tapped apostrophe joins the pecked word and marks it (#164): the taps' letters decode
+        // to the contraction, even where the list keeps it out (i'd, we're).
+        val g = TestData.qwertyGeometry()
+        val want = listOf("don't", "can't", "i'm", "i'd", "i'll", "we're", "it's", "didn't", "you're", "isn't")
+        val missed = want.filter { c ->
+            val taps = c.filter { it != '\'' }.mapIndexed { i, ch -> TestData.tap(ch, g, i * 150L) }
+            p.decode(taps, listOf("so"), apostrophe = true).firstOrNull()?.word?.lowercase() != c
+        }
+        assertEquals(emptyList<String>(), missed)
+        assertEquals(true, ApostropheJoin.joins("don", "en") { p.isLivePrefix(it) })
+        assertEquals(true, ApostropheJoin.joins("I", "en") { p.isLivePrefix(it) })
+        assertEquals(false, ApostropheJoin.joins("dogs", "en") { p.isLivePrefix(it) })
+    }
+
     companion object {
         private lateinit var p: WordPredictor
 
