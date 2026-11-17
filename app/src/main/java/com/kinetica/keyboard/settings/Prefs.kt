@@ -534,6 +534,13 @@ object Prefs {
     const val LEARN_PHRASES = "pref_learn_phrases"
 
     /**
+     * Offer the two to four words this user nearly always types next as one zone of the
+     * next-word bar (engine.PhraseContinuation, issue #137). Built from the pairs
+     * [LEARN_PHRASES] keeps, so it does nothing without it.
+     */
+    const val PHRASE_CHIP = "pref_phrase_chip"
+
+    /**
      * The words of contact names become dictionary words, read on this phone at dictionary load
      * and never stored. Off by default: it needs READ_CONTACTS, which the settings screen asks
      * for when this is turned on.
@@ -901,6 +908,7 @@ object Prefs {
     const val DEFAULT_NO_PRIMARY = false
     const val DEFAULT_EDIT_FROM_MENU = false
     const val DEFAULT_LEARN_PHRASES = false
+    const val DEFAULT_PHRASE_CHIP = false
     const val DEFAULT_CONTACT_NAMES = false
     const val DEFAULT_NEXT_WORD = true
     const val DEFAULT_SMS_CODES = false

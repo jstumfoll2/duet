@@ -677,6 +677,8 @@
     <string name="dict_clear_phrases">Clear learned phrases</string>
     <string name="dict_clear_phrases_confirm">Forget every word pair Duet has learned for %1$s? The learned words themselves are kept.</string>
     <string name="pref_learn_phrases_title">Learn phrases you type</string>
+    <string name="pref_phrase_chip_title">Offer whole phrases</string>
+    <string name="pref_phrase_chip_summary">When you nearly always go on the same way, the next-word bar offers the next two to four words as one tap. Needs next-word suggestions and a few repeats of the phrase</string>
     <string name="pref_contact_names_title">Names from contacts</string>
     <string name="pref_contact_names_summary">Lets you swipe the names in your contacts before you have typed them. Needs permission to read contacts. Duet reads only the names, on this phone, keeps no copy and has no internet access. Words in Android\'s personal dictionary are always included</string>
     <string name="pref_contact_names_denied">Duet was not allowed to read contacts, so names stay off. To allow it later, open Duet\'s app info and go to Permissions, then Contacts, then Allow</string>

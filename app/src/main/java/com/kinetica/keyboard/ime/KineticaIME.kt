@@ -271,6 +271,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private var expansionChoice: ExpansionChoice? = null
 
     /**
+     * A whole phrase offered as one zone of the idle bar (#137): [text] is the zone, [words] what
+     * a pick commits one by one, [shown] the bar it sits on.
+     */
+    private class PhraseOffer(val text: String, val words: List<String>, val shown: List<String>)
+
+    private var phraseOffer: PhraseOffer? = null
+
+    /** Prefs.PHRASE_CHIP. Counts only with phrase learning on, where the pairs come from. */
+    private var phraseChipOn = false
+
+    /**
      * Clips or one-time codes on the bar, until one is picked or the bar moves on. [texts] is
      * what a pick writes, [shown] the labels, one per text.
      */
@@ -671,12 +682,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         EdgeSwipeDefaults.applyTo(prefs)
         config = KeyboardConfig.from(prefs, systemNight())
         RetypePenalties.enabled = prefs.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
+        phraseChipOn = prefs.getBoolean(Prefs.PHRASE_CHIP, Prefs.DEFAULT_PHRASE_CHIP)
         usageOn = prefs.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
         applyFingerOffsets()
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
             val previous = config
             config = KeyboardConfig.from(p, systemNight())
             RetypePenalties.enabled = p.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
+            phraseChipOn = p.getBoolean(Prefs.PHRASE_CHIP, Prefs.DEFAULT_PHRASE_CHIP)
             usageOn = p.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
             // What decides the automatic space, whenever any of it changes and from wherever.
             if (config.autospace != previous.autospace || config.tidySpaces != previous.tidySpaces ||
@@ -2571,8 +2584,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val idle = quiet && config.nextWord && !editorState.privateMode && tentativeLength == 0 &&
             composer?.hasPendingWord != true
         if (!idle) {
-            if (barPredictions.isNotEmpty()) {
+            if (barPredictions.isNotEmpty() || phraseOffer != null) {
                 barPredictions = emptyList()
+                phraseOffer = null
                 if (quiet) bar.clearSuggestions()
             }
             return
@@ -2580,21 +2594,54 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val prev = previousWordForPrediction(ich.textBeforeCursor(PREDICT_TAIL_CHARS))
         val found = if (prev == null) emptyList() else predictNext(prev).filter { it.word.lowercase() !in blockedSpellings }
         // The pronoun's own capital, which a prediction never went through displayWord for.
-        val shown = found.map { AutoCapitalization.forWord(it.word, config.language, it.language.ifEmpty { config.language }) }
+        val words = found.map { AutoCapitalization.forWord(it.word, config.language, it.language.ifEmpty { config.language }) }
+        val phrase = if (prev == null) emptyList() else phraseAfter(prev)
+        val phraseText = phrase.joinToString(" ")
+        // After the likeliest single word, which is most often the phrase's own first word.
+        val shown = if (phrase.isEmpty()) words else words.take(1) + phraseText + words.drop(1)
+        val offer = if (phrase.isEmpty()) null else PhraseOffer(phraseText, phrase, shown)
         // Against what the bar shows now: it can be cleared behind these predictions' back.
-        if (found.isNotEmpty() && bar.showsWords(shown)) {
+        if (shown.isNotEmpty() && bar.showsWords(shown)) {
             barPredictions = found
+            phraseOffer = offer
             return
         }
         barPredictions = found
-        if (found.isEmpty()) {
+        phraseOffer = offer
+        if (shown.isEmpty()) {
             bar.clearSuggestions()
             return
         }
         candidateLanguages = found.filter { it.language.isNotEmpty() }
             .associate { it.word.lowercase() to it.language }
-        bar.setSuggestions(shown.map { barSuggestion(it) })
-        DecodeTrace.log { "  predict next prev=$prev n=${found.size} first=${found.first().word}" }
+        bar.setSuggestions(shown.map { if (it == offer?.text) SuggestionBarView.Suggestion(it, 0) else barSuggestion(it) })
+        DecodeTrace.log { "  predict next prev=$prev n=${found.size} first=${found.firstOrNull()?.word} phrase=${phrase.size}" }
+    }
+
+    /**
+     * The phrase chip's words after [prev], or none: the switch is on, pairs are being learned,
+     * and this field may show what was learned. The typing language's own pairs only.
+     */
+    private fun phraseAfter(prev: String): List<String> {
+        if (!phraseChipOn || !config.learnPhrases || editorState.teachesNothing) return emptyList()
+        return predictor?.phraseAfter(prev) { it.lowercase() !in blockedSpellings }.orEmpty()
+            .map { AutoCapitalization.forWord(it, config.language, config.language) }
+    }
+
+    /**
+     * Commits a picked phrase one word at a time, each as a pick of a predicted word: every
+     * word and pair is learned as itself, and one backspace run takes the words back singly.
+     */
+    private fun pickPhrase(offer: PhraseOffer) {
+        DecodeTrace.log { "  phrase pick words=${offer.words.size}" }
+        for (w in offer.words) {
+            // Each word follows the one on screen, as a predicted word does.
+            previousWordForPrediction(ich.textBeforeCursor(PREDICT_TAIL_CHARS))
+                ?.let { composer?.anchorContext(it) }
+            barPredictions = emptyList()
+            phraseOffer = null
+            onSuggestionPicked(w)
+        }
     }
 
     /**
@@ -3012,6 +3059,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             suggestionBar?.showWordNote(explainWord(word, lang))
             return
         }
+        // A phrase chip is not a word: nothing to weigh, block or forget.
+        if (' ' in word) return
         if (editorState.teachesNothing) {
             DecodeTrace.log { "  word menu refused word=$word action=$action src=teaches-nothing" }
             return
@@ -3055,7 +3104,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     private fun onSuggestionBlocked(word: String, source: BarAdjust.BlockSource) {
         if (editorState.teachesNothing || word.isEmpty()) return
-        if (expansionsOnBar()) {
+        if (expansionsOnBar() || ' ' in word) {
             DecodeTrace.log { "  weight refused word=$word src=expansion" }
             return
         }
@@ -3150,7 +3199,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     /** Long-press weight adjustment from the bar: signed, scaled by config. */
     private fun onSuggestionReinforced(word: String, delta: Int) {
         if (editorState.teachesNothing || delta == 0) return
-        if (expansionsOnBar()) {
+        if (expansionsOnBar() || ' ' in word) {
             DecodeTrace.log { "  weight refused word=$word src=expansion" }
             return
         }
@@ -5040,6 +5089,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             val i = choice.shown.indexOf(word)
             if (i >= 0 && suggestionBar?.showsWords(choice.shown) == true) {
                 pickExpansion(choice, i)
+                return
+            }
+        }
+        val phrase = phraseOffer
+        if (phrase != null) {
+            phraseOffer = null
+            if (word == phrase.text && keptBar == null && tentativeLength == 0 &&
+                suggestionBar?.showsWords(phrase.shown) == true
+            ) {
+                pickPhrase(phrase)
                 return
             }
         }

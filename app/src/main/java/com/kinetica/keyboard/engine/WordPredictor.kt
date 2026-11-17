@@ -331,6 +331,19 @@ class WordPredictor(
             .map { (node, s) -> NextWord(displayOf(node), s, language) }
     }
 
+    /**
+     * The phrase this user nearly always types after [prev], in the spellings the bar shows, or
+     * empty (see [PhraseContinuation]). Only words the dictionary holds and [allowed] passes.
+     */
+    fun phraseAfter(prev: String, allowed: (String) -> Boolean = { true }): List<String> {
+        if (personalBigrams.isEmpty()) return emptyList()
+        val p = penalties
+        return PhraseContinuation.after(prev, personalBigrams) { w ->
+            val node = trie.nodeFor(w)
+            node >= 0 && trie.isWord(node) && displayOf(node).let { allowed(it) && p[it.lowercase()] == null }
+        }.map { displayOf(trie.nodeFor(it)) }
+    }
+
     /** The spelling shown for [node]: its most frequent display form, else the trie's own. */
     private fun displayOf(node: Int): String =
         forms[node]?.maxByOrNull { it.freqByte }?.display ?: trie.wordOf(node)
