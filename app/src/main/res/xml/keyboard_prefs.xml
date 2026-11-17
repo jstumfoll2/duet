@@ -1082,6 +1082,35 @@
                         android:summary="@string/pref_letter_alternates_note_summary"
                         android:selectable="false" />
                 </PreferenceScreen>
+                <PreferenceScreen
+                    android:key="pref_group_symbol_pages"
+                    android:title="@string/pref_group_symbol_pages_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_group_symbol_pages_summary">
+                    <!-- Rows typed as text, edited in SymbolRowsDialog; one pref a row (Prefs.symbolRowKey). -->
+                    <Preference
+                        android:key="pref_symbol_rows_1"
+                        android:title="@string/pref_symbol_rows_1_title"
+                        app:singleLineTitle="false"
+                        android:persistent="false" />
+                    <Preference
+                        android:key="pref_symbol_rows_2"
+                        android:title="@string/pref_symbol_rows_2_title"
+                        app:singleLineTitle="false"
+                        android:persistent="false" />
+                    <!-- Below them, one long-press list per symbol, built in code (KeyboardPrefsFragment.addSymbolRows). -->
+                    <Preference
+                        android:key="pref_symbol_alternates_note"
+                        android:selectable="false"
+                        android:persistent="false"
+                        app:singleLineTitle="false" />
+                    <Preference
+                        android:key="pref_symbol_alternates_reset"
+                        android:title="@string/pref_letter_alternates_reset_title"
+                        app:singleLineTitle="false"
+                        android:summary="@string/pref_symbol_alternates_reset_summary"
+                        android:persistent="false" />
+                </PreferenceScreen>
             </PreferenceCategory>
         </PreferenceScreen>
 

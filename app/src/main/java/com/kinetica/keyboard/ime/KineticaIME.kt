@@ -93,6 +93,7 @@ import com.kinetica.keyboard.layout.KeyboardLayout
 import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutLoader
 import com.kinetica.keyboard.layout.LayoutMutations
+import com.kinetica.keyboard.layout.SymbolRows
 import com.kinetica.keyboard.settings.ActionLabels
 import com.kinetica.keyboard.settings.ChordDefaults
 import com.kinetica.keyboard.settings.EdgeSwipeDefaults
@@ -795,6 +796,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             ) {
                 closeEmojiPicker()
                 keyboardView?.setKeyboardLayout(alphaLayout())
+            } else if (config.symbolRowLines != previous.symbolRowLines || config.symbolAlternates != previous.symbolAlternates) {
+                // An edit made with a symbol page up shows at once; otherwise the next page switch reads it.
+                val shown = keyboardView?.shownBoard
+                if (shown != null && shown in SymbolRows.PAGES) keyboardView?.setKeyboardLayout(symbolLayout(shown))
             } else if (config.editPage != previous.editPage && keyboardView?.shownBoard == EditPage.NAME) {
                 keyboardView?.setKeyboardLayout(config.editPage.layout())
             }
@@ -1237,6 +1242,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun layoutFor(name: String): KeyboardLayout =
         layouts.getOrPut(name) { LayoutLoader.load(assets, "layouts/$name.json") }
 
+    /**
+     * Symbol page `symbols` or `symbols2` with the user's rows over the bundled ones, and the
+     * user's long-press lists over theirs; an action written by name in a list runs, as in a
+     * letter's (#120).
+     */
+    private fun symbolLayout(name: String): KeyboardLayout {
+        val page = SymbolRows.pageOf(name)
+        val rows = SymbolRows.apply(layoutFor(name), page, config.symbolRows(page))
+        val lists = config.symbolAlternates.mapValues { (_, list) -> list.map(AlphaLayouts::cell) }
+        return SymbolRows.withLists(rows, lists)
+    }
+
     // Bounds arithmetic lives in KeyboardHeights, which is pure and testable: an inverted
     // min..max range once made coerceIn throw and crashed the process.
     private fun minKeyboardPx(): Int = numberRowPx(
@@ -1328,7 +1345,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         kv.edgeSwipeBindings = if (config.alternateSwipes) {
             // And both symbol pages: up on their top row, down on their lowest symbol row (upstream 3.0.2).
             EdgeSwipeBindings.withImplicitAlternates(
-                alphaLayout(), config.edgeSwipes, listOf(layoutFor("symbols"), layoutFor("symbols2")),
+                alphaLayout(), config.edgeSwipes, listOf(symbolLayout("symbols"), symbolLayout("symbols2")),
             )
         } else {
             config.edgeSwipes
@@ -2306,8 +2323,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
                 // ?123 always lands on page 1, so leaving and re-entering the
                 // symbols layer resets any page-2 state.
-                KeyType.MODE_SYMBOLS -> keyboardView?.setKeyboardLayout(layoutFor("symbols"))
-                KeyType.MODE_SYMBOLS2 -> keyboardView?.setKeyboardLayout(layoutFor("symbols2"))
+                KeyType.MODE_SYMBOLS -> keyboardView?.setKeyboardLayout(symbolLayout("symbols"))
+                KeyType.MODE_SYMBOLS2 -> keyboardView?.setKeyboardLayout(symbolLayout("symbols2"))
                 KeyType.MODE_ALPHA -> keyboardView?.setKeyboardLayout(alphaLayout())
                 KeyType.MODE_NUMPAD -> keyboardView?.setKeyboardLayout(layoutFor("numpad"))
                 KeyType.EMOJI -> openEmojiPicker()
@@ -2441,6 +2458,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         override fun onEditAlternates(letter: Char) {
             vibrateForKeyPress()
             openSettings(SettingsSynonyms.LONGPRESS_GROUP, Prefs.letterAlternatesKey(letter))
+        }
+
+        override fun onEditSymbolAlternates(symbol: String) {
+            vibrateForKeyPress()
+            openSettings(SettingsSynonyms.SYMBOL_PAGES_GROUP, Prefs.symbolAlternatesKey(symbol))
         }
 
         override fun onMenuAction(index: Int) = this@KineticaIME.performMenuAction(index)

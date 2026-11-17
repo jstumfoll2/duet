@@ -382,6 +382,31 @@ object Prefs {
      */
     fun letterAlternatesKey(letter: Char): String = "pref_alt_$letter"
 
+    /**
+     * Row [row] (1 to 3) of symbol page [page] (1 or 2), keys apart by spaces, absent for the
+     * built-in row (SymbolRows). A key a row, so a value never holds a newline.
+     */
+    fun symbolRowKey(page: Int, row: Int): String = "pref_symbols_${page}_row_$row"
+
+    /**
+     * One string per symbol-page key: its long-press list, space-separated, absent for the
+     * built-in one. Keyed by the symbol's code points in hex (`$` is `pref_alt_sym_24`), since a
+     * symbol may be any character, a quote or a slash among them.
+     */
+    fun symbolAlternatesKey(symbol: String): String =
+        SYMBOL_ALTERNATES_PREFIX + symbol.codePoints().toArray().joinToString("_") { Integer.toHexString(it) }
+
+    /** The symbol a [symbolAlternatesKey] names, or null for any other key. */
+    fun symbolOfAlternatesKey(key: String): String? {
+        if (!key.startsWith(SYMBOL_ALTERNATES_PREFIX)) return null
+        val points = key.removePrefix(SYMBOL_ALTERNATES_PREFIX).split('_').map { hex ->
+            hex.toIntOrNull(16)?.takeIf { Character.isValidCodePoint(it) } ?: return null
+        }
+        return String(points.toIntArray(), 0, points.size)
+    }
+
+    private const val SYMBOL_ALTERNATES_PREFIX = "pref_alt_sym_"
+
     /** Comma-key role: keep | remove | char | text | paste | select_all. */
     const val COMMA_MODE = "pref_comma_mode"
 

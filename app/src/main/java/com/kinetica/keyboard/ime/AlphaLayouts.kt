@@ -107,7 +107,7 @@ object AlphaLayouts {
      * A list entry as its cell: an action written by name (`:paste`) or as a target
      * (`action:paste`) becomes the symbol that runs it, in every list a user writes.
      */
-    private fun cell(entry: String): String = ActionRow.glyphForToken(entry) ?: entry
+    internal fun cell(entry: String): String = ActionRow.glyphForToken(entry) ?: entry
 
     private const val KEEP_COMMA = "keep"
 }

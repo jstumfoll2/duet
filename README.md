@@ -311,6 +311,10 @@ Everything below comes from Kinetica and works the same in Duet.
   Flick a word up to put it in at once.
 - Words sit side by side with a small gap (Suggestion bar > *Compact suggestions*, on),
   in a text size of your choice.
+- Three more bar switches (Suggestion bar, all off): *Cut long words in the middle* keeps a long
+  word's start and end; *Bold the word space writes* bolds only what a space would commit and puts
+  your tapped letters second; *Mark new and personal words* puts `+` (counts toward learning it),
+  `?` (unknown, not learned here) or `C` (your own word) beside a word.
 - After a commit the bar becomes a correction strip: tap another word and it replaces the one just
   written, taking its learned weight with it.
 - Next-word suggestions while nothing is being typed (Typing and correction, on).
@@ -394,7 +398,9 @@ Everything below comes from Kinetica and works the same in Duet.
   upright uses the landscape arrangement (Size and layout, on).
 - Height by dragging the handle above the bar, side and bottom margins, a live size preview.
 - An optional apostrophe key right of `L`, for `don't` or `nell'immagine` without the symbols page.
-- Two symbol pages and a numpad; a configurable comma and period key; an emoji picker on the
+- Two symbol pages and a numpad; a configurable comma and period key. The symbol pages' three
+  upper rows can be typed as text, and each symbol can have its own long-press list (Keys >
+  *Symbol pages*); an emoji picker on the
   comma's long-press, with a frequently used tab (search and skin tones are Duet's).
 - Words per minute on the spacebar while you type (Keys, off).
 - Themes: dark, light, Material You, or a palette from one colour of your choice. Zen mode turns

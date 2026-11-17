@@ -13,6 +13,7 @@ import com.kinetica.keyboard.keys.SpacebarCursorController
 import com.kinetica.keyboard.layout.LandscapeArrangement
 import com.kinetica.keyboard.layout.LayoutMode
 import com.kinetica.keyboard.layout.LayoutTransforms
+import com.kinetica.keyboard.layout.SymbolRows
 import com.kinetica.keyboard.ui.BackdropFit
 import com.kinetica.keyboard.ui.BarMetrics
 import com.kinetica.keyboard.ui.Hsv
@@ -266,7 +267,15 @@ data class KeyboardConfig(
     val floatLiftDp: Int = Prefs.DEFAULT_FLOAT_LIFT_DP,
     /** The editing page's keys, opened by a slide up on `?123` (upstream Kinetica 3.0). */
     val editPage: EditPage = EditPage.DEFAULT,
+    /** The symbol pages' edited rows, page 1's three then page 2's; null keeps a built-in row. */
+    val symbolRowLines: List<String?> = emptyList(),
+    /** The user's long-press list per symbol-page key; a symbol absent keeps its built-in one. */
+    val symbolAlternates: Map<String, List<String>> = emptyMap(),
 ) {
+    /** Page [page]'s three rows, for SymbolRows.apply. */
+    fun symbolRows(page: Int): List<String?> =
+        List(SymbolRows.ROWS) { symbolRowLines.getOrNull((page - 1) * SymbolRows.ROWS + it) }
+
     companion object {
         /**
          * The snapshot of [stored]. With [systemNight] and the day and night themes on
@@ -562,6 +571,10 @@ data class KeyboardConfig(
             floatLeftPct = prefs.getInt(Prefs.FLOAT_LEFT_PCT, Prefs.DEFAULT_FLOAT_LEFT_PCT),
             floatLiftDp = prefs.getInt(Prefs.FLOAT_LIFT_DP, Prefs.DEFAULT_FLOAT_LIFT_DP),
             editPage = EditPage.parse(prefs.getString(Prefs.EDIT_PAGE, null)),
+            symbolRowLines = (1..2).flatMap { page ->
+                (1..SymbolRows.ROWS).map { row -> prefs.getString(Prefs.symbolRowKey(page, row), null) }
+            },
+            symbolAlternates = symbolAlternatesFrom(prefs.all),
         )
         }
 
@@ -640,6 +653,17 @@ data class KeyboardConfig(
             }
             return out
         }
+        /** Every symbol the user gave a list, from every stored setting; a blank one is none. */
+        fun symbolAlternatesFrom(all: Map<String, *>): Map<String, List<String>> {
+            val out = HashMap<String, List<String>>()
+            for ((key, value) in all) {
+                val symbol = Prefs.symbolOfAlternatesKey(key) ?: continue
+                val list = parseAlternates(value as? String, MAX_LETTER_ALTERNATES)
+                if (list.isNotEmpty()) out[symbol] = list
+            }
+            return out
+        }
+
         /** The letters a list can be written for: every letter of every alphabet, once. */
         val LIST_LETTERS: List<Char> = Alphabet.ALL.flatMap { it.letters.toList() }.distinct()
 
