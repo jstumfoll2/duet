@@ -183,13 +183,15 @@ class EdgeSwipeBindings(val bindings: List<EdgeSwipeBinding>) {
 
         /**
          * The rows a directional swipe reaches on a symbol [page], as on the letters (upstream
-         * 3.0.2): its top row, and its lowest symbol row, the one that holds backspace. The bottom
+         * 3.0.2): its top row, and its lowest symbol row, the one that holds backspace (else the third). The bottom
          * row (ABC, space, enter) is not one. Character keys only, so the page keys never flick.
          */
         internal fun symbolEdgeRows(page: KeyboardLayout): Pair<List<Key>, List<Key>> {
             val chars = page.keys.filter { it.type == KeyType.CHAR }
             val topY = chars.minOfOrNull { it.y } ?: return emptyList<Key>() to emptyList()
-            val lowY = page.keys.firstOrNull { it.type == KeyType.BACKSPACE }?.y
+            // The backspace row; on a page without one, the third row, as upstream's fixed rows.
+            val rowYs = chars.map { it.y }.distinctBy { (it / SAME_ROW_Y).toInt() }.sorted()
+            val lowY = page.keys.firstOrNull { it.type == KeyType.BACKSPACE }?.y ?: rowYs.getOrNull(2)
             fun row(y: Float) = chars.filter { kotlin.math.abs(it.y - y) < SAME_ROW_Y }.sortedBy { it.x }
             val lowest = if (lowY == null || kotlin.math.abs(lowY - topY) < SAME_ROW_Y) emptyList() else row(lowY)
             return row(topY) to lowest
