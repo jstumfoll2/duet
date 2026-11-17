@@ -30,8 +30,8 @@ android {
         applicationId "io.github.jstumfoll2.duet"
         minSdk 26
         targetSdk 34
-        versionCode 130
-        versionName "2.19.1"
+        versionCode 131
+        versionName "2.19.2"
     }
 
     sourceSets {
