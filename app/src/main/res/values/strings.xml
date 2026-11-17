@@ -356,6 +356,9 @@
     <string name="action_cut_line_after">Cut line, newline after</string>
     <string name="action_cut_line_before">Cut line, newline before</string>
     <string name="action_clean_links">Clean links</string>
+    <string name="action_fix_sentence">Fix this sentence</string>
+    <string name="fix_sentence_none">Nothing to fix in this sentence</string>
+    <string name="fix_sentence_keep">Keep as is</string>
     <string name="notice_undo">Undo</string>
     <string name="notice_redo">Redo</string>
     <string name="notice_paste">Paste</string>

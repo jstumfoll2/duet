@@ -315,6 +315,9 @@
     <string name="action_enter">Invio</string>
     <string name="action_copy_line">Copia la riga</string>
     <string name="action_clean_links">Pulisci i link</string>
+    <string name="action_fix_sentence">Correggi questa frase</string>
+    <string name="fix_sentence_none">Niente da correggere in questa frase</string>
+    <string name="fix_sentence_keep">Lascia così</string>
     <string name="notice_undo">Annulla</string>
     <string name="notice_redo">Ripeti</string>
     <string name="notice_paste">Incolla</string>

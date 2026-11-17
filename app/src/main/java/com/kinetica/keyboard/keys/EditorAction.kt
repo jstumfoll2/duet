@@ -97,6 +97,12 @@ enum class EditorAction(val output: String) {
     CLEAN_LINKS("${ACTION_PREFIX}clean_links"),
 
     /**
+     * Read the sentence before the cursor again as a whole, from the ranked readings kept for
+     * each of its words, and offer the words that change on the bar (engine.SentenceFix, #139).
+     */
+    FIX_SENTENCE("${ACTION_PREFIX}fix_sentence"),
+
+    /**
      * Settings flipped from the keyboard itself: the idle bar's predictions, the recent words, the
      * numbers row, tidy spaces and the typing speed.
      */
