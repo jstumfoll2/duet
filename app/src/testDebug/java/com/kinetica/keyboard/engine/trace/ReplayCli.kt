@@ -149,6 +149,8 @@ object ReplayCli {
                 val duoBeta = opt(a, "--duoBeta")?.toFloat() ?: 0f
                 val duoTaps = !a.remove("--duoNoTaps")
                 val duoGate = opt(a, "--duoGate")?.toFloat() ?: 1.5f
+                // --duoInline: run the encoder after the search, on its thread, as before (DuoReranker.ahead off).
+                val duoAhead = !a.remove("--duoInline")
                 // --personal BACKUP: decode with the personal store of a settings backup (#97).
                 // --recent B: session recency boost B (1 = off, the default); --recentfreq L its
                 // frequency cap as ln of the weight.
@@ -205,6 +207,7 @@ object ReplayCli {
                     duoBeta = duoBeta,
                     duoTaps = duoTaps,
                     duoGate = duoGate,
+                    duoAhead = duoAhead,
                     templateSources = templateSources,
                 )
                 val report = run(harness, a.map { File(it) })
@@ -776,6 +779,39 @@ object ReplayCli {
                         println(row(p, f.name, n, "split", label, nextLabel, tokens + nextTokens, tokens.size, w.context))
                     }
                 }
+            }
+            "duobench" -> {
+                // duobench --ctc DUO_MODEL FILE...: the two-thumb encoder alone on every buffer of
+                // two tokens or more: time per run on this JVM and a checksum of every output bit,
+                // so a faster encoder can be shown to give the same numbers.
+                val duo = opt(a, "--ctc")?.let { f -> File(f).inputStream().use { CtcScorer.load(it) } } ?: usage()
+                if (a.isEmpty()) usage()
+                val h = ReplayHarness(assets)
+                val sink = ReplayReport(h.deepK)
+                val inputs = ArrayList<Pair<List<com.kinetica.keyboard.engine.DuoFeatures.Stroke>, com.kinetica.keyboard.engine.KeyboardGeometry>>()
+                for (f in a.map { File(it) }) {
+                    for ((_, w) in read(f, sink)) {
+                        val tokens = try { SwipeTrace.replayTokens(w) } catch (e: RuntimeException) { continue }
+                        if (tokens.size < 2) continue
+                        val g = h.predictorFor(w).geometry ?: continue
+                        if (inputs.size < 1500) inputs.add(com.kinetica.keyboard.engine.DuoFeatures.strokes(tokens) to g)
+                    }
+                }
+                var sum = 0L
+                val micros = ArrayList<Long>()
+                for (round in 0 until 3) {
+                    micros.clear()
+                    sum = 0L
+                    for ((strokes, g) in inputs) {
+                        val t0 = System.nanoTime()
+                        val lp = duo.logProbsDuo(strokes, g)
+                        micros.add((System.nanoTime() - t0) / 1000)
+                        for (v in lp) sum = sum * 31 + v.toRawBits()
+                    }
+                }
+                micros.sort()
+                println(String.format(java.util.Locale.ROOT, "buffers=%d encoder ms p50=%.2f p95=%.2f checksum=%016x",
+                    micros.size, micros[micros.size / 2] / 1000.0, micros[micros.size * 95 / 100] / 1000.0, sum))
             }
             "duodata" -> {
                 // duodata FILE...: every labelled buffer as strokes in time (DuoFeatures.strokes),

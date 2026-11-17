@@ -109,4 +109,10 @@ fun interface CandidateReranker {
 
     /** Whether [rerank] or [rerankOverlapped] reads [WordCandidate.segmentation] on such a buffer. */
     fun usesSegmentation(overlapped: Boolean): Boolean = true
+
+    /**
+     * Told [tokens] when their decode starts, before there are candidates: a reranker whose
+     * work needs only the tokens can begin it beside the search. Nothing by default.
+     */
+    fun prepare(tokens: List<InputToken>) = Unit
 }

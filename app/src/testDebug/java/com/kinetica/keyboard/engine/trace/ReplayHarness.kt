@@ -100,6 +100,7 @@ class ReplayHarness(
     private val duoBeta: Float = 0f,
     private val duoTaps: Boolean = true,
     private val duoGate: Float = 1.5f,
+    private val duoAhead: Boolean = true,
     /**
      * Learn the user's own swipe paths (#138) in trace order from one-swipe lines labelled by
      * these sources (`all` for every label, `practice` for prompted words). Null is off.
@@ -199,7 +200,7 @@ class ReplayHarness(
             it.soloBeta = soloBeta; it.soloGate = soloGate; it.soloShallow = soloShallow
         } else null
         val r2 = if (rerank && duo != null && duoBeta != 0f) {
-            com.kinetica.keyboard.engine.DuoReranker(duo, { g }, duoBeta, r).also { it.taps = duoTaps; it.gate = duoGate }
+            com.kinetica.keyboard.engine.DuoReranker(duo, { g }, duoBeta, r).also { it.taps = duoTaps; it.gate = duoGate; it.ahead = duoAhead }
         } else r
         return WordPredictor(
             d.d.trie, d.bigrams, g, d.d.forms, language = lang, topK = topK,
