@@ -265,6 +265,19 @@ object Prefs {
 
     /** Set once [ChordDefaults] has turned the old reserved keys into chords. */
     const val CHORD_DEFAULTS_SEEDED = "pref_chord_defaults_seeded"
+    /**
+     * Keep the user's own swipe paths for the words they swipe and match a swipe against them
+     * beside the key-centre path (engine.ShapeTemplates, issue #138).
+     */
+    const val SHAPE_TEMPLATES = "pref_shape_templates"
+    const val DEFAULT_SHAPE_TEMPLATES = false
+
+    /**
+     * The paths behind [SHAPE_TEMPLATES] (engine.ShapeTemplates.serialize). Not on any settings
+     * screen; a string preference, so the settings backup carries it.
+     */
+    const val SHAPE_PATHS = "pref_shape_paths"
+
     const val RETYPE_AVOIDS_REJECTED = "pref_retype_avoids_rejected"
 
     /**

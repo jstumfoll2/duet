@@ -100,10 +100,18 @@ class ReplayHarness(
     private val duoBeta: Float = 0f,
     private val duoTaps: Boolean = true,
     private val duoGate: Float = 1.5f,
+    /**
+     * Learn the user's own swipe paths (#138) in trace order from one-swipe lines labelled by
+     * these sources (`all` for every label, `practice` for prompted words). Null is off.
+     */
+    private val templateSources: Set<String>? = null,
 ) {
     /** The retype counts learned so far; kept across files, as the preference is on a phone. */
     var retypeStore: com.kinetica.keyboard.engine.RetypePenalties = com.kinetica.keyboard.engine.RetypePenalties.EMPTY
         private set
+
+    /** The paths learned so far, by layout ([templateSources]). */
+    val templateStores = HashMap<String, com.kinetica.keyboard.engine.ShapeTemplates>()
 
     /** A new trace file: the recent words start empty, as after a restart. */
     fun newSession() { recent?.clear() }
@@ -242,6 +250,11 @@ class ReplayHarness(
             active.retypeCounts = retypeStore.forLanguage(cfg.language)
             cfg.alternate?.let { alt?.retypeCounts = retypeStore.forLanguage(it) }
         }
+        val layout = if (templateSources != null) com.kinetica.keyboard.engine.ShapeTemplates.layoutOf(g) else ""
+        if (templateSources != null) {
+            active.shapeTemplates = templateStores[layout]
+            alt?.shapeTemplates = null
+        }
         val t0 = System.nanoTime()
         val shipping = composerDecode(active, alt, tokens, w.context, w.apostropheMark)
         val micros = (System.nanoTime() - t0) / 1000
@@ -260,6 +273,14 @@ class ReplayHarness(
             if (shown != null) {
                 retypeStore = retypeStore.withCommit(cfg.language, shown)
                 if (shown != label && w.how in retypeSources) retypeStore = retypeStore.with(cfg.language, shown, label)
+            }
+        }
+        if (templateSources != null && label != null && tokens.size == 1) {
+            val s = tokens[0] as? com.kinetica.keyboard.engine.models.SwipeToken
+            val src = if (w.target != null) "practice" else w.how ?: "typed"
+            if (s != null && !s.softStart && !s.softEnd && !s.apostrophe && ("all" in templateSources || src in templateSources)) {
+                val store = templateStores[layout] ?: com.kinetica.keyboard.engine.ShapeTemplates.empty(layout)
+                templateStores[layout] = store.with(com.kinetica.keyboard.engine.AccentFolder.fold(label), s.resampled)
             }
         }
         if (recent != null && w.target == null && label != null) recent.add(label)
