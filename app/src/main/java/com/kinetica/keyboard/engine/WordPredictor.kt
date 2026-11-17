@@ -179,6 +179,54 @@ class WordPredictor(
     }
 
     /**
+     * The user's own swipe paths ([ShapeTemplates]), set by the service when one is learned;
+     * read once per decode. Null, empty, or the switch off, is no pass.
+     */
+    @Volatile var shapeTemplates: ShapeTemplates? = null
+
+    /**
+     * [list] with each word whose stored path fits this swipe better than its key-centre path
+     * scored as that fit, re-sorted. One whole swipe only: a template is a whole word drawn in
+     * one stroke. After the search and only for listed words, so the abandon bounds stay as
+     * they are; it only raises scores.
+     */
+    private fun withTemplates(list: List<WordCandidate>, input: List<InputToken>): List<WordCandidate> {
+        val store = shapeTemplates
+        if (store == null || !ShapeTemplates.enabled || store.isEmpty || list.isEmpty() || input.size != 1) return list
+        val s = input[0] as? SwipeToken ?: return list
+        val g = geometry ?: return list
+        if (s.softStart || s.softEnd || s.apostrophe || !store.fits(g)) return list
+        val worst = list.maxOf { it.dtwDistance }
+        val matches = store.nearest(s.resampled, dtw, minOf(ShapeTemplates.MAX_DISTANCE_KW, worst))
+        if (matches.isEmpty()) return list
+        val logLinear = ScoreModel.logLinear
+        val cap = saturationOf(input)
+        var changed = false
+        val out = list.map { c ->
+            val key = AccentFolder.fold(c.word.lowercase())
+            val m = matches.firstOrNull { it.word == key }
+            if (m == null || m.distance >= c.dtwDistance) {
+                c
+            } else {
+                val factor = if (logLinear) {
+                    ScoreModel.shapeFactor(m.distance, key.length) / ScoreModel.shapeFactor(c.dtwDistance, key.length)
+                } else {
+                    KineticaConstants.geometricTerm(m.distance, cap) / KineticaConstants.geometricTerm(c.dtwDistance, cap)
+                }
+                if (factor <= 1f) {
+                    c
+                } else {
+                    changed = true
+                    c.scaled(ScoreTerms.Term.TEMPLATE, factor)
+                }
+            }
+        }
+        if (!changed) return list
+        DecodeTrace.log { "templates$langTag: " + out.filter { it.terms[ScoreTerms.Term.TEMPLATE] != 0f }.joinToString(" ") { "${it.word}x%.2f".format(java.util.Locale.ROOT, it.terms.factor(ScoreTerms.Term.TEMPLATE)) } }
+        return out.sortedByDescending { it.score }
+    }
+
+    /**
      * Words committed lately in this session ([SessionWords.snapshot], lowercase and folded), set
      * by the service after each commit; read once per decode. Empty is off.
      */
@@ -666,7 +714,7 @@ class WordPredictor(
         val logLinear = ScoreModel.logLinear
         val searched = decodeLetters(input, context, beam)
         // The log-linear score carries the two-word context inside the search ([lmLog]).
-        val letters = withRetypes(withPenalties(withSession(if (logLinear) searched else withTrigrams(searched, context, prevWordId))))
+        val letters = withRetypes(withPenalties(withSession(withTemplates(if (logLinear) searched else withTrigrams(searched, context, prevWordId), input))))
         val held = if (heldDoubleBoost == 1f) IntArray(0) else HeldDoubles.heldKeys(input, heldDoubleMs, heldDoubleEndMs, heldDoubleFreeTime)
         val missCharged = heldDoubleMissKeep != 1f && input.any { it is SwipeToken }
         val ranked = if (held.isEmpty() && !missCharged) letters else preferHeldDoubles(letters, held, prevWordId).also { out ->

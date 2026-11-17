@@ -171,6 +171,14 @@ object ReplayCli {
                     if (learnMode != null) learnerOf(learnMode, null, KineticaConstants.PICK_LEARN_UNITS, p)
                     else p?.let { personalOf(File(it)) }
                 }
+                // --templates SRC,SRC|all: learn the user's own swipe paths (#138) in trace order
+                // and match them. --tplMin N paths before a word is matched, --tplMax D kw,
+                // --tplGate G kw at the ends.
+                val templateSources = opt(a, "--templates")?.split(',')?.toSet()
+                com.kinetica.keyboard.engine.ShapeTemplates.enabled = templateSources != null
+                opt(a, "--tplMin")?.let { com.kinetica.keyboard.engine.ShapeTemplates.MIN_TEMPLATES = it.toInt() }
+                opt(a, "--tplMax")?.let { com.kinetica.keyboard.engine.ShapeTemplates.MAX_DISTANCE_KW = it.toFloat() }
+                opt(a, "--tplGate")?.let { com.kinetica.keyboard.engine.ShapeTemplates.ENDPOINT_GATE_KW = it.toFloat() }
                 // --dump OUT: one JSON object per scored line (label, source, context, rank and the
                 // bar's list with each candidate's score terms), for studying rank 2-10 losses.
                 dump = opt(a, "--dump")?.let { File(it).printWriter() }
@@ -197,10 +205,14 @@ object ReplayCli {
                     duoBeta = duoBeta,
                     duoTaps = duoTaps,
                     duoGate = duoGate,
+                    templateSources = templateSources,
                 )
                 val report = run(harness, a.map { File(it) })
                 dump?.close()
                 println(report.format())
+                if (templateSources != null) {
+                    println("shape templates: " + harness.templateStores.values.joinToString(" ") { "${it.size} words (${it.ready} matched)" })
+                }
                 if (retypeSources != null) {
                     println("retype pairs learned: ${harness.retypeStore.size}")
                     val rows = harness.retypeStore.serialize().split(',').map { it.split('|') }.filter { it.size == 4 && it[2].isNotEmpty() }

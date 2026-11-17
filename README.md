@@ -316,6 +316,8 @@ Everything below comes from Kinetica and works the same in Duet.
   zone, so a word the dictionary lacks goes in with one tap.
 - Tap autocorrect with three levels. It restores missing accents (`perche` -> `perché`,
   `pozno` -> `późno`), and backspace right after it puts back what you typed.
+- Your own swipe shapes (Learning > *Learn how you draw your words*, off): the last few paths of
+  each word you swipe are matched beside the key-centre path. `replay --templates all` scores it.
 - A retype button (off by default) takes the word back, and the bar then offers what else the
   gesture could have been.
 

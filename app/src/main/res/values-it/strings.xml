@@ -191,6 +191,8 @@
     <string name="pref_reinforce_step_summary">Quanto scorre un suggerimento tenuto premuto per ogni passo. Ogni passo raddoppia o dimezza il peso della parola; sotto il passo più basso la parola viene bloccata. Più basso è più sensibile</string>
     <string name="pref_retype_avoids_title">Riscrivi propone una parola diversa</string>
     <string name="pref_retype_avoids_summary">Dopo il pulsante Riscrivi, la parola rifiutata va in fondo alla barra invece di essere riproposta per prima. Resta selezionabile</string>
+    <string name="pref_shape_templates_title">Impara come tracci le tue parole</string>
+    <string name="pref_shape_templates_summary">Conserva gli ultimi tracciati di ogni parola che scrivi spesso scorrendo e li confronta con quelli nuovi, così una parola che tracci sempre a modo tuo viene letta a modo tuo. I tracciati restano su questo telefono e ripartono da capo quando cambia il layout</string>
     <string name="pref_retype_penalties_title">Impara dalle parole che riscrivo</string>
     <string name="pref_retype_penalties_summary">Quando cancelli una parola scritta dalla tastiera e ne scrivi una simile, o ne scegli un\'altra dalla barra, la coppia viene ricordata. Una parola che devi sostituire spesso scende sotto quella che intendevi. Resta solo su questo dispositivo</string>
     <string name="pref_usage_stats_title">Conta la precisione della scrittura</string>

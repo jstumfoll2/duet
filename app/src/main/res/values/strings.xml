@@ -224,6 +224,8 @@
 
     <string name="pref_retype_avoids_title">Retype offers a different word</string>
     <string name="pref_retype_avoids_summary">After the retype button, the rejected word moves to the end of the bar instead of leading again. It stays pickable</string>
+    <string name="pref_shape_templates_title">Learn how you draw your words</string>
+    <string name="pref_shape_templates_summary">Keeps your last few swipes of each word you swipe often and compares new swipes with them, so a word you always draw your own way is read your way. The paths stay on this phone and start again when the layout changes</string>
     <string name="pref_retype_penalties_title">Learn from words I retype</string>
     <string name="pref_retype_penalties_summary">When you delete a word the keyboard wrote and type a close one instead, or pick another from the bar, the pair is remembered. A word you keep having to replace then ranks below the one you meant. Stored on this device only</string>
     <string name="pref_usage_stats_title">Count my typing accuracy</string>
