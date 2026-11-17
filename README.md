@@ -231,6 +231,11 @@ F-Droid.
   words, bar picks, retypes and typing time, and *Typing accuracy* shows the retype rate, the
   share picked from the bar and words per minute for today, 7 and 30 days. Numbers only, never
   words, kept on the phone, and nothing is counted in incognito or private fields.
+- **Swipe through the spacebar between words (off by default, experimental).** With *Swipe
+  through the spacebar between words* on, a stroke that dips half a key or more into the spacebar
+  and comes back up ends the word there and starts the next, so a phrase can be drawn without
+  lifting. A rule on the path, not a scored boundary: a letter lying straight on the way to the
+  spacebar can be lost to the dip. `replay spacedip` measures it.
 - **Word menu on the bar.** Hold a suggestion still for about a second: *Never*, *Less*, *More*,
   *Forget* and *Why?* replace the words. *Less* halves the word's score each time, so even a
   common word can drop below a rarer one (sliding only ever lowered what you had taught it);
@@ -309,6 +314,8 @@ Everything below comes from Kinetica and works the same in Duet.
 - After a commit the bar becomes a correction strip: tap another word and it replaces the one just
   written, taking its learned weight with it.
 - Next-word suggestions while nothing is being typed (Typing and correction, on).
+- Whole phrases on the next-word bar: when you nearly always go on the same way, the next two to
+  four words are one tap (Learning > *Offer whole phrases*, off; needs *Learn phrases you type*).
 - Recent words: the last two words stay on the bar, each with the words it beat; tap one to swap it
   in (off by default). They have their own text size and a swipe direction to choose.
 - A tapped word with one stray or one missing letter is offered on the bar, never changed for you.
@@ -319,6 +326,8 @@ Everything below comes from Kinetica and works the same in Duet.
 - Fix this sentence (a shortcut action, `:fix_sentence`): reads the sentence again as a whole from
   each word's runners-up and offers the changed words on the bar; nothing changes until you tap
   it. Needs the DEV *Language-model score* switch. `replay sentfix` scores it.
+- Words learned per kind of field (Learning > *Learn words per kind of field*, off): a word you
+  only type in search boxes or code keeps its boost there and loses most of it in a chat.
 - A retype button (off by default) takes the word back, and the bar then offers what else the
   gesture could have been.
 

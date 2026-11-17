@@ -408,6 +408,8 @@
     <string name="pref_tidy_spaces_title">Spazi ordinati</string>
     <string name="pref_enter_action_title">Invio esegue l\'azione dell\'app</string>
     <string name="pref_delete_on_block_title">Bloccare una parola la cancella</string>
+    <string name="pref_field_learning_title">Impara le parole per tipo di campo</string>
+    <string name="pref_field_learning_summary">Conta se scrivi una parola nelle chat, nelle email, nelle caselle di ricerca o nel codice, e trattiene le parole imparate in un tipo di campo mentre scrivi in un altro. I conteggi restano su questo telefono</string>
     <string name="pref_delete_on_block_summary">Togliere dalla barra la parola appena scritta la cancella anche dal testo, e la barra propone le altre parole del gesto. Solo la parola al cursore</string>
     <string name="pref_trigger_case_title">Maiuscole nelle abbreviazioni</string>
     <string name="pref_trigger_case_summary">Se un\'abbreviazione scritta con la maiuscola si attiva comunque e passa la maiuscola all\'espansione</string>
@@ -575,12 +577,16 @@
     <string name="dict_clear_phrases">Cancella le frasi apprese</string>
     <string name="dict_clear_phrases_confirm">Dimenticare tutte le coppie di parole che Duet ha imparato per %1$s? Le parole apprese restano.</string>
     <string name="pref_learn_phrases_title">Impara le frasi che scrivi</string>
+    <string name="pref_phrase_chip_title">Proponi frasi intere</string>
+    <string name="pref_phrase_chip_summary">Quando continui quasi sempre allo stesso modo, la barra della parola successiva propone le prossime due, tre o quattro parole con un solo tocco. Richiede i suggerimenti della parola successiva e qualche ripetizione della frase</string>
     <string name="pref_contact_names_title">Nomi dai contatti</string>
     <string name="pref_contact_names_summary">Puoi scrivere con lo swipe i nomi dei tuoi contatti prima di averli digitati. Serve il permesso di leggere i contatti. Duet legge solo i nomi, su questo telefono, non ne tiene copia e non ha accesso a internet. Le parole del dizionario personale di Android sono sempre incluse</string>
     <string name="pref_contact_names_denied">Duet non ha il permesso di leggere i contatti, quindi i nomi restano disattivati. Per consentirlo più tardi, apri le info dell\'app Duet, poi Autorizzazioni, Contatti, Consenti</string>
     <string name="pref_learn_phrases_summary">Ricorda quale parola scrivi di solito dopo quale, per indovinare meglio la successiva. Resta solo su questo telefono, mai in un\'esportazione del dizionario</string>
     <string name="pref_double_space_period_title">Doppio spazio per il punto</string>
     <string name="pref_double_space_period_summary">Due tocchi rapidi sulla barra spaziatrice chiudono la frase invece di lasciare due spazi. Non a inizio riga né dopo la punteggiatura</string>
+    <string name="pref_space_dip_title">Passa sulla barra spaziatrice tra le parole</string>
+    <string name="pref_space_dip_summary">Durante lo swipe, scendi sulla barra spaziatrice e risali per chiudere la parola e iniziare la successiva, senza sollevare il dito. Sperimentale: una lettera che si trova proprio sulla via per la barra può andare persa</string>
     <string name="pref_spaceless_space_title">Spazio senza spazio a sinistra della barra</string>
     <string name="pref_spaceless_space_summary">Il terzo sinistro della barra spaziatrice chiude la parola senza spazio, così una parola composta che il dizionario non ha si può scrivere in due swipe. Quel terzo non scrive più lo spazio</string>
     <string name="pref_spacebar_step_title">Distanza di trascinamento della barra spaziatrice</string>

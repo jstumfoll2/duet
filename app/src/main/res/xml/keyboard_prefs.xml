@@ -167,6 +167,12 @@
                         app:singleLineTitle="false"
                         android:summary="@string/pref_spaceless_space_summary"
                         android:defaultValue="false" />
+                    <SwitchPreferenceCompat
+                        android:key="pref_space_dip"
+                        android:title="@string/pref_space_dip_title"
+                        app:singleLineTitle="false"
+                        android:summary="@string/pref_space_dip_summary"
+                        android:defaultValue="false" />
                 </PreferenceScreen>
             </PreferenceCategory>
         </PreferenceScreen>
@@ -396,6 +402,13 @@
                     app:singleLineTitle="false"
                     android:summary="@string/pref_learn_phrases_summary"
                     android:defaultValue="false" />
+                <SwitchPreferenceCompat
+                    android:key="pref_phrase_chip"
+                    android:title="@string/pref_phrase_chip_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_phrase_chip_summary"
+                    android:defaultValue="false"
+                    android:dependency="pref_learn_phrases" />
                 <ListPreference
                     android:key="pref_reinforce_increment"
                     android:title="@string/pref_reinforce_title"
@@ -419,6 +432,12 @@
                     app:singleLineTitle="false"
                     android:summary="@string/pref_retype_avoids_summary"
                     android:defaultValue="true" />
+                <SwitchPreferenceCompat
+                    android:key="pref_field_learning"
+                    android:title="@string/pref_field_learning_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_field_learning_summary"
+                    android:defaultValue="false" />
                 <SwitchPreferenceCompat
                     android:key="pref_retype_penalties"
                     android:title="@string/pref_retype_penalties_title"

@@ -472,6 +472,8 @@
     <string name="pref_finger_offsets_reset_message">Forget the learned thumb positions? The keyboard reads touches from the keys as drawn until it has learned again. This cannot be undone.</string>
     <string name="pref_finger_offsets_reset_done">Learned thumb positions cleared</string>
     <string name="pref_delete_on_block_title">Blocking a word deletes it</string>
+    <string name="pref_field_learning_title">Learn words per kind of field</string>
+    <string name="pref_field_learning_summary">Counts whether you type a word in chats, emails, search boxes or code, and holds back the words you have learned in one kind of field while you type in another. The counts stay on this phone</string>
     <string name="pref_delete_on_block_summary">Sliding the word you just wrote off the bar also takes it out of the text, and the bar offers the gesture\'s other words. Only the word at the cursor</string>
     <string name="pref_trigger_case_title">Capitals in expansion triggers</string>
     <string name="pref_trigger_case_summary">Whether a trigger typed with a capital still fires, and passes the capital on</string>
@@ -680,12 +682,16 @@
     <string name="dict_clear_phrases">Clear learned phrases</string>
     <string name="dict_clear_phrases_confirm">Forget every word pair Duet has learned for %1$s? The learned words themselves are kept.</string>
     <string name="pref_learn_phrases_title">Learn phrases you type</string>
+    <string name="pref_phrase_chip_title">Offer whole phrases</string>
+    <string name="pref_phrase_chip_summary">When you nearly always go on the same way, the next-word bar offers the next two to four words as one tap. Needs next-word suggestions and a few repeats of the phrase</string>
     <string name="pref_contact_names_title">Names from contacts</string>
     <string name="pref_contact_names_summary">Lets you swipe the names in your contacts before you have typed them. Needs permission to read contacts. Duet reads only the names, on this phone, keeps no copy and has no internet access. Words in Android\'s personal dictionary are always included</string>
     <string name="pref_contact_names_denied">Duet was not allowed to read contacts, so names stay off. To allow it later, open Duet\'s app info and go to Permissions, then Contacts, then Allow</string>
     <string name="pref_learn_phrases_summary">Remembers which word you tend to type after which, to guess the next one better. Kept on this phone only, never in a dictionary export</string>
     <string name="pref_double_space_period_title">Double-tap space for a full stop</string>
     <string name="pref_double_space_period_summary">Two quick taps on the spacebar end the sentence instead of leaving two spaces. Off at the start of a line and after punctuation</string>
+    <string name="pref_space_dip_title">Swipe through the spacebar between words</string>
+    <string name="pref_space_dip_summary">While swiping, dip down into the spacebar and come back up to end the word and start the next, without lifting. Experimental: a letter that lies straight on the way to the spacebar can be lost</string>
     <string name="pref_spaceless_space_title">Spaceless space on the left of the spacebar</string>
     <string name="pref_spaceless_space_summary">The left third of the spacebar ends the word without a space, so a compound the dictionary lacks can be swiped in two halves. That third no longer types a space</string>
     <string name="pref_spacebar_step_title">Spacebar slide distance</string>
