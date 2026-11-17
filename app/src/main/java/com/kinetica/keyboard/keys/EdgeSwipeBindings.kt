@@ -1,6 +1,7 @@
 package com.kinetica.keyboard.keys
 
 import com.kinetica.keyboard.layout.Key
+import com.kinetica.keyboard.layout.KeyType
 import com.kinetica.keyboard.layout.KeyboardLayout
 import org.json.JSONArray
 import org.json.JSONException
@@ -132,6 +133,9 @@ class EdgeSwipeBindings(val bindings: List<EdgeSwipeBinding>) {
          * one, inserts the glyph that key draws in its corner. Home-row and non-letter keys get
          * nothing.
          *
+         * Each of [symbolPages] gives the same: up on its top row, down on its lowest symbol row
+         * ([symbolEdgeRows]). Their ids are their own, so no letter or number pad key shares one.
+         *
          * The output is [Key.hintChar], so what a key shows is what it types under every
          * combination of the long-press settings. The first non-letter alternate would disagree
          * with the hint whenever a key lists an accent first: qwerty "z" draws `ž`.
@@ -143,22 +147,52 @@ class EdgeSwipeBindings(val bindings: List<EdgeSwipeBinding>) {
         fun withImplicitAlternates(
             layout: KeyboardLayout,
             explicit: EdgeSwipeBindings,
+            symbolPages: List<KeyboardLayout> = emptyList(),
         ): EdgeSwipeBindings {
             val implicit = ArrayList<EdgeSwipeBinding>()
             val letters = layout.keys.filter { it.isLetter }
-            val topY = letters.minOfOrNull { it.y } ?: return explicit
-            val bottomY = letters.maxOf { it.y }
-            for (k in letters) {
-                val direction = when {
-                    kotlin.math.abs(k.y - topY) < SAME_ROW_Y -> EdgeSwipeBinding.Direction.UP
-                    bottomY - topY > SAME_ROW_Y && kotlin.math.abs(k.y - bottomY) < SAME_ROW_Y ->
-                        EdgeSwipeBinding.Direction.DOWN
-                    else -> continue
+            val topY = letters.minOfOrNull { it.y }
+            if (topY != null) {
+                val bottomY = letters.maxOf { it.y }
+                for (k in letters) {
+                    val direction = when {
+                        kotlin.math.abs(k.y - topY) < SAME_ROW_Y -> EdgeSwipeBinding.Direction.UP
+                        bottomY - topY > SAME_ROW_Y && kotlin.math.abs(k.y - bottomY) < SAME_ROW_Y ->
+                            EdgeSwipeBinding.Direction.DOWN
+                        else -> continue
+                    }
+                    val symbol = k.hintChar ?: continue
+                    implicit.add(EdgeSwipeBinding(k.id, direction, symbol))
                 }
-                val symbol = k.hintChar ?: continue
-                implicit.add(EdgeSwipeBinding(k.id, direction, symbol))
             }
+            for (page in symbolPages) {
+                val (top, lowest) = symbolEdgeRows(page)
+                for ((row, direction) in listOf(top to EdgeSwipeBinding.Direction.UP, lowest to EdgeSwipeBinding.Direction.DOWN)) {
+                    for (k in row) {
+                        val symbol = k.hintChar ?: continue
+                        // A user binding on the symbol's character wins: [outputFor] reads the id
+                        // first, so the implicit row is left out, not left to be overwritten.
+                        if (k.chordChar?.let { explicit.outputFor(it.toString(), direction) } != null) continue
+                        implicit.add(EdgeSwipeBinding(k.id, direction, symbol))
+                    }
+                }
+            }
+            if (implicit.isEmpty()) return explicit
             return EdgeSwipeBindings(implicit + explicit.bindings)
+        }
+
+        /**
+         * The rows a directional swipe reaches on a symbol [page], as on the letters (upstream
+         * 3.0.2): its top row, and its lowest symbol row, the one that holds backspace. The bottom
+         * row (ABC, space, enter) is not one. Character keys only, so the page keys never flick.
+         */
+        internal fun symbolEdgeRows(page: KeyboardLayout): Pair<List<Key>, List<Key>> {
+            val chars = page.keys.filter { it.type == KeyType.CHAR }
+            val topY = chars.minOfOrNull { it.y } ?: return emptyList<Key>() to emptyList()
+            val lowY = page.keys.firstOrNull { it.type == KeyType.BACKSPACE }?.y
+            fun row(y: Float) = chars.filter { kotlin.math.abs(it.y - y) < SAME_ROW_Y }.sortedBy { it.x }
+            val lowest = if (lowY == null || kotlin.math.abs(lowY - topY) < SAME_ROW_Y) emptyList() else row(lowY)
+            return row(topY) to lowest
         }
 
         /**

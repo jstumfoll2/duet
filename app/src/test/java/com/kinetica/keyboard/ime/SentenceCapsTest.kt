@@ -159,6 +159,15 @@ class SentenceCapsTest {
     }
 
     @Test
+    fun aTapAfterTheAutomaticSpaceIsNoFullStop() {
+        // Upstream 3.0.2: a full stop takes two tapped spaces; the autospace and one tap is the word's space.
+        assertEquals(SpaceTap.SWALLOW, tidySpaceTap("k ", doubleSpacePeriod = true, keyboardSpace = true))
+        assertEquals(SpaceTap.SWALLOW, tidySpaceTap("k ", doubleSpacePeriod = false, keyboardSpace = true))
+        // No space before the cursor: the flag is stale and the tap writes its space.
+        assertEquals(SpaceTap.WRITE, tidySpaceTap("ok", doubleSpacePeriod = true, keyboardSpace = true))
+    }
+
+    @Test
     fun withTidySpacesNoAutospaceGoesBeforeACloserOrASpace() {
         assertTrue(autospaceWanted(tidy = false, after = "\""))
         assertTrue(autospaceWanted(tidy = true, after = ""))
