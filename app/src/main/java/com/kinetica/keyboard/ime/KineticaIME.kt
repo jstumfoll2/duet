@@ -1324,7 +1324,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // Synthesized from the active-language alpha layout, so qwerty_es "n"
         // yields "!" and each language's digits/symbols follow its own keys.
         kv.edgeSwipeBindings = if (config.alternateSwipes) {
-            EdgeSwipeBindings.withImplicitAlternates(alphaLayout(), config.edgeSwipes)
+            // And both symbol pages: up on their top row, down on their lowest symbol row (upstream 3.0.2).
+            EdgeSwipeBindings.withImplicitAlternates(
+                alphaLayout(), config.edgeSwipes, listOf(layoutFor("symbols"), layoutFor("symbols2")),
+            )
         } else {
             config.edgeSwipes
         }
@@ -4873,8 +4876,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun onSpace() {
         if (consumeCtrl("space")) return
         fixDigitSlip()
+        // Read before anything below clears it: the space before the cursor is the keyboard's.
+        val keyboardSpace = autospaceInserted
         if (config.tidySpaces && composer?.hasPendingWord != true) {
-            when (tidySpaceTap(ich.textBeforeCursor(2) ?: "", config.doubleSpacePeriod)) {
+            when (tidySpaceTap(ich.textBeforeCursor(2) ?: "", config.doubleSpacePeriod, keyboardSpace)) {
                 SpaceTap.SENTENCE_END -> {
                     onDoubleSpace()
                     return
@@ -4886,7 +4891,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     if (finalizePendingWord() && ich.textBeforeCursor(1)?.lastOrNull() != ' ') {
                         commitTracked(" ")
                     } else {
-                        DecodeTrace.log { "  space swallowed" }
+                        // The tap confirms the keyboard's space: from here it is the user's, so
+                        // punctuation leaves it and the next tap ends the sentence.
+                        if (keyboardSpace) forgetAutospace()
+                        DecodeTrace.log { "  space swallowed adopted=$keyboardSpace" }
                     }
                     updateAutoShift()
                     refreshPredictions()
@@ -4912,7 +4920,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      */
     private fun onDoubleSpace() {
         val before = ich.textBeforeCursor(2) ?: ""
-        if (!doubleSpaceEndsSentence(before)) {
+        // A full stop takes two spaces the user tapped: the keyboard's own space is not the first.
+        if (autospaceInserted || !doubleSpaceEndsSentence(before)) {
             onSpace()
             return
         }
@@ -5116,6 +5125,16 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     /**
+     * What one backspace tap takes from [before]: a run of spaces down to one with tidy spaces on,
+     * otherwise the last whole character, an emoji never cut in half (upstream 3.0.2). At least 1,
+     * so an editor that reports no text still gets its delete.
+     */
+    private fun tapSpan(before: CharSequence): Int {
+        if (config.tidySpaces) backspaceSpan(before).let { if (it > 1) return it }
+        return DeleteSpan.grapheme(before).coerceAtLeast(1)
+    }
+
+    /**
      * [tap] is a lone press of the backspace key itself, the one press whole-word backspace
      * acts on; hold-repeat and the other routes here (emoji panel, shortcuts) delete letters.
      */
@@ -5142,11 +5161,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // standard editing contract, and the one case where deleting a single
         // character would destroy text the user did not point at.
         val selected = selectionLength()
-        val span = if (config.tidySpaces && selected == 0) {
-            backspaceSpan(ich.textBeforeCursor(SPACE_RUN_READ_CHARS) ?: "")
-        } else {
-            1
-        }
+        val before = if (selected == 0) ich.textBeforeCursor(TAP_READ_CHARS) ?: "" else ""
+        val span = if (selected == 0) tapSpan(before) else 1
         if (selected > 0) {
             // The editor's live selection, never the cached offsets: a cache behind the editor
             // put this delete somewhere else in the text. An editor that cannot report its
@@ -5159,7 +5175,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             ich.deleteBeforeCursor(span)
             expectAfter(span, 0)
         }
-        if (span > 1) DecodeTrace.log { "  backspace collapsed spaces=${span + 1}" }
+        if (span > 1) {
+            val deleted = before.takeLast(span)
+            DecodeTrace.log {
+                if (deleted.isBlank()) "  backspace collapsed spaces=${span + 1}" else "  backspace whole char=$span"
+            }
+        }
         if (eating != null) traceBackspaceInto(eating, "key")
         // Editing inside a decoded word invalidates gesture tracking; the
         // remaining text becomes plain committed text, then reloads as exact
@@ -6811,8 +6832,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         /** Fixes offered for one problem. */
         const val PROOF_FIXES = 3
 
-        /** Spaces read back for a backspace to collapse; a longer run collapses in steps. */
-        const val SPACE_RUN_READ_CHARS = 32
+        /**
+         * Text read back for one backspace tap: a run of spaces to collapse (a longer one in
+         * steps), and the longest emoji, a subdivision flag at 14 chars.
+         */
+        const val TAP_READ_CHARS = 32
 
         /** Longest selection the shift popup re-cases: a long document is not one tap's work. */
         const val SELECTION_RECASE_MAX_CHARS = 5000
