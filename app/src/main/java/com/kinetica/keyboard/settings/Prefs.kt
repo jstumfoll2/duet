@@ -329,6 +329,10 @@ object Prefs {
      */
     const val TOUCH_MODEL_FILE = "touch_model"
     const val TOUCH_MODEL_RESET = "reset"
+
+    /** Keys in [TOUCH_MODEL_FILE]: the tap model's and the aim points' saved text. */
+    const val TOUCH_MODEL_KEY = "model"
+    const val AIM_MODEL_KEY = "aim"
     const val AUTOCORRECT_LEVEL = "pref_autocorrect_level"
 
     /**

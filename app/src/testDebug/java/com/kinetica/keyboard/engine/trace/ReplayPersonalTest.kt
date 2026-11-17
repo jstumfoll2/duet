@@ -48,4 +48,60 @@ class ReplayPersonalTest {
             f.delete()
         }
     }
+
+    @Test
+    fun backupPrefsGiveDownranksAndRetypes() {
+        val f = File.createTempFile("backup", ".txt")
+        try {
+            f.writeText(
+                listOf(
+                    "pref\tstring\tpref_word_penalties\ten|zorp|2",
+                    "pref\tstring\tpref_retype_counts\ten|blip||9,en|blip|blop|3",
+                    "pref\tbool\tpref_retype_penalties\ttrue",
+                ).joinToString("\n"),
+            )
+            val l = ReplayCli.personalOf(f)
+            assertEquals(2, l.penalties.steps("zorp", "en"))
+            assertEquals(3, l.retype!!.count("en", "blip", "blop"))
+        } finally {
+            f.delete()
+        }
+    }
+
+    @Test
+    fun retypeCountsNeedTheirSwitch() {
+        val f = File.createTempFile("backup", ".txt")
+        try {
+            f.writeText("pref\tstring\tpref_retype_counts\ten|blip|blop|3\npref\tbool\tpref_retype_penalties\tfalse\n")
+            assertNull(ReplayCli.personalOf(f).retype)
+        } finally {
+            f.delete()
+        }
+    }
+
+    @Test
+    fun lastStateLineWins() {
+        val a = File.createTempFile("words", ".jsonl")
+        val b = File.createTempFile("words", ".jsonl")
+        try {
+            a.writeText(SwipeTrace.encodeDiscard() + "\n" + SwipeTrace.encodeState("v1;1,0,0,0", null) + "\n")
+            b.writeText(SwipeTrace.encodeState("v1;2,0,0,0", "a1;5") + "\n")
+            val s = ReplayCli.lastState(listOf(a, b))!!
+            assertEquals("v1;2,0,0,0", s.touch)
+            assertEquals("a1;5", s.aim)
+            assertNull(ReplayCli.lastState(listOf(File.createTempFile("empty", ".jsonl").also { it.deleteOnExit() })))
+            // A word export with a state line still reads: the state line is skipped.
+            assertEquals(0, ReplayCli.read(a, ReplayReport(50)).size)
+        } finally {
+            a.delete()
+            b.delete()
+        }
+    }
+
+    @Test
+    fun stateLineRoundTrips() {
+        val l = SwipeTrace.decodeLine(SwipeTrace.encodeState(null, "a1;3;0,1.0,0.1,0.2"))
+        assertEquals(SwipeTrace.Line.State(null, "a1;3;0,1.0,0.1,0.2"), l)
+        assertEquals(0, SwipeTrace.wordDelta(SwipeTrace.encodeState("x", "y")))
+    }
 }

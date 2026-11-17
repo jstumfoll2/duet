@@ -73,6 +73,11 @@ import com.kinetica.keyboard.engine.models.WordCandidate
  * committed as `from`, then undone and typed again as `to`, was meant as `to` (a true label),
  * false says it was not (the retype was a change of mind, not a fix).
  *
+ * `{"v":1,"type":"state","touch":..,"aim":..}` is written once, at the end of a word export:
+ * the keyboard's learned touch and aim models as they stood at export time ([TouchModel.save],
+ * [AimModel.save] text, null when nothing is stored). Per-key averages only. `replay --state`
+ * decodes with them (#97).
+ *
  * A third, `{"v":1,"type":"discard"}`, withdraws the most recent word line: the
  * practice screen writes it when the person says their last attempt was a bad
  * swipe, so a sloppy attempt never becomes a labelled example.
@@ -285,6 +290,11 @@ object SwipeTrace {
         JsonWriter().beginObject().key("v").value(VERSION).key("type").value("confirm")
             .key("from").value(from).key("to").value(to).key("yes").value(yes).endObject().toString()
 
+    /** The learned touch and aim models at export time; see the header. */
+    fun encodeState(touch: String?, aim: String?): String =
+        JsonWriter().beginObject().key("v").value(VERSION).key("type").value("state")
+            .key("touch").value(touch).key("aim").value(aim).endObject().toString()
+
     fun encodeDiscard(): String =
         JsonWriter().beginObject().key("v").value(VERSION).key("type").value("discard").endObject().toString()
 
@@ -318,6 +328,7 @@ object SwipeTrace {
         data class Confirm(val from: String, val to: String, val yes: Boolean) : Line()
         object Discard : Line()
         data class Key(val name: String, val t: Long) : Line()
+        data class State(val touch: String?, val aim: String?) : Line()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -339,6 +350,10 @@ object SwipeTrace {
             "key" -> {
                 require((o["v"] as JsonNum).toInt() == VERSION) { "unsupported trace version ${o["v"]}" }
                 Line.Key(o["k"] as String, (o["t"] as JsonNum).toLong())
+            }
+            "state" -> {
+                require((o["v"] as JsonNum).toInt() == VERSION) { "unsupported trace version ${o["v"]}" }
+                Line.State(o["touch"] as String?, o["aim"] as String?)
             }
             else -> Line.WordLine(decode(o))
         }
