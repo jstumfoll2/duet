@@ -74,4 +74,18 @@ class DuoRerankerTest {
         ScoreModel.mode = ScoreModel.Mode.LEGACY
         assertSame(list, DuoReranker(constantModel('a'), { g }, 0.5f).rerank(twoTaps(), list))
     }
+
+    @Test fun startedAheadOrNotTheListIsTheSame() {
+        val list = listOf(cand("l", 0.5f), cand("a", 0.4f))
+        val inline = DuoReranker(constantModel('a'), { g }, 0.5f).also { it.ahead = false }
+        val want = inline.rerank(twoTaps(), list).map { it.word to it.score }
+        val ahead = DuoReranker(constantModel('a'), { g }, 0.5f)
+        val tokens = twoTaps()
+        ahead.prepare(tokens)
+        assertEquals(want, ahead.rerank(tokens, list).map { it.word to it.score })
+        // The same tokens again reuse the frames; other tokens than the ones prepared get their own.
+        assertEquals(want, ahead.rerank(tokens, list).map { it.word to it.score })
+        ahead.prepare(twoTaps())
+        assertEquals(want, ahead.rerank(tokens, list).map { it.word to it.score })
+    }
 }

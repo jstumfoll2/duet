@@ -737,6 +737,7 @@ class WordPredictor(
         val r = reranker ?: return Reading(false, false, topK, false, il)
         val overlapped = il != null || Interleave.thumbsOverlap(tokens)
         val on = r.reranks(overlapped)
+        if (on) r.prepare(tokens)
         return Reading(overlapped, on, if (on && r.deepHeap(overlapped)) deepDepth else topK, on && r.usesSegmentation(overlapped), il)
     }
 

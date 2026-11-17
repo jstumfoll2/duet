@@ -9,6 +9,7 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.IdentityHashMap
+import java.util.concurrent.CancellationException
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
@@ -66,10 +67,36 @@ class CtcScorer private constructor(
         return run()
     }
 
+    /**
+     * [logProbsDuo] for a caller that runs it on a thread of its own and may give up on the
+     * answer: one run at a time across every such caller of this scorer, and an interrupt of
+     * the running thread ends the run early with a [CancellationException].
+     */
+    fun logProbsDuoCancellable(strokes: List<DuoFeatures.Stroke>, g: KeyboardGeometry): FloatArray = synchronized(this) {
+        require(duo) { "a one-stroke encoder reads resampled strokes" }
+        DuoFeatures.of(strokes, g).copyInto(x)
+        stops = true
+        try {
+            run()
+        } finally {
+            stops = false
+        }
+    }
+
+    // Whether the run in progress ends at an interrupt ([logProbsDuoCancellable]).
+    private var stops = false
+
+    private fun checkStop() {
+        if (stops && Thread.interrupted()) throw CancellationException("encoder run given up")
+    }
+
     private fun run(): FloatArray {
-        conv(x, inDim, conv1W, conv1B, h1)
-        conv(h1, width, conv2W, conv2B, h2)
+        conv(x, inDim, conv1T, conv1B, h1)
+        checkStop()
+        conv(h1, width, conv2T, conv2B, h2)
+        checkStop()
         gruPass(forward = true)
+        checkStop()
         gruPass(forward = false)
         val out = FloatArray(n * CLASSES)
         for (t in 0 until n) {
@@ -109,39 +136,82 @@ class CtcScorer private constructor(
         }
     }
 
-    /** Conv1d, kernel 5, padding 2, then ReLU. [inp] is time-major [n * cin]; weight [cout, cin, 5]. */
-    private fun conv(inp: FloatArray, cin: Int, w: FloatArray, b: FloatArray, out: FloatArray) {
-        for (t in 0 until n) for (o in 0 until width) {
-            var s = b[o]
+    // The weights turned so that everything one input value feeds lies side by side: a sum over
+    // inputs becomes "add this input times its column" for each input, in the same input order
+    // as before, so every output is the same sum of the same terms. A column whose input is
+    // exactly zero is skipped: a thumb that is up is all zeros, and so is about half of what a
+    // ReLU puts out.
+    private val conv1T = convColumns(conv1W, inDim)
+    private val conv2T = convColumns(conv2W, width)
+    private val gruT = Array(4) { i -> columns(gru[if (i < 2) i else i + 2], 3 * hidden, if (i % 2 == 0) width else hidden) }
+    private val acc = FloatArray(width)
+
+    /** [w] as [cout, cin, KERNEL] turned to [KERNEL, cin, cout]. */
+    private fun convColumns(w: FloatArray, cin: Int): FloatArray {
+        val out = FloatArray(w.size)
+        for (o in 0 until width) for (c in 0 until cin) for (k in 0 until KERNEL) {
+            out[(k * cin + c) * width + o] = w[(o * cin + c) * KERNEL + k]
+        }
+        return out
+    }
+
+    /** [w] as [rows, cols] turned to [cols, rows]. */
+    private fun columns(w: FloatArray, rows: Int, cols: Int): FloatArray {
+        val out = FloatArray(w.size)
+        for (r in 0 until rows) for (c in 0 until cols) out[c * rows + r] = w[r * cols + c]
+        return out
+    }
+
+    /** Conv1d, kernel 5, padding 2, then ReLU. [inp] is time-major [n * cin]; [wT] from [convColumns]. */
+    private fun conv(inp: FloatArray, cin: Int, wT: FloatArray, b: FloatArray, out: FloatArray) {
+        val acc = acc
+        val width = width
+        for (t in 0 until n) {
+            System.arraycopy(b, 0, acc, 0, width)
             for (k in 0 until KERNEL) {
                 val ti = t + k - KERNEL / 2
                 if (ti < 0 || ti >= n) continue
-                val wBase = (o * cin) * KERNEL + k
                 val iBase = ti * cin
-                for (c in 0 until cin) s += w[wBase + c * KERNEL] * inp[iBase + c]
+                val wBase = k * cin * width
+                for (c in 0 until cin) {
+                    val v = inp[iBase + c]
+                    if (v == 0f) continue
+                    val col = wBase + c * width
+                    for (o in 0 until width) acc[o] += wT[col + o] * v
+                }
             }
-            out[t * width + o] = max(s, 0f)
+            val oBase = t * width
+            for (o in 0 until width) out[oBase + o] = max(acc[o], 0f)
         }
     }
 
     /** One direction of PyTorch's GRU (gate order r, z, n) into its half of [hs]. */
     private fun gruPass(forward: Boolean) {
         val base = if (forward) 0 else 4
-        val wih = gru[base]
-        val whh = gru[base + 1]
+        val wihT = gruT[if (forward) 0 else 2]
+        val whhT = gruT[if (forward) 1 else 3]
         val bih = gru[base + 2]
         val bhh = gru[base + 3]
+        val rows = 3 * hidden
+        val gates = gates
+        val gatesH = gatesH
         hPrev.fill(0f)
         val off = if (forward) 0 else hidden
         for (step in 0 until n) {
             val t = if (forward) step else n - 1 - step
-            for (r in 0 until 3 * hidden) {
-                var a = bih[r]
-                for (c in 0 until width) a += wih[r * width + c] * h2[t * width + c]
-                gates[r] = a
-                var b = bhh[r]
-                for (c in 0 until hidden) b += whh[r * hidden + c] * hPrev[c]
-                gatesH[r] = b
+            System.arraycopy(bih, 0, gates, 0, rows)
+            for (c in 0 until width) {
+                val v = h2[t * width + c]
+                if (v == 0f) continue
+                val col = c * rows
+                for (r in 0 until rows) gates[r] += wihT[col + r] * v
+            }
+            System.arraycopy(bhh, 0, gatesH, 0, rows)
+            for (c in 0 until hidden) {
+                val v = hPrev[c]
+                if (v == 0f) continue
+                val col = c * rows
+                for (r in 0 until rows) gatesH[r] += whhT[col + r] * v
             }
             for (j in 0 until hidden) {
                 val rg = sigmoid(gates[j] + gatesH[j])
@@ -187,6 +257,43 @@ class CtcScorer private constructor(
             }
             val end = if (s > 1) logAdd(alpha[s - 1], alpha[s - 2]) else alpha[s - 1]
             return if (end == Double.NEGATIVE_INFINITY) Float.POSITIVE_INFINITY else (-end).toFloat()
+        }
+
+        /** [lp] as plain probabilities, for [nllLinear]. */
+        fun probabilities(lp: FloatArray): DoubleArray = DoubleArray(lp.size) { exp(lp[it].toDouble()) }
+
+        /**
+         * [nll] from [probs] ([probabilities] of the same frames), summed as probabilities and
+         * rescaled each frame so nothing underflows. The same number to about twelve digits, at
+         * a fraction of the cost: [nll] takes a logarithm and two exponentials for every sum.
+         */
+        fun nllLinear(probs: DoubleArray, frames: Int, labels: IntArray): Float {
+            val s = 2 * labels.size + 1
+            var alpha = DoubleArray(s)
+            var next = DoubleArray(s)
+            val ext = IntArray(s) { if (it % 2 == 0) 0 else labels[it / 2] }
+            alpha[0] = probs[0]
+            if (s > 1) alpha[1] = probs[ext[1]]
+            var logScale = 0.0
+            for (t in 1 until frames) {
+                val row = t * CLASSES
+                var total = 0.0
+                for (i in 0 until s) {
+                    var a = alpha[i]
+                    if (i >= 1) a += alpha[i - 1]
+                    if (i >= 2 && i % 2 == 1 && ext[i] != ext[i - 2]) a += alpha[i - 2]
+                    a *= probs[row + ext[i]]
+                    next[i] = a
+                    total += a
+                }
+                if (total <= 0.0) return Float.POSITIVE_INFINITY
+                val inv = 1.0 / total
+                for (i in 0 until s) next[i] *= inv
+                logScale += ln(total)
+                val tmp = alpha; alpha = next; next = tmp
+            }
+            val end = if (s > 1) alpha[s - 1] + alpha[s - 2] else alpha[s - 1]
+            return if (end <= 0.0) Float.POSITIVE_INFINITY else (-(ln(end) + logScale)).toFloat()
         }
 
         private fun logAdd(a: Double, b: Double): Double {
