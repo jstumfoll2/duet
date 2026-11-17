@@ -111,6 +111,7 @@ class ShippedDefaultsTest {
         pref_retype_avoids_rejected bool true
         pref_retype_button bool false
         pref_retype_button_dp int 34
+        pref_space_dip bool false
         pref_spacebar_step_dp int 20
         pref_spacebar_word_slide bool false
         pref_spaceless_space bool false

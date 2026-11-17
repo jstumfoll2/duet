@@ -582,6 +582,8 @@
     <string name="pref_learn_phrases_summary">Ricorda quale parola scrivi di solito dopo quale, per indovinare meglio la successiva. Resta solo su questo telefono, mai in un\'esportazione del dizionario</string>
     <string name="pref_double_space_period_title">Doppio spazio per il punto</string>
     <string name="pref_double_space_period_summary">Due tocchi rapidi sulla barra spaziatrice chiudono la frase invece di lasciare due spazi. Non a inizio riga né dopo la punteggiatura</string>
+    <string name="pref_space_dip_title">Passa sulla barra spaziatrice tra le parole</string>
+    <string name="pref_space_dip_summary">Durante lo swipe, scendi sulla barra spaziatrice e risali per chiudere la parola e iniziare la successiva, senza sollevare il dito. Sperimentale: una lettera che si trova proprio sulla via per la barra può andare persa</string>
     <string name="pref_spaceless_space_title">Spazio senza spazio a sinistra della barra</string>
     <string name="pref_spaceless_space_summary">Il terzo sinistro della barra spaziatrice chiude la parola senza spazio, così una parola composta che il dizionario non ha si può scrivere in due swipe. Quel terzo non scrive più lo spazio</string>
     <string name="pref_spacebar_step_title">Distanza di trascinamento della barra spaziatrice</string>
