@@ -173,6 +173,8 @@ object SettingsSynonyms {
         Prefs.CONTACT_NAMES to listOf("contacts", "names", "people", "address book", "vocabulary"),
         Prefs.RETYPE_AVOIDS_REJECTED to listOf("retype", "again", "reject"),
         Prefs.RETYPE_PENALTIES to listOf("retype", "mistake", "confuse", "wrong word", "penalty", "learn"),
+        Prefs.USAGE_STATS to listOf("accuracy", "statistics", "stats", "wpm", "words per minute", "speed", "count"),
+        "pref_usage_screen" to listOf("accuracy", "statistics", "stats", "wpm", "words per minute", "speed", "report"),
         Prefs.FINGER_OFFSETS to listOf("offset", "finger", "thumb", "aim", "touch", "calibrate", "position"),
         Prefs.FINGER_OFFSETS_RESET_ROW to listOf("offset", "finger", "thumb", "aim", "touch", "calibrate", "clear", "forget", "reset"),
         Prefs.RETYPE_BUTTON to listOf("redo", "again", "undo", "try again"),

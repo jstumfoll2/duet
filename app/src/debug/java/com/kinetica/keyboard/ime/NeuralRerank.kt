@@ -12,6 +12,7 @@ import com.kinetica.keyboard.engine.ShapeModel
 import com.kinetica.keyboard.engine.CandidateReranker
 import com.kinetica.keyboard.engine.CtcReranker
 import com.kinetica.keyboard.engine.CtcScorer
+import com.kinetica.keyboard.engine.DuoReranker
 import com.kinetica.keyboard.engine.KineticaConstants
 import com.kinetica.keyboard.engine.WordPredictor
 import com.kinetica.keyboard.engine.models.InputToken
@@ -60,6 +61,21 @@ object NeuralRerank {
     private const val PREF_SPEED = "shape_speed"
     private const val PREF_REVISE = "previous_word_fix"
     private const val PREF_LATTICE = "lattice_breaks"
+    private const val PREF_DUO = "duo_rerank"
+
+    /**
+     * The two-thumb encoder ([DuoReranker], decoder rework step 11, #134): trained by the
+     * train_duo workflow from scratch on FUTO's MIT swipe dataset redrawn as two thumbs (no FUTO
+     * weights). A DEV asset only, never in a release APK.
+     */
+    const val DUO_ASSET = "ctc/futo_duo_v1.kctc"
+
+    /**
+     * Fitted on the trace files before 2026-10-22 and held out on the rest, with the
+     * language-model score, on top of the one-stroke rerank: true-label words 65.9 -> 70.2%
+     * top-1, all words 80.6 -> 82.5%, two thumbs at once 79.8 -> 83.8%; 0.3 and 0.8 both lower.
+     */
+    const val DUO_BETA = 0.5f
 
     private const val TAG = "KineticaNeural"
 
@@ -196,6 +212,35 @@ object NeuralRerank {
             LatticeDecoder.enabled = on
         }
 
+    /**
+     * The decoder's candidates scored by the two-thumb encoder too ([DuoReranker]). Off by
+     * default until a phone batch agrees with replay.
+     */
+    var duoRerank: Boolean
+        get() = prefs?.getBoolean(PREF_DUO, false) ?: false
+        set(on) {
+            prefs?.edit()?.putBoolean(PREF_DUO, on)?.apply()
+            onChange?.invoke()
+        }
+
+    private var duoModel: ByteArray? = null
+
+    /** A fresh two-thumb scorer, or null when the asset is missing or unreadable. */
+    private fun duoScorer(): CtcScorer? {
+        val bytes = duoModel ?: try {
+            appContext?.assets?.open(DUO_ASSET)?.use { it.readBytes() }?.also { duoModel = it }
+        } catch (e: IOException) {
+            Log.w(TAG, "two-thumb model asset unavailable", e)
+            null
+        } ?: return null
+        return try {
+            CtcScorer.load(bytes.inputStream()).takeIf { it.duo }
+        } catch (e: Exception) {
+            Log.w(TAG, "two-thumb model unreadable", e)
+            null
+        }
+    }
+
     fun detach() {
         onChange = null
     }
@@ -239,13 +284,15 @@ object NeuralRerank {
         neuralShadow = null
         val b = beta
         val s = if (enabled) scorer() else null
-        val p = if (s == null) {
-            liveBeta = 0f
+        val d = if (duoRerank) duoScorer() else null
+        liveBeta = if (s == null) 0f else b
+        val p = if (s == null && d == null) {
             make(null, KineticaConstants.TOP_K)
         } else {
-            liveBeta = b
             var built: WordPredictor? = null
-            make(Timed(twoThumb(CtcReranker(s, { built?.geometry }, b))), DEPTH).also { built = it }
+            val inner = s?.let { twoThumb(CtcReranker(it, { built?.geometry }, b)) }
+            val r: CandidateReranker = if (d == null) inner!! else DuoReranker(d, { built?.geometry }, DUO_BETA, inner)
+            make(Timed(r), if (inner != null) DEPTH else KineticaConstants.TOP_K).also { built = it }
         }
         live = p
         return p
@@ -282,7 +329,7 @@ object NeuralRerank {
     }
 
     /** The rerank step alone, timed on the decode thread. */
-    private class Timed(private val inner: CtcReranker) : CandidateReranker {
+    private class Timed(private val inner: CandidateReranker) : CandidateReranker {
         override fun reranks(overlapped: Boolean) = inner.reranks(overlapped)
 
         override fun usesSegmentation(overlapped: Boolean) = inner.usesSegmentation(overlapped)

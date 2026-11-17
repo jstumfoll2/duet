@@ -272,6 +272,16 @@ object Prefs {
      */
     const val RETYPE_COUNTS = "pref_retype_counts"
 
+    /**
+     * Count words, bar picks, retypes and typing time per day for the accuracy screen
+     * (engine.UsageStats, issue #135). Counts only, kept on the phone; never in incognito or a
+     * private field.
+     */
+    const val USAGE_STATS = "pref_usage_stats"
+
+    /** The counts behind [USAGE_STATS], one row per day (engine.UsageStats.serialize). Not on any settings screen. */
+    const val USAGE_COUNTS = "pref_usage_counts"
+
     /** Whether the learned per-key thumb positions (AimModel, TouchModel) are used; they keep learning either way. */
     const val FINGER_OFFSETS = "pref_finger_offsets"
     const val DEFAULT_FINGER_OFFSETS = true
@@ -817,6 +827,7 @@ object Prefs {
     const val DEFAULT_SPACE_CHORD_ARM_MS = 50
     const val DEFAULT_RETYPE_AVOIDS_REJECTED = true
     const val DEFAULT_RETYPE_PENALTIES = false
+    const val DEFAULT_USAGE_STATS = false
     const val DEFAULT_AUTOCORRECT_LEVEL = "normal"
     const val DEFAULT_REINFORCE_INCREMENT = "medium"
     const val DEFAULT_EMOJI_KEY = true
