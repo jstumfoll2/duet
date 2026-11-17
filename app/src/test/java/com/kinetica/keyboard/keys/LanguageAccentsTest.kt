@@ -96,7 +96,6 @@ class LanguageAccentsTest {
         val plEn = mapOf<String, Any>(
             Prefs.LANGUAGE to "pl",
             Prefs.ENABLED_LANGUAGES to setOf("pl", "en"),
-            Prefs.LANGUAGE_MODE to "follow",
             Prefs.PLAIN_LETTER_ALTERNATES to true,
             Prefs.letterAlternatesKey('i') to "ï 8",
         )
