@@ -28,6 +28,13 @@ class GestureEngine(private val listener: Listener) {
 
         /** Last active pointer lifted; a decode snapshot is now consistent. */
         fun onAllPointersUp()
+
+        /**
+         * One stroke lifted that dipped to the spacebar between words ([SpaceDip]): [words] are
+         * its pieces in order, at least two, with a space owed between each. Sent in place of
+         * [onTokenFinalized], and only while [spaceDip] is on.
+         */
+        fun onSpaceDip(words: List<InputToken>) = words.forEach { onTokenFinalized(it) }
     }
 
     /**
@@ -58,6 +65,10 @@ class GestureEngine(private val listener: Listener) {
 
     private var geometry: KeyboardGeometry? = null
     private var tapDispKw = 0.5f
+
+    /** A stroke that dips to the spacebar and back is split into words there ([SpaceDip]). */
+    @Volatile
+    var spaceDip = false
     private val streams = arrayOfNulls<GestureStream>(2)     // slot 0 = LEFT, 1 = RIGHT
     private val slotByPointer = IntArray(MAX_POINTER_ID) { -1 }
 
@@ -154,7 +165,17 @@ class GestureEngine(private val listener: Listener) {
         if (token is SwipeToken && g != null && DecodeTrace.enabled) tracePath(token, g)
         release(pointerId)
         observer?.onUp(pointerId, xPx, yPx, t, token)
-        listener.onTokenFinalized(token)
+        val words = if (spaceDip && token is SwipeToken && g != null) {
+            SpaceDip.split(token, g, tapDispKw, DIP_RESAMPLER)
+        } else {
+            null
+        }
+        if (words != null) {
+            DecodeTrace.log { "  space dip pieces=${words.size}" }
+            listener.onSpaceDip(words)
+        } else {
+            listener.onTokenFinalized(token)
+        }
         if (activeCount() == 0) listener.onAllPointersUp()
     }
 
@@ -276,6 +297,9 @@ class GestureEngine(private val listener: Listener) {
 
     internal companion object {
         private const val MAX_POINTER_ID = 64
+
+        // Resampling keeps no state between calls; pointers lift on one (UI) thread.
+        private val DIP_RESAMPLER = DtwMatcher()
 
         /**
          * One swipe's raw points: kw to two decimals (a hundredth of a key, about a pixel), each

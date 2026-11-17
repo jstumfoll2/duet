@@ -36,6 +36,8 @@ class KeyboardGeometry private constructor(
     private val apostrophe: FloatArray? = null,
     // The letter block, the bounding box of every letter rect, kw: left, top, right, bottom.
     private val block: FloatArray,
+    // The spacebar's rect, kw, when the view gave one; only [SpaceDip] reads it.
+    private val space: FloatArray? = null,
 ) {
     /**
      * This board with each letter key moved by ([dx], [dy]) kw per code: where the user's thumbs
@@ -58,11 +60,21 @@ class KeyboardGeometry private constructor(
             r[c * 4 + 1] += y
             r[c * 4 + 3] += y
         }
-        return KeyboardGeometry(keyWidthPx, midlinePx, alphabet, present, cx, cy, r, apostrophe, block)
+        return KeyboardGeometry(keyWidthPx, midlinePx, alphabet, present, cx, cy, r, apostrophe, block, space)
     }
 
     /** A copy of the apostrophe key's kw rect, or null; see [apostrophe]. */
     fun apostropheRectKw(): FloatArray? = apostrophe?.copyOf()
+
+    /** The spacebar's rect (kw: left, top, right, bottom), or null when the board gave none. */
+    fun spaceRectKw(): FloatArray? = space?.copyOf()
+
+    /** The bottom edge of the letter block, kw. */
+    fun blockBottomKw(): Float = block[3]
+
+    /** This board with the spacebar at [rectKw] (left, top, right, bottom). */
+    fun withSpace(rectKw: FloatArray): KeyboardGeometry =
+        KeyboardGeometry(keyWidthPx, midlinePx, alphabet, present, centersX, centersY, rects, apostrophe, block, rectKw.copyOf())
 
     /** Letters this geometry can place: the alphabet's, keyed or not. */
     val letterCount: Int get() = alphabet.letterCount

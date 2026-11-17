@@ -461,6 +461,13 @@ object Prefs {
      */
     const val SPACELESS_SPACE = "pref_spaceless_space"
 
+    /**
+     * A stroke that dips to the spacebar and comes back up ends the word there and starts the
+     * next, so a phrase can be drawn without lifting (engine.SpaceDip, issue #141). A rule on
+     * the path, applied when the stroke lifts. Off by default.
+     */
+    const val SPACE_DIP = "pref_space_dip"
+
     /** A second spacebar tap inside the double-tap window ends the sentence. */
     const val DOUBLE_SPACE_PERIOD = "pref_double_space_period"
 
@@ -846,6 +853,7 @@ object Prefs {
     const val DEFAULT_SPACEBAR_WORD_SLIDE = false
     const val DEFAULT_SHIFT_SWAPS_SLIDES = false
     const val DEFAULT_SPACELESS_SPACE = false
+    const val DEFAULT_SPACE_DIP = false
     const val DEFAULT_DOUBLE_SPACE_PERIOD = false
     const val DEFAULT_TIDY_SPACES = false
 

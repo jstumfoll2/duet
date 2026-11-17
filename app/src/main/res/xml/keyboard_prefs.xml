@@ -167,6 +167,12 @@
                         app:singleLineTitle="false"
                         android:summary="@string/pref_spaceless_space_summary"
                         android:defaultValue="false" />
+                    <SwitchPreferenceCompat
+                        android:key="pref_space_dip"
+                        android:title="@string/pref_space_dip_title"
+                        app:singleLineTitle="false"
+                        android:summary="@string/pref_space_dip_summary"
+                        android:defaultValue="false" />
                 </PreferenceScreen>
             </PreferenceCategory>
         </PreferenceScreen>

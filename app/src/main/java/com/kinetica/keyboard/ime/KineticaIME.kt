@@ -672,12 +672,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         config = KeyboardConfig.from(prefs, systemNight())
         RetypePenalties.enabled = prefs.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
         usageOn = prefs.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
+        engine.spaceDip = prefs.getBoolean(Prefs.SPACE_DIP, Prefs.DEFAULT_SPACE_DIP)
         applyFingerOffsets()
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
             val previous = config
             config = KeyboardConfig.from(p, systemNight())
             RetypePenalties.enabled = p.getBoolean(Prefs.RETYPE_PENALTIES, Prefs.DEFAULT_RETYPE_PENALTIES)
             usageOn = p.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
+            engine.spaceDip = p.getBoolean(Prefs.SPACE_DIP, Prefs.DEFAULT_SPACE_DIP)
             // What decides the automatic space, whenever any of it changes and from wherever.
             if (config.autospace != previous.autospace || config.tidySpaces != previous.tidySpaces ||
                 config.wordEndsOnSpace != previous.wordEndsOnSpace ||
@@ -1396,6 +1398,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         super.onStartInput(attribute, restarting)
         // Ctrl held for the next key, and Select, belong to the field they were set in.
         if (!restarting) {
+            dipWords.clear()
             ctrlPending = false
             setSelecting(false)
             lineEdges.clear()
@@ -1619,7 +1622,48 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     // -------------------------------------------------- engine listener (UI)
 
+    /**
+     * The words still owed from a stroke that dipped to the spacebar ([Prefs.SPACE_DIP]). Each
+     * waits for the decode of the word before it, because a space ends a word with what its
+     * decode wrote, and that arrives after the lift.
+     */
+    private val dipWords = ArrayDeque<InputToken>()
+    private var payingDip = false
+
+    private val payDip = Runnable {
+        val next = dipWords.removeFirstOrNull() ?: return@Runnable
+        if (composer?.hasPendingWord != true) {
+            // The word before the dip is gone (a field change, a cursor move): so is the rest.
+            dipWords.clear()
+            return@Runnable
+        }
+        DecodeTrace.log { "  space dip pays space, left=${dipWords.size}" }
+        TraceRecorder.key("space", SystemClock.uptimeMillis())
+        payingDip = true
+        try {
+            onSpace()
+            onTokenFinalized(next)
+        } finally {
+            payingDip = false
+        }
+    }
+
+    override fun onSpaceDip(words: List<InputToken>) {
+        // Peck mode ignores swipes, and with no dictionary there is no decode to wait for.
+        if (config.peckMode || composer == null) {
+            words.forEach { onTokenFinalized(it) }
+            return
+        }
+        onTokenFinalized(words[0])
+        dipWords.addAll(words.subList(1, words.size))
+    }
+
     override fun onTokenFinalized(token: InputToken) {
+        // A new touch while a dip's words are still owed: the user has moved on.
+        if (!payingDip && dipWords.isNotEmpty()) {
+            mainHandler.removeCallbacks(payDip)
+            dipWords.clear()
+        }
         shift.onOtherKey()
         autocorrectUndo = null
         autoFixUndo = null
@@ -1800,6 +1844,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             tentative
         }
         onCandidatesRanked(ranked, lead, literal)
+        // The word before a spacebar dip has its decode: the space and the next word follow.
+        if (dipWords.isNotEmpty()) {
+            mainHandler.removeCallbacks(payDip)
+            mainHandler.post(payDip)
+        }
     }
 
     // True while finalizeSplitHead commits the tapped head, which goes through
