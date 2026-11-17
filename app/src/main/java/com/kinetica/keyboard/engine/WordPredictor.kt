@@ -179,6 +179,40 @@ class WordPredictor(
     }
 
     /**
+     * Where each word was typed ([FieldWords]) and the class of the field being typed in, set by
+     * the service; read once per decode. Null, or the switch off, is no pass.
+     */
+    @Volatile var fieldWords: FieldWords? = null
+
+    @Volatile var fieldClass: FieldClass = FieldClass.OTHER
+
+    /**
+     * [list] with the personal boost of each word that lives in another kind of field cut to
+     * what its commits in this kind earn ([FieldWords.factor]), re-sorted. After the search,
+     * like the penalties: it only lowers scores.
+     */
+    private fun withField(list: List<WordCandidate>): List<WordCandidate> {
+        val f = fieldWords
+        if (f == null || !FieldWords.enabled || list.size < 2 || f.size == 0) return list
+        val cls = fieldClass
+        var changed = false
+        val out = list.map { c ->
+            val key = if (c.word.any { it.isUpperCase() }) c.word.lowercase() else c.word
+            val count = personalCounts[key] ?: 0
+            val factor = if (count > 0) f.factor(key, cls, count) else 1f
+            if (factor == 1f) {
+                c
+            } else {
+                changed = true
+                c.scaled(ScoreTerms.Term.FIELD, factor)
+            }
+        }
+        if (!changed) return list
+        DecodeTrace.log { "field$langTag ${cls.key}: " + out.filter { it.terms[ScoreTerms.Term.FIELD] != 0f }.joinToString(" ") { it.word } }
+        return out.sortedByDescending { it.score }
+    }
+
+    /**
      * Words committed lately in this session ([SessionWords.snapshot], lowercase and folded), set
      * by the service after each commit; read once per decode. Empty is off.
      */
@@ -679,7 +713,7 @@ class WordPredictor(
         val logLinear = ScoreModel.logLinear
         val searched = decodeLetters(input, context, beam)
         // The log-linear score carries the two-word context inside the search ([lmLog]).
-        val letters = withRetypes(withPenalties(withSession(if (logLinear) searched else withTrigrams(searched, context, prevWordId))))
+        val letters = withRetypes(withPenalties(withField(withSession(if (logLinear) searched else withTrigrams(searched, context, prevWordId)))))
         val held = if (heldDoubleBoost == 1f) IntArray(0) else HeldDoubles.heldKeys(input, heldDoubleMs, heldDoubleEndMs, heldDoubleFreeTime)
         val missCharged = heldDoubleMissKeep != 1f && input.any { it is SwipeToken }
         val ranked = if (held.isEmpty() && !missCharged) letters else preferHeldDoubles(letters, held, prevWordId).also { out ->

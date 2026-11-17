@@ -171,6 +171,7 @@ object SettingsSynonyms {
         Prefs.LEARN_PHRASES to listOf("bigram", "context", "pairs", "personal"),
         Prefs.PHRASE_CHIP to listOf("phrase", "completion", "sentence", "predict", "next word", "autocomplete"),
         Prefs.CONTACT_NAMES to listOf("contacts", "names", "people", "address book", "vocabulary"),
+        Prefs.FIELD_LEARNING to listOf("app", "field", "chat", "email", "search", "code", "terminal", "context", "adapt", "personal"),
         Prefs.RETYPE_AVOIDS_REJECTED to listOf("retype", "again", "reject"),
         Prefs.RETYPE_PENALTIES to listOf("retype", "mistake", "confuse", "wrong word", "penalty", "learn"),
         Prefs.USAGE_STATS to listOf("accuracy", "statistics", "stats", "wpm", "words per minute", "speed", "count"),

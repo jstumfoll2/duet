@@ -318,6 +318,8 @@ Everything below comes from Kinetica and works the same in Duet.
   zone, so a word the dictionary lacks goes in with one tap.
 - Tap autocorrect with three levels. It restores missing accents (`perche` -> `perché`,
   `pozno` -> `późno`), and backspace right after it puts back what you typed.
+- Words learned per kind of field (Learning > *Learn words per kind of field*, off): a word you
+  only type in search boxes or code keeps its boost there and loses most of it in a chat.
 - A retype button (off by default) takes the word back, and the bar then offers what else the
   gesture could have been.
 

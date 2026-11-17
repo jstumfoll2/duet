@@ -261,6 +261,20 @@ object Prefs {
     const val RETYPE_AVOIDS_REJECTED = "pref_retype_avoids_rejected"
 
     /**
+     * Count where each word is typed (chat, email, search, code or other, from the field's own
+     * type) and cut a word's personal boost in the kinds of field it is not used in
+     * (engine.FieldWords, issue #136).
+     */
+    const val FIELD_LEARNING = "pref_field_learning"
+    const val DEFAULT_FIELD_LEARNING = false
+
+    /**
+     * The counts behind [FIELD_LEARNING] (engine.FieldWords.serialize). Not on any settings
+     * screen; a string preference, so the settings backup carries it.
+     */
+    const val FIELD_COUNTS = "pref_field_counts"
+
+    /**
      * Learn "the keyboard wrote Y, I meant X" from retypes and correction picks, and score Y
      * down when both are candidates again (engine.RetypePenalties, decoder rework step 8).
      */

@@ -405,6 +405,8 @@
     <string name="pref_tidy_spaces_title">Spazi ordinati</string>
     <string name="pref_enter_action_title">Invio esegue l\'azione dell\'app</string>
     <string name="pref_delete_on_block_title">Bloccare una parola la cancella</string>
+    <string name="pref_field_learning_title">Impara le parole per tipo di campo</string>
+    <string name="pref_field_learning_summary">Conta se scrivi una parola nelle chat, nelle email, nelle caselle di ricerca o nel codice, e trattiene le parole imparate in un tipo di campo mentre scrivi in un altro. I conteggi restano su questo telefono</string>
     <string name="pref_delete_on_block_summary">Togliere dalla barra la parola appena scritta la cancella anche dal testo, e la barra propone le altre parole del gesto. Solo la parola al cursore</string>
     <string name="pref_trigger_case_title">Maiuscole nelle abbreviazioni</string>
     <string name="pref_trigger_case_summary">Se un\'abbreviazione scritta con la maiuscola si attiva comunque e passa la maiuscola all\'espansione</string>

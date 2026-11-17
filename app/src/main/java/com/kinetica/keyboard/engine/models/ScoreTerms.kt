@@ -70,6 +70,9 @@ class ScoreTerms private constructor(private val v: FloatArray) {
 
         /** A word the user keeps getting in place of another listed one ([RetypePenalties]). */
         RETYPE("retype"),
+
+        /** A personal boost cut for a word that lives in another kind of field ([FieldWords]). */
+        FIELD("field"),
     }
 
     /** ln of [t]'s factor; 0 when it never applied. */

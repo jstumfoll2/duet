@@ -469,6 +469,8 @@
     <string name="pref_finger_offsets_reset_message">Forget the learned thumb positions? The keyboard reads touches from the keys as drawn until it has learned again. This cannot be undone.</string>
     <string name="pref_finger_offsets_reset_done">Learned thumb positions cleared</string>
     <string name="pref_delete_on_block_title">Blocking a word deletes it</string>
+    <string name="pref_field_learning_title">Learn words per kind of field</string>
+    <string name="pref_field_learning_summary">Counts whether you type a word in chats, emails, search boxes or code, and holds back the words you have learned in one kind of field while you type in another. The counts stay on this phone</string>
     <string name="pref_delete_on_block_summary">Sliding the word you just wrote off the bar also takes it out of the text, and the bar offers the gesture\'s other words. Only the word at the cursor</string>
     <string name="pref_trigger_case_title">Capitals in expansion triggers</string>
     <string name="pref_trigger_case_summary">Whether a trigger typed with a capital still fires, and passes the capital on</string>

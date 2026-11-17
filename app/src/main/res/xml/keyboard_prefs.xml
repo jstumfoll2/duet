@@ -427,6 +427,12 @@
                     android:summary="@string/pref_retype_avoids_summary"
                     android:defaultValue="true" />
                 <SwitchPreferenceCompat
+                    android:key="pref_field_learning"
+                    android:title="@string/pref_field_learning_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_field_learning_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
                     android:key="pref_retype_penalties"
                     android:title="@string/pref_retype_penalties_title"
                     app:singleLineTitle="false"
