@@ -145,6 +145,10 @@ object ReplayCli {
                 // --ctcilonly: that, and no rerank of one-thumb buffers.
                 val ctcilOnly = a.remove("--ctcilonly")
                 val ctcil = a.remove("--ctcil") || ctcilOnly
+                val duoModel = opt(a, "--duo")?.let { f -> File(f).inputStream().use { CtcScorer.load(it) } }
+                val duoBeta = opt(a, "--duoBeta")?.toFloat() ?: 0f
+                val duoTaps = !a.remove("--duoNoTaps")
+                val duoGate = opt(a, "--duoGate")?.toFloat() ?: 1.5f
                 // --personal BACKUP: decode with the personal store of a settings backup (#97).
                 // --recent B: session recency boost B (1 = off, the default); --recentfreq L its
                 // frequency cap as ln of the weight.
@@ -188,6 +192,11 @@ object ReplayCli {
                     soloGate = opt(a, "--sologate")?.toFloat() ?: Float.POSITIVE_INFINITY,
                     soloShallow = a.remove("--soloshallow"),
                     retypeSources = retypeSources,
+                    // --duo MODEL --duoBeta B [--duoGate G] [--duoNoTaps]: the two-thumb encoder over the candidates (#134).
+                    duo = duoModel,
+                    duoBeta = duoBeta,
+                    duoTaps = duoTaps,
+                    duoGate = duoGate,
                 )
                 val report = run(harness, a.map { File(it) })
                 dump?.close()
@@ -685,6 +694,9 @@ object ReplayCli {
                 opt(a, "--propLm")?.let { com.kinetica.keyboard.engine.CtcProposer.LM_WEIGHT = it.toFloat() }
                 val top = opt(a, "--propTop")?.toInt() ?: 20
                 val dump = opt(a, "--propDump")?.let { File(it).printWriter() }
+                // --propCands OUT: per buffer, the decoder's candidates with ln score and the
+                // encoder's CTC cost of each word's letters, for fitting a combined score offline.
+                val cands = opt(a, "--propCands")?.let { File(it).printWriter() }
                 if (a.isEmpty()) usage()
                 val h = ReplayHarness(assets)
                 val sink = ReplayReport(h.deepK)
@@ -710,7 +722,8 @@ object ReplayCli {
                             overlap -> "overlapped swipes"
                             else -> "swipes in turn"
                         }
-                        val list = p.decode(tokens, w.context).map { it.word.lowercase() }
+                        val decoded = p.decode(tokens, w.context)
+                        val list = decoded.map { it.word.lowercase() }
                         val t0 = System.nanoTime()
                         val lp = if (ctc.duo) ctc.logProbsDuo(com.kinetica.keyboard.engine.DuoFeatures.strokes(tokens), g)
                         else com.kinetica.keyboard.engine.CtcProposer.frames(swipes.map { ctc.logProbs(it.resampled, g) })
@@ -719,6 +732,16 @@ object ReplayCli {
                         nanos += System.nanoTime() - t0; runs++
                         val rank = props.indexOf(label)
                         val practice = w.target != null
+                        if (cands != null) {
+                            val frames = lp.size / CtcScorer.CLASSES
+                            cands.println(listOf(f.name, n, bucket, label, practice).joinToString("\t") + "\t" + decoded.joinToString("\t") { c ->
+                                val codes = com.kinetica.keyboard.engine.AccentFolder.fold(c.word.lowercase()).mapNotNull { ch ->
+                                    if (ch == '\'') null else p.alphabet.codeOf(ch).takeIf { it in 0 until com.kinetica.keyboard.engine.Alphabet.LETTERS }
+                                }
+                                val nll = if (codes.isEmpty()) Float.NaN else CtcScorer.nll(lp, frames, IntArray(codes.size) { CtcScorer.classOf(codes[it]) })
+                                "${c.word.lowercase()}|${kotlin.math.ln(c.score)}|$nll|${codes.size}"
+                            })
+                        }
                         dump?.println(listOf(f.name, n, bucket, label, practice, list.indexOf(label), rank, list.firstOrNull() ?: "-", props.firstOrNull() ?: "-").joinToString("\t"))
                         for (key in listOf(bucket, "all")) {
                             val t = tallies.getOrPut(key) { Tally() }
@@ -740,7 +763,7 @@ object ReplayCli {
                 for ((k, t) in tallies) {
                     println("$k: n=${t.n} decoder lead=${nf(t.lead, t.n)} in list=${nf(t.inList, t.n)} | proposer top1=${nf(t.p1, t.n)} top5=${nf(t.p5, t.n)} top$top=${nf(t.pTop, t.n)} | not in list=${t.n - t.inList}, proposer has it=${t.added} (practice: ${t.addedTrue} of ${t.missTrue})")
                 }
-                dump?.close()
+                dump?.close(); cands?.close()
                 println("proposer ms per buffer=%.2f".format(java.util.Locale.ROOT, nanos / 1e6 / maxOf(runs, 1)))
                 examples.forEach { println(it) }
             }

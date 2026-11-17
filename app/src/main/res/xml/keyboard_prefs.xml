@@ -432,6 +432,21 @@
                     android:summary="@string/pref_retype_penalties_summary"
                     android:defaultValue="false" />
                 <SwitchPreferenceCompat
+                    android:key="pref_usage_stats"
+                    android:title="@string/pref_usage_stats_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_usage_stats_summary"
+                    android:defaultValue="false" />
+                <Preference
+                    android:key="pref_usage_screen"
+                    android:title="@string/usage_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_usage_screen_summary">
+                    <intent
+                        android:targetPackage="@string/app_pkg"
+                        android:targetClass="com.kinetica.keyboard.settings.UsageActivity" />
+                </Preference>
+                <SwitchPreferenceCompat
                     android:key="pref_delete_on_block"
                     android:title="@string/pref_delete_on_block_title"
                     app:singleLineTitle="false"
