@@ -456,10 +456,17 @@ internal fun notBlocked(words: List<String>, blocked: Set<String>): List<String>
  * Composition-mode zone list: the ranked candidates, then the all-tap literal as the last zone
  * when it is not already among them, so an out-of-dictionary word commits verbatim with one
  * tap. Pure so the JVM suite can pin it; callers pass an empty literal for swipe buffers.
+ * [literalSecond] moves the literal up to second place instead.
  */
-internal fun suggestionZoneWords(candidates: List<String>, literal: String): List<String> =
-    if (literal.isEmpty() || candidates.contains(literal)) candidates
-    else candidates + literal
+internal fun suggestionZoneWords(candidates: List<String>, literal: String, literalSecond: Boolean = false): List<String> {
+    if (literal.isEmpty()) return candidates
+    if (!literalSecond) return if (candidates.contains(literal)) candidates else candidates + literal
+    // With the space-bold switch: second, after the lead, so the typed letters are on the
+    // first page whatever the list holds (#115).
+    if (candidates.indexOf(literal) in 0..1) return candidates
+    val rest = candidates - literal
+    return rest.take(1) + literal + rest.drop(1)
+}
 
 /** Two languages' predictions in one list: strongest first, one entry per word. */
 internal fun mergeNextWords(

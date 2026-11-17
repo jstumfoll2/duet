@@ -145,6 +145,10 @@ data class KeyboardConfig(
     val recentTextScale: Float,
     /** The bar's words at their own width with a small gap. */
     val barCompact: Boolean,
+    /** Upstream 3.0 bar options (#115), all off by default. */
+    val barMiddleCut: Boolean = Prefs.DEFAULT_BAR_MIDDLE_CUT,
+    val barSpaceBold: Boolean = Prefs.DEFAULT_BAR_SPACE_BOLD,
+    val barWordMarks: Boolean = Prefs.DEFAULT_BAR_WORD_MARKS,
     /** Recent-word columns swap up for the word above. */
     val recentSwipeReversed: Boolean,
     /** Keys show their ?123 chords while it is held. */
@@ -452,6 +456,9 @@ data class KeyboardConfig(
                 prefs.getInt(Prefs.RECENT_TEXT_PCT, BarMetrics.RECENT_PCT_DEFAULT),
             ),
             barCompact = prefs.getBoolean(Prefs.BAR_COMPACT, Prefs.DEFAULT_BAR_COMPACT),
+            barMiddleCut = prefs.getBoolean(Prefs.BAR_MIDDLE_CUT, Prefs.DEFAULT_BAR_MIDDLE_CUT),
+            barSpaceBold = prefs.getBoolean(Prefs.BAR_SPACE_BOLD, Prefs.DEFAULT_BAR_SPACE_BOLD),
+            barWordMarks = prefs.getBoolean(Prefs.BAR_WORD_MARKS, Prefs.DEFAULT_BAR_WORD_MARKS),
             chordLabels = prefs.getBoolean(Prefs.CHORD_LABELS, Prefs.DEFAULT_CHORD_LABELS),
             triggerCase = TriggerCase.fromPref(prefs.getString(Prefs.TRIGGER_CASE, Prefs.DEFAULT_TRIGGER_CASE)),
             deleteOnBlock = prefs.getBoolean(Prefs.DELETE_ON_BLOCK, Prefs.DEFAULT_DELETE_ON_BLOCK),

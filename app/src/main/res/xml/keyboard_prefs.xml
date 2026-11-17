@@ -213,6 +213,24 @@
                     app:singleLineTitle="false"
                     android:summary="@string/pref_bar_compact_summary"
                     android:defaultValue="true" />
+                <SwitchPreferenceCompat
+                    android:key="pref_bar_middle_cut"
+                    android:title="@string/pref_bar_middle_cut_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_bar_middle_cut_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
+                    android:key="pref_bar_space_bold"
+                    android:title="@string/pref_bar_space_bold_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_bar_space_bold_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
+                    android:key="pref_bar_word_marks"
+                    android:title="@string/pref_bar_word_marks_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_bar_word_marks_summary"
+                    android:defaultValue="false" />
             </PreferenceCategory>
             <PreferenceCategory android:title="@string/pref_cat_recent">
                 <SwitchPreferenceCompat

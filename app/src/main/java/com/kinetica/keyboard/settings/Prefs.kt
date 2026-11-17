@@ -545,6 +545,15 @@ object Prefs {
     /** The bar's words sit at their own width with a small gap, instead of in equal zones. */
     const val BAR_COMPACT = "pref_bar_compact"
 
+    /** Suggestion bar: cut a too-long word in the middle, keeping its start and end. */
+    const val BAR_MIDDLE_CUT = "pref_bar_middle_cut"
+
+    /** Suggestion bar: bold only the word space writes, the tapped letters second. */
+    const val BAR_SPACE_BOLD = "pref_bar_space_bold"
+
+    /** Suggestion bar: mark words `+` learned at commit, `?` unknown, `C` personal. */
+    const val BAR_WORD_MARKS = "pref_bar_word_marks"
+
     /** The suggestion bar shows the autospace wait as a shrinking band. */
     const val AUTOSPACE_TIMER = "pref_autospace_timer"
     const val ENTER_ACTION = "pref_enter_action"
@@ -922,6 +931,9 @@ object Prefs {
 
     /** On: words a gap apart read as one line and fit more to a page; a word is still its own target. */
     const val DEFAULT_BAR_COMPACT = true
+    const val DEFAULT_BAR_MIDDLE_CUT = false
+    const val DEFAULT_BAR_SPACE_BOLD = false
+    const val DEFAULT_BAR_WORD_MARKS = false
 
     /** On: a pause that ends a word is easier to time when the wait can be seen. */
     const val DEFAULT_AUTOSPACE_TIMER = true

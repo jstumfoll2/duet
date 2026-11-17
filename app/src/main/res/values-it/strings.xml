@@ -429,6 +429,12 @@
     <string name="pref_bar_text_pct_summary">Le parole della barra, rispetto alla dimensione data dall\'altezza della barra</string>
     <string name="pref_bar_compact_title">Suggerimenti compatti</string>
     <string name="pref_bar_compact_summary">Le parole stanno una accanto all\'altra con un piccolo spazio, invece di dividersi la barra in parti uguali. Ne entrano di più per pagina</string>
+    <string name="pref_bar_middle_cut_title">Taglia al centro le parole lunghe</string>
+    <string name="pref_bar_middle_cut_summary">Una parola troppo lunga per il suo spazio tiene l\'inizio e la fine, come organi…zione, dove parole che iniziano uguali si distinguono</string>
+    <string name="pref_bar_space_bold_title">Grassetto sulla parola che scrive lo spazio</string>
+    <string name="pref_bar_word_marks_title">Segna le parole nuove e personali</string>
+    <string name="pref_bar_word_marks_summary">Un segno accanto a ogni parola: + imparata quando la scrivi, ? sconosciuta e non imparata qui, C tua. Nessuno per una parola del dizionario</string>
+    <string name="pref_bar_space_bold_summary">È in grassetto solo la parola che scriverebbe lo spazio, nessuna se non è nella barra. Le lettere toccate vengono seconde, non ultime</string>
     <string name="pref_enter_hold_sends_title">Tieni premuto invio per inviare</string>
     <string name="pref_enter_hold_sends_summary">In un campo su più righe con un\'azione, come una chat, un tocco su invio va a capo e la pressione lunga la esegue. I campi su una riga e le pagine dei simboli tengono l\'azione sul tocco</string>
     <string name="pref_field_keys_title">Tasti adatti al campo</string>

@@ -109,6 +109,7 @@ import com.kinetica.keyboard.ui.EmojiPickerView
 import com.kinetica.keyboard.ui.EmojiSuggest
 import com.kinetica.keyboard.ui.FloatingFrame
 import com.kinetica.keyboard.ui.BarAdjust
+import com.kinetica.keyboard.ui.BarMark
 import com.kinetica.keyboard.ui.InputContainerView
 import com.kinetica.keyboard.ui.Hsv
 import com.kinetica.keyboard.ui.KeyboardTheme
@@ -1338,6 +1339,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         suggestionBar?.textScale = config.barTextScale
         suggestionBar?.recentTextScale = config.recentTextScale
         suggestionBar?.compactWords = config.barCompact
+        suggestionBar?.middleCut = config.barMiddleCut
         suggestionBar?.recentSwipeReversed = config.recentSwipeReversed
         suggestionBar?.retypeButton = config.retypeButton
         suggestionBar?.retypeButtonDp = config.retypeButtonDp
@@ -2830,11 +2832,62 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val decoded = lastCandidates.map { displayWord(it.word) }.let {
             if (seededWithoutTokens) reloadWords(it, reloadHistory, tentativeWord) else it
         }
-        suggestionBar?.setSuggestions(
-            suggestionZoneWords(notBlocked(midWordWords(decoded, midWordHistory, midWordOffer), blockedSpellings), literal)
-                .map { barSuggestion(it) },
+        val spaceBold = config.barSpaceBold
+        val words = suggestionZoneWords(
+            notBlocked(midWordWords(decoded, midWordHistory, midWordOffer), blockedSpellings),
+            literal,
+            literalSecond = spaceBold,
         )
+        val bold = if (spaceBold) boldIndex(words, spaceWord()) else 0
+        suggestionBar?.setSuggestions(words.map { barSuggestion(it) }, bold)
         updateBarWordPending()
+    }
+
+    /**
+     * What a space would write now, or null for nothing or for a commit the bar cannot name (a
+     * pecked head split off the word): [finalizePendingWord]'s choice, read before it, for the
+     * space-bold switch (#115). Keep the two in step.
+     */
+    private fun spaceWord(): String? {
+        if (midWordOffer != null) return null
+        val comp = composer ?: return null
+        if (!comp.hasPendingWord) return null
+        val ownWord = comp.rejoinHead > 0 && !comp.hasSwipeToken() && ownSpelling(tentativeWord, whole = true)
+        if (!splitting && !ownWord && comp.split != null &&
+            (comp.rejoinHead > 0 || peckSplitAllowed() || (comp.split?.lattice == true && latticeAllowed()))
+        ) {
+            return null
+        }
+        val dangling = !comp.hasSwipeToken() && tentativeWord.length > 1 && tentativeWord.endsWith("'")
+        val tentative = if (dangling) tentativeWord.dropLast(1) else tentativeWord
+        val p = predictor
+        val threshold = config.autocorrectConfidence
+        val keeps = keepsTypedLetters(
+            editedByHand = reloadedWord != null && reloadedByHand,
+            rejected = lastLiteral.lowercase() in rejectedCorrections,
+        )
+        return spaceCommitWord(
+            tentative = tentative,
+            hasSwipe = comp.hasSwipeToken(),
+            mayCorrect = p != null && threshold != null && lastLiteral.isNotEmpty() &&
+                !editorState.privateMode && !dangling,
+        ) {
+            val target = if (!keeps) {
+                p!!.tapAutocorrect(lastLiteral, lastTentative, threshold!!, lastCandidates)
+                    ?.takeUnless { heldOutsideActive(lastLiteral) }
+            } else {
+                null
+            }
+            val slip = if (target == null && !keeps && config.slipCorrection) shortSlip(lastLiteral) else null
+            when {
+                target != null -> displayWord(target.word)
+                slip != null -> displayWord(slip)
+                // A put-back space writes two words, which no bar zone shows.
+                !keeps && !editorState.addressField &&
+                    p!!.spaceSplit(tentativeWord, pausesMs = comp.tapPauses()?.takeIf { it.size == tentativeWord.length }) != null -> ""
+                else -> null
+            }
+        }.takeIf { it.isNotEmpty() }
     }
 
     private fun barSuggestion(display: String): SuggestionBarView.Suggestion {
@@ -2843,6 +2896,24 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             display,
             tier = KineticaConstants.personalTier(count),
             count = count,
+            mark = if (config.barWordMarks) markOf(display) else BarMark.NONE,
+        )
+    }
+
+    /** [display]'s mark, read across every resident list; none before any list is loaded (#115). */
+    private fun markOf(display: String): BarMark {
+        val langs = residentLanguages()
+        val lexicons = langs.mapNotNull { predictorFor(it) }
+        if (lexicons.isEmpty()) return BarMark.NONE
+        val w = display.lowercase()
+        return wordMark(
+            inList = lexicons.any { it.holdsListSpelling(display) },
+            // A learned-only spelling is in the trie but not the list; a count below the merge
+            // floor is in the counts only.
+            personal = langs.any { (countsFor(it)[w] ?: 0) > 0 } || lexicons.any { it.holdsSpelling(display) },
+            learnable = learnable(w),
+            teachesNothing = editorState.teachesNothing,
+            blocked = w in blockedSpellings,
         )
     }
 
@@ -6922,8 +6993,5 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // it. Nothing the keyboard writes after a word is longer, and `going...` needs three;
         // past this the word is not where the caller thinks, and the span is refused.
         const val COMMIT_TAIL_CHARS = 8
-
-        // Any-letter (accented Italian included) with internal apostrophes.
-        val WORD_RE = Regex("^\\p{L}+(?:'\\p{L}+)*$")
     }
 }

@@ -493,6 +493,12 @@
     <string name="pref_bar_text_pct_summary">Size of the words on the bar, relative to the bar height</string>
     <string name="pref_bar_compact_title">Compact suggestions</string>
     <string name="pref_bar_compact_summary">Words sit side by side with a small gap, instead of each in an equal share of the bar. More fit on a page</string>
+    <string name="pref_bar_middle_cut_title">Cut long words in the middle</string>
+    <string name="pref_bar_middle_cut_summary">A word too long for its place keeps its start and its end, as organi…zione, where words that start alike differ</string>
+    <string name="pref_bar_space_bold_title">Bold the word space writes</string>
+    <string name="pref_bar_word_marks_title">Mark new and personal words</string>
+    <string name="pref_bar_word_marks_summary">A mark beside each word: + counts toward learning it when you write it, ? unknown and not learned here, C your own. None for a dictionary word</string>
+    <string name="pref_bar_space_bold_summary">Only the word a space would write is bold, none if it is not on the bar. The letters you tapped come second, not last</string>
     <string name="pref_enter_hold_sends_title">Hold enter to send</string>
     <string name="pref_enter_hold_sends_summary">In a multi-line field with an action, such as a chat box, a tap on enter writes a new line and a hold runs the action. Single-line fields and the symbol pages keep the action on the tap</string>
     <string name="pref_field_keys_title">Keys that fit the field</string>
