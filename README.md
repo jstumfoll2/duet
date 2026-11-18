@@ -2,6 +2,11 @@
 
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![CI](https://github.com/jstumfoll2/duet/actions/workflows/ci.yml/badge.svg)](https://github.com/jstumfoll2/duet/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/jstumfoll2/duet?label=release)](https://github.com/jstumfoll2/duet/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/jstumfoll2/duet/total)](https://github.com/jstumfoll2/duet/releases)
+[![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-3DDC84?logo=android&logoColor=white)](#requirements)
+[![No internet permission](https://img.shields.io/badge/internet%20permission-none-success)](#permissions-and-what-duet-reaches-beyond-kinetica)
+[![Fork of Kinetica](https://img.shields.io/badge/fork%20of-Kinetica-informational)](https://github.com/EZ-eta/kinetica)
 
 Duet is an Android keyboard for **two thumbs at once**. Each thumb swipes or taps on its own, at
 the same time as the other, and both streams become one word. The goal is the accuracy and feel of
