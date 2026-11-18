@@ -54,7 +54,7 @@ object HarperGrammar {
                 // panic too) and build a fresh one on the next call.
                 Log.w(TAG, "harper panicked on ${text.length} chars; checker rebuilt next call")
                 handle = 0L
-                dialect = -1
+                this.dialect = -1
                 return null
             }
             return out

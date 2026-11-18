@@ -42,6 +42,11 @@ object TraceRecorder {
 
     private val lock = Any()
 
+    private const val QUEUE = 8192
+
+    /** Lines dropped because the writer fell [QUEUE] behind. */
+    val dropped = AtomicLong()
+
     /**
      * Every trace write runs here, off the main and decode threads, so a slow flash write never
      * stalls typing or the latency numbers this build measures. Bounded: when it falls behind
@@ -52,10 +57,6 @@ object TraceRecorder {
         { r -> Thread(r, "duet-trace-writer").apply { priority = Thread.MIN_PRIORITY } },
         { _, _ -> dropped.incrementAndGet() },
     )
-    private const val QUEUE = 8192
-
-    /** Lines dropped because the writer fell [QUEUE] behind. */
-    val dropped = AtomicLong()
 
     /** Runs [write] on the writer thread, in order with every other trace write. */
     private fun later(write: () -> Unit) {
