@@ -32,27 +32,27 @@ import java.io.IOException
  *
  * Practice mode also decodes each finished buffer both ways, on two private
  * predictors kept off the live decode thread, so every prompt scores the two
- * decoders on the same swipe whichever one is live. The model ships as a DEV
- * asset only: trained by the project's train workflow from scratch on FUTO's
- * MIT swipe dataset (no FUTO weights), and never in a release APK. futo_split_v1 is futo_v1
+ * decoders on the same swipe whichever one is live. The models ([NeuralStack]) are
+ * trained by the project's train workflows from scratch on FUTO's MIT swipe dataset
+ * (no FUTO weights), and ship in both builds from v3.0. futo_split_v1 is futo_v1
  * fine-tuned on those swipes cut at the midline into two-thumb strokes (train_split workflow):
  * overlapped words at beta 0.1, 84.8% vs 83.2% on one half of ten batches, 78.6% vs 78.9%
  * on the other.
  */
 object NeuralRerank {
 
-    const val MODEL_ASSET = "ctc/futo_split_v1.kctc"
-    const val MODEL_NAME = "futo_split_v1"
+    const val MODEL_ASSET = NeuralStack.SPLIT_ASSET
+    const val MODEL_NAME = NeuralStack.SPLIT_NAME
 
     /**
      * Two-thumb rerank, ten trace batches split in halves: 0.1 was best on one half and
      * second-best on the other (0.2 best there); 0.05 to 0.2 all gained on both.
      */
-    const val DEFAULT_BETA = 0.1f
+    const val DEFAULT_BETA = NeuralStack.SPLIT_BETA
     val BETAS = floatArrayOf(0.02f, 0.05f, 0.1f, 0.2f, 0.3f)
 
     /** Heap depth the rerank reorders, as in the replay harness. */
-    const val DEPTH = 50
+    const val DEPTH = NeuralStack.DEPTH
 
     private const val PREFS = "neural_v1"
     private const val PREF_ENABLED = "enabled"
@@ -69,16 +69,16 @@ object NeuralRerank {
     /**
      * The two-thumb encoder ([DuoReranker], decoder rework step 11, #134): trained by the
      * train_duo workflow from scratch on FUTO's MIT swipe dataset redrawn as two thumbs (no FUTO
-     * weights). A DEV asset only, never in a release APK.
+     * weights). In both builds from v3.0.
      */
-    const val DUO_ASSET = "ctc/futo_duo_v1.kctc"
+    const val DUO_ASSET = NeuralStack.DUO_ASSET
 
     /**
      * Fitted on the trace files before 2026-10-22 and held out on the rest, with the
      * language-model score, on top of the one-stroke rerank: true-label words 65.9 -> 70.2%
      * top-1, all words 80.6 -> 82.5%, two thumbs at once 79.8 -> 83.8%; 0.3 and 0.8 both lower.
      */
-    const val DUO_BETA = 0.5f
+    const val DUO_BETA = NeuralStack.DUO_BETA
 
     private const val TAG = "KineticaNeural"
 
@@ -122,18 +122,13 @@ object NeuralRerank {
      * other bucket level or up. At the full beta the encoder also undid words the decoder had
      * right (`the` -> `three`), mostly on tap+swipe buffers.
      */
-    private fun twoThumb(r: CtcReranker): CtcReranker = r.also {
-        it.overlap = true
-        it.soloBeta = SOLO_BETA
-        it.soloGate = SOLO_GATE
-        it.soloShallow = true
-    }
+    private fun twoThumb(r: CtcReranker): CtcReranker = NeuralStack.twoThumb(r)
 
     /** One-thumb beta: a quarter of [DEFAULT_BETA]; replay over 20 batches, see [twoThumb]. */
-    const val SOLO_BETA = 0.025f
+    const val SOLO_BETA = NeuralStack.SOLO_BETA
 
     /** ln score margin at which a one-thumb leader skips the encoder; no flip in replay needed over 0.2. */
-    const val SOLO_GATE = 0.35f
+    const val SOLO_GATE = NeuralStack.SOLO_GATE
 
     /** Main thread only, like the IME. [onChange] rebuilds the keyboard's predictors. */
     fun install(context: Context, onChange: (() -> Unit)?) {

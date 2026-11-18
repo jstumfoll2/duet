@@ -224,6 +224,8 @@
 
     <string name="pref_retype_avoids_title">Retype offers a different word</string>
     <string name="pref_retype_avoids_summary">After the retype button, the rejected word moves to the end of the bar instead of leading again. It stays pickable</string>
+    <string name="pref_neural_decoder_title">Neural decoder</string>
+    <string name="pref_neural_decoder_summary">Reads your swipes and taps with a language model and two small neural models trained for this keyboard, which in testing got about one more word in twenty right. Everything runs on this phone. Off uses the classic decoder</string>
     <string name="pref_shape_templates_title">Learn how you draw your words</string>
     <string name="pref_shape_templates_summary">Keeps your last few swipes of each word you swipe often and compares new swipes with them, so a word you always draw your own way is read your way. The paths stay on this phone and start again when the layout changes</string>
     <string name="pref_retype_penalties_title">Learn from words I retype</string>

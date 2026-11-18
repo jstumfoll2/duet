@@ -840,3 +840,20 @@ https://crates.io/crates/<name>.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+--------------------------------------------------------------------------
+8. Swipe models (ctc/futo_split_v1.kctc, ctc/futo_duo_v1.kctc)
+
+Both models were trained from scratch by this project's own workflows
+(.github/workflows/train.yml, train_split.yml, train_duo.yml) on swipe
+data from FUTO's public swipe dataset:
+https://huggingface.co/datasets/futo-org/swipe.futo.org
+Only the dataset was used. No FUTO model weights, and no output of any FUTO
+model, went into training. futo_split_v1 was trained on those swipes as
+recorded and cut into two-thumb strokes; futo_duo_v1 on the same swipes
+redrawn as two thumbs would type them. The model weights are part of this
+project and licensed under the GNU General Public License v3.0.
+
+The dataset is published under the MIT License; its terms are those of the
+MIT License text in section 1 above, with the dataset's own copyright line
+as stated at the address above.

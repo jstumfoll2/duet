@@ -33,7 +33,7 @@ committed word comes out on top. Plain JVM: it needs a JDK, not the Android SDK.
 # Per input shape: mean, p50 to p99 and max of each line's fastest of three warm runs
 ./gradlew -p tools/replay bench --args="TRACE.jsonl..."
 # The same with the phone's NN switch on (two-thumb rerank at beta 0.1)
-./gradlew -p tools/replay bench --args="--ctc app/src/debug/assets/ctc/futo_v1.kctc --beta 0.1 TRACE.jsonl..."
+./gradlew -p tools/replay bench --args="--ctc app/src/main/assets/ctc/futo_split_v1.kctc --beta 0.1 TRACE.jsonl..."
 # Add --stages for where the time goes (il, passes, stream, fuzzy, rescue, beam, rerank),
 # --alloc for bytes allocated per line instead, or --interleave for the two-thumb search
 # alone with a hash of its hits (a speed-up that changes nothing keeps the hash)

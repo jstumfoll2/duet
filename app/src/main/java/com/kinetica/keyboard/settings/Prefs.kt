@@ -266,6 +266,15 @@ object Prefs {
     /** Set once [ChordDefaults] has turned the old reserved keys into chords. */
     const val CHORD_DEFAULTS_SEEDED = "pref_chord_defaults_seeded"
     /**
+     * The release build's decoder: the new one (ime.NeuralStack: language-model score, tap
+     * likelihood, speed-aware shape, previous-word fix, lattice word breaks and both neural
+     * models) or, off, the classic one. Not shown in the developer build, which switches each
+     * part on its traces screen.
+     */
+    const val NEURAL_DECODER = "pref_neural_decoder"
+    const val DEFAULT_NEURAL_DECODER = true
+
+    /**
      * Keep the user's own swipe paths for the words they swipe and match a swipe against them
      * beside the key-centre path (engine.ShapeTemplates, issue #138).
      */

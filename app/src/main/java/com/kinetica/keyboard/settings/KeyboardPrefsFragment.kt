@@ -804,6 +804,11 @@ class KeyboardPrefsFragment : PreferenceFragmentCompat() {
      * none. Removed rather than hidden, so search, which walks every row, cannot find it either.
      */
     private fun wireTraceScreen() {
+        // The developer build switches each part of the decoder on the trace screen, so the
+        // release build's one decoder switch would do nothing there.
+        if (context?.let { TraceScreen.intent(it) } != null) {
+            findPreference<Preference>(Prefs.NEURAL_DECODER)?.let { it.parent?.removePreference(it) }
+        }
         val pref = findPreference<Preference>(TraceScreen.PREF_KEY) ?: return
         val intent = context?.let { TraceScreen.intent(it) }
         if (intent != null) pref.intent = intent else pref.parent?.removePreference(pref)
