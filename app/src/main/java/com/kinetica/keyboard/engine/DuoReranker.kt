@@ -55,8 +55,12 @@ class DuoReranker(
      */
     @Volatile var gate = 1.5f
 
-    /** Whether buffers of taps alone are scored too. */
-    @Volatile var taps = true
+    /**
+     * Whether buffers of taps alone are scored too. Off: on the held-out half (with the
+     * 2026-11-18 batch) all words stay 82.8% and taps 82.9% (tap+swipe 83.5 -> 83.4), and on
+     * the 2026-11-18 batch skipping those buffers takes the replay's decode p50 from 4.3 to 3.0 ms.
+     */
+    @Volatile var taps = false
 
     /**
      * Run the encoder beside the search, from [prepare], not after it. The encoder needs the

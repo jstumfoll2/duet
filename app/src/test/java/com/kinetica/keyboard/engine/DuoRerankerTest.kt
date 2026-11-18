@@ -56,13 +56,18 @@ class DuoRerankerTest {
         listOf(TestData.tap('a', g, 0L, StreamId.LEFT), TestData.tap('l', g, 200L, StreamId.RIGHT))
 
     @Test fun theEncodersWordMovesUp() {
-        val r = DuoReranker(constantModel('a'), { g }, 0.5f)
+        val r = DuoReranker(constantModel('a'), { g }, 0.5f).also { it.taps = true }
         val out = r.rerank(twoTaps(), listOf(cand("l", 0.5f), cand("a", 0.4f)))
         assertEquals(listOf("a", "l"), out.map { it.word })
     }
 
+    @Test fun buffersOfTapsAloneAreLeftAloneByDefault() {
+        val list = listOf(cand("l", 0.5f), cand("a", 0.4f))
+        assertSame(list, DuoReranker(constantModel('a'), { g }, 0.5f).rerank(twoTaps(), list))
+    }
+
     @Test fun aClearLeaderIsLeftAlone() {
-        val r = DuoReranker(constantModel('a'), { g }, 0.5f)
+        val r = DuoReranker(constantModel('a'), { g }, 0.5f).also { it.taps = true }
         val list = listOf(cand("l", 0.5f), cand("a", 0.05f))
         assertSame(list, r.rerank(twoTaps(), list))
     }
@@ -70,16 +75,16 @@ class DuoRerankerTest {
     @Test fun betaZeroOneStrokeAndTheLegacyScoreChangeNothing() {
         val list = listOf(cand("l", 0.5f), cand("a", 0.4f))
         assertSame(list, DuoReranker(constantModel('a'), { g }, 0f).rerank(twoTaps(), list))
-        assertSame(list, DuoReranker(constantModel('a'), { g }, 0.5f).rerank(twoTaps().take(1), list))
+        assertSame(list, DuoReranker(constantModel('a'), { g }, 0.5f).also { it.taps = true }.rerank(twoTaps().take(1), list))
         ScoreModel.mode = ScoreModel.Mode.LEGACY
-        assertSame(list, DuoReranker(constantModel('a'), { g }, 0.5f).rerank(twoTaps(), list))
+        assertSame(list, DuoReranker(constantModel('a'), { g }, 0.5f).also { it.taps = true }.rerank(twoTaps(), list))
     }
 
     @Test fun startedAheadOrNotTheListIsTheSame() {
         val list = listOf(cand("l", 0.5f), cand("a", 0.4f))
-        val inline = DuoReranker(constantModel('a'), { g }, 0.5f).also { it.ahead = false }
+        val inline = DuoReranker(constantModel('a'), { g }, 0.5f).also { it.taps = true }.also { it.ahead = false }
         val want = inline.rerank(twoTaps(), list).map { it.word to it.score }
-        val ahead = DuoReranker(constantModel('a'), { g }, 0.5f)
+        val ahead = DuoReranker(constantModel('a'), { g }, 0.5f).also { it.taps = true }
         val tokens = twoTaps()
         ahead.prepare(tokens)
         assertEquals(want, ahead.rerank(tokens, list).map { it.word to it.score })

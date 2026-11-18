@@ -152,7 +152,7 @@ object ReplayCli {
                 val ctcil = a.remove("--ctcil") || ctcilOnly
                 val duoModel = opt(a, "--duo")?.let { f -> File(f).inputStream().use { CtcScorer.load(it) } }
                 val duoBeta = opt(a, "--duoBeta")?.toFloat() ?: 0f
-                val duoTaps = !a.remove("--duoNoTaps")
+                val duoTaps = a.remove("--duoTaps").also { a.remove("--duoNoTaps") }
                 val duoGate = opt(a, "--duoGate")?.toFloat() ?: 1.5f
                 // --duoInline: run the encoder after the search, on its thread, as before (DuoReranker.ahead off).
                 val duoAhead = !a.remove("--duoInline")
@@ -217,7 +217,7 @@ object ReplayCli {
                     soloGate = opt(a, "--sologate")?.toFloat() ?: Float.POSITIVE_INFINITY,
                     soloShallow = a.remove("--soloshallow"),
                     retypeSources = retypeSources,
-                    // --duo MODEL --duoBeta B [--duoGate G] [--duoNoTaps]: the two-thumb encoder over the candidates (#134).
+                    // --duo MODEL --duoBeta B [--duoGate G] [--duoTaps]: the two-thumb encoder over the candidates (#134).
                     duo = duoModel,
                     duoBeta = duoBeta,
                     duoTaps = duoTaps,
@@ -812,21 +812,26 @@ object ReplayCli {
                         if (inputs.size < 1500) inputs.add(com.kinetica.keyboard.engine.DuoFeatures.strokes(tokens) to g)
                     }
                 }
-                var sum = 0L
-                val micros = ArrayList<Long>()
-                for (round in 0 until 3) {
-                    micros.clear()
-                    sum = 0L
-                    for ((strokes, g) in inputs) {
-                        val t0 = System.nanoTime()
-                        val lp = duo.logProbsDuo(strokes, g)
-                        micros.add((System.nanoTime() - t0) / 1000)
-                        for (v in lp) sum = sum * 31 + v.toRawBits()
+                // One thread (logProbsDuo), then split across two (logProbsDuoCancellable, CtcScorer.split):
+                // the checksums must match.
+                for (mode in listOf("one thread", "split")) {
+                    duo.split = mode == "split"
+                    var sum = 0L
+                    val micros = ArrayList<Long>()
+                    for (round in 0 until 3) {
+                        micros.clear()
+                        sum = 0L
+                        for ((strokes, g) in inputs) {
+                            val t0 = System.nanoTime()
+                            val lp = if (mode == "split") duo.logProbsDuoCancellable(strokes, g) else duo.logProbsDuo(strokes, g)
+                            micros.add((System.nanoTime() - t0) / 1000)
+                            for (v in lp) sum = sum * 31 + v.toRawBits()
+                        }
                     }
+                    micros.sort()
+                    println(String.format(java.util.Locale.ROOT, "%s: buffers=%d encoder ms p50=%.2f p95=%.2f checksum=%016x", mode,
+                        micros.size, micros[micros.size / 2] / 1000.0, micros[micros.size * 95 / 100] / 1000.0, sum))
                 }
-                micros.sort()
-                println(String.format(java.util.Locale.ROOT, "buffers=%d encoder ms p50=%.2f p95=%.2f checksum=%016x",
-                    micros.size, micros[micros.size / 2] / 1000.0, micros[micros.size * 95 / 100] / 1000.0, sum))
             }
             "duodata" -> {
                 // duodata FILE...: every labelled buffer as strokes in time (DuoFeatures.strokes),

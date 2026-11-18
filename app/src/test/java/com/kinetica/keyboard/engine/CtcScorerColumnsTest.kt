@@ -133,6 +133,23 @@ class CtcScorerColumnsTest {
         for (i in want.indices) assertEquals("value $i", want[i].toRawBits(), got[i].toRawBits())
     }
 
+    @Test fun aRunSplitAcrossTwoThreadsGivesTheSameBits() {
+        val tokens = listOf(
+            TestData.swipe("hello", g, 0L, 600L, StreamId.RIGHT),
+            TestData.tap('a', g, 400L, StreamId.LEFT),
+        )
+        val strokes = DuoFeatures.strokes(tokens)
+        val want = plain(DuoFeatures.of(strokes, g))
+        val m = model()
+        m.split = true
+        m.logProbsDuoCancellable(strokes, g)
+        val got = m.logProbsDuoCancellable(strokes, g)
+        for (i in want.indices) assertEquals("value $i", want[i].toRawBits(), got[i].toRawBits())
+        m.split = false
+        val one = m.logProbsDuoCancellable(strokes, g)
+        for (i in want.indices) assertEquals("one thread, value $i", want[i].toRawBits(), one[i].toRawBits())
+    }
+
     @Test fun theLinearSumIsTheLogSum() {
         val tokens = listOf(
             TestData.swipe("hello", g, 0L, 600L, StreamId.RIGHT),
