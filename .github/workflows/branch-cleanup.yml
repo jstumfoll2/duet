@@ -1,0 +1,109 @@
+name: Branch cleanup
+
+# Deletes branches whose work is already on main, so merged pull requests
+# don't leave old branches behind.
+#
+# - When a pull request merges, its head branch is deleted, unless the branch
+#   has moved on since the merge.
+# - Run by hand (Actions > Branch cleanup > Run workflow) or on merging a
+#   change to this file, it sweeps every branch. A branch goes only when it
+#   has no open pull request and either has no commits that main lacks or
+#   still points at the head of a merged pull request.
+#
+# Never deleted: main, the default branch, models/* (trained models) and
+# assets/* (built word data), which other workflows read.
+# Set dry_run to list what would go without deleting anything.
+
+on:
+  pull_request:
+    types: [closed]
+  push:
+    branches: [main]
+    paths: [.github/workflows/branch-cleanup.yml]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List the branches without deleting them
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: branch-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || (github.event.pull_request.merged && github.event.pull_request.head.repo.full_name == github.repository)
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const dryRun = process.env.DRY_RUN === 'true';
+            const { data: repoInfo } = await github.rest.repos.get({ owner, repo });
+            const base = repoInfo.default_branch;
+            const keep = (name) =>
+              name === 'main' || name === base ||
+              name.startsWith('models/') || name.startsWith('assets/');
+
+            async function remove(name) {
+              if (dryRun) { core.info(`would delete ${name}`); return true; }
+              try {
+                await github.rest.git.deleteRef({ owner, repo, ref: `heads/${name}` });
+                core.info(`deleted ${name}`);
+                return true;
+              } catch (e) {
+                core.warning(`could not delete ${name}: ${e.message}`);
+                return false;
+              }
+            }
+
+            if (context.eventName === 'pull_request') {
+              const pr = context.payload.pull_request;
+              const name = pr.head.ref;
+              if (keep(name)) { core.info(`keeping ${name}`); return; }
+              let tip;
+              try {
+                tip = (await github.rest.repos.getBranch({ owner, repo, branch: name })).data.commit.sha;
+              } catch { core.info(`${name} is already gone`); return; }
+              if (tip !== pr.head.sha) { core.info(`${name} has new commits; keeping it`); return; }
+              const open = await github.paginate(github.rest.pulls.list,
+                { owner, repo, state: 'open', head: `${owner}:${name}`, per_page: 100 });
+              if (open.length) { core.info(`${name} has an open pull request; keeping it`); return; }
+              await remove(name);
+              return;
+            }
+
+            const branches = await github.paginate(github.rest.repos.listBranches,
+              { owner, repo, per_page: 100 });
+            const prs = await github.paginate(github.rest.pulls.list,
+              { owner, repo, state: 'all', per_page: 100 });
+            const openHeads = new Set(prs.filter(p => p.state === 'open' && p.head.repo?.full_name === `${owner}/${repo}`).map(p => p.head.ref));
+            const mergedHeadShas = new Set(prs.filter(p => p.merged_at).map(p => p.head.sha));
+
+            let deleted = 0, kept = 0;
+            for (const b of branches) {
+              const name = b.name, tip = b.commit.sha;
+              if (keep(name) || openHeads.has(name)) { kept++; continue; }
+              let merged = mergedHeadShas.has(tip);
+              if (!merged) {
+                try {
+                  const { data } = await github.rest.repos.compareCommitsWithBasehead(
+                    { owner, repo, basehead: `${base}...${tip}`, per_page: 1 });
+                  merged = data.ahead_by === 0;
+                } catch (e) {
+                  core.info(`cannot compare ${name} with ${base}: ${e.message}`);
+                }
+              }
+              if (!merged) { core.info(`keeping ${name}: it has work that is not on ${base}`); kept++; continue; }
+              if (await remove(name)) deleted++; else kept++;
+            }
+            core.summary.addRaw(`${dryRun ? 'Would delete' : 'Deleted'} ${deleted} branches; kept ${kept}.`).write();
+            core.info(`${dryRun ? 'would delete' : 'deleted'} ${deleted}, kept ${kept}`);
