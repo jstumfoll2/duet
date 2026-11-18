@@ -197,6 +197,16 @@ class TraceActivity : AppCompatActivity() {
             text = getString(R.string.duo_explain)
             textSize = 13f
         }
+        val duoAheadToggle = SwitchCompat(this).apply {
+            text = getString(R.string.duo_ahead_toggle)
+            textSize = 16f
+            isChecked = NeuralRerank.duoAhead
+            setOnCheckedChangeListener { _, on -> NeuralRerank.duoAhead = on }
+        }
+        val duoAheadExplain = TextView(this).apply {
+            text = getString(R.string.duo_ahead_explain)
+            textSize = 13f
+        }
         val reviseToggle = SwitchCompat(this).apply {
             text = getString(R.string.revise_toggle)
             textSize = 16f
@@ -267,6 +277,8 @@ class TraceActivity : AppCompatActivity() {
             addView(latticeExplain)
             addView(duoToggle)
             addView(duoExplain)
+            addView(duoAheadToggle)
+            addView(duoAheadExplain)
         }
         setContentView(ScrollView(this).apply { addView(column) })
     }

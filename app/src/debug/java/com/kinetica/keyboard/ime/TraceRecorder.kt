@@ -249,6 +249,7 @@ object TraceRecorder {
                         info.language(), info.alternate(), info.britishSpelling(),
                         info.personal(), info.dictOverride(),
                         beta, if (beta != 0f) NeuralRerank.MODEL_NAME else null,
+                        NeuralRerank.switchesOn(),
                     )
                 },
                 ::append,

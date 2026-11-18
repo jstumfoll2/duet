@@ -99,6 +99,12 @@ object SwipeTrace {
         /** The live decode's neural rerank: 0 when off (the shipping decode). */
         val rerankBeta: Float = 0f,
         val rerankModel: String? = null,
+        /**
+         * The decoder switches on when the word was decoded, by name (`loglinear`, `taps`,
+         * `speed`, `revise`, `lattice`, `duo`, `boundary`, `templates`, `retypes`). Empty in
+         * files written before it was recorded.
+         */
+        val switches: List<String> = emptyList(),
     )
 
     data class Geometry(
@@ -246,6 +252,11 @@ object SwipeTrace {
         if (w.config.rerankBeta != 0f) {
             j.key("rerank").beginObject().key("beta").value(w.config.rerankBeta)
                 .key("model").value(w.config.rerankModel).endObject()
+        }
+        if (w.config.switches.isNotEmpty()) {
+            j.key("switches").beginArray()
+            for (name in w.config.switches) j.value(name)
+            j.endArray()
         }
         j.endObject()
         val g = w.geometry
@@ -417,6 +428,7 @@ object SwipeTrace {
             c["lang"] as String, c["alt"] as String?, c["britishSpelling"] as Boolean,
             c["personal"] as Boolean, c["dictOverride"] as Boolean,
             rr?.let { f(it["beta"]) } ?: 0f, rr?.get("model") as String?,
+            (c["switches"] as List<Any?>?)?.map { it as String } ?: emptyList(),
         )
         val g = o["geom"] as Map<String, Any?>
         val keys = LinkedHashMap<Int, FloatArray>()

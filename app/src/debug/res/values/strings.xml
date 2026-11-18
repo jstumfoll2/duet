@@ -54,6 +54,8 @@
     <string name="lattice_explain">Two or three words gestured with no space between them are read as separate words when that fits better than one word. The first word is committed with a space and the rest stays in hand. Works with automatic spaces off. Needs the language-model score. Off by default.</string>
     <string name="duo_toggle">Two-thumb encoder (test)</string>
     <string name="duo_explain">A second neural model that watches both thumbs in time re-scores the suggestions. Needs "Language-model score" on. In replay it fixed about four in a hundred words on top of everything else. It runs only when the top two suggestions are close, and adds about 10 ms then on a computer, more on a phone.</string>
+    <string name="duo_ahead_toggle">Run the encoder beside the search</string>
+    <string name="duo_ahead_explain">On (the default), the two-thumb encoder starts as soon as you lift and runs on a second core while the search runs, so it adds little wait, but it runs on every buffer. Off, it runs after the search and only when the top two suggestions are close. Switch it off for a while if typing feels slow with the encoder on, so the decode log can compare the two.</string>
     <string name="revise_toggle">Fix the previous word (test)</string>
     <string name="revise_explain">When the word you type next shows the word before it was read wrong (\"tot he\" for \"to the\"), the earlier word is corrected in place. One backspace right after puts it back, and a fix you undo is not made again. Needs the language-model score. Off by default.</string>
     <string name="practice_ab">Today %1$d/%2$d · Neural %3$d/%4$d</string>

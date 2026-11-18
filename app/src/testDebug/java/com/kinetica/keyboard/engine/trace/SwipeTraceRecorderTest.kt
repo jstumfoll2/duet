@@ -64,4 +64,16 @@ class SwipeTraceRecorderTest {
         assertEquals(0, SwipeTrace.wordDelta(SwipeTrace.encodeKey("space", 1300)))
         assertEquals(0, SwipeTrace.wordDelta(SwipeTrace.encodeCorrection("so", "do")))
     }
+
+    @Test
+    fun theDecoderSwitchesRoundTripAndOldLinesReadAsNone() {
+        end(listOf(tap(1, 's', 1000, 1060), tap(2, 'o', 1200, 1250)), "so")
+        val plain = SwipeTrace.decode(lines.last())
+        assertEquals(false, lines.last().contains("switches"))
+        assertEquals(emptyList<String>(), plain.config.switches)
+
+        val on = listOf("loglinear", "taps", "duo")
+        val line = SwipeTrace.encode(plain.copy(config = plain.config.copy(switches = on)))
+        assertEquals(on, SwipeTrace.decode(line).config.switches)
+    }
 }
