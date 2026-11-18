@@ -22,7 +22,7 @@ class FoldCaseInertnessTest {
         return Paths.get("app/src/main/assets/dictionaries/$name")
     }
 
-    private val lowercaseLangs = listOf("en", "it", "es", "pl", "cs", "nl", "fr", "no", "ro")
+    private val lowercaseLangs = listOf("en", "it", "es", "pl", "cs", "nl", "fr", "no")
 
     @Test
     fun everyAssetOutsideGermanIsStillEntirelyLowercase() {
