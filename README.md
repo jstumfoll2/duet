@@ -50,8 +50,8 @@ clipboard history and a voice key. Each is listed below with what turns it on.
 **Play Protect warning.** Android's Play Protect may say Duet "may be harmful" when you install it.
 It is most likely the `READ_SMS` permission: Google's anti-fraud rules for sideloaded apps single
 out `READ_SMS`, and a keyboard that can also read texts matches the profile of malware that steals
-one-time codes. The DEV build is also signed with a public key, so it builds no reputation with
-Google. Both permissions sit in the manifest even when their settings are off; nothing is read
+one-time codes. A new signing key also has no reputation with Google yet; the release build's
+private key (from v3.0.0) builds one over time, while the DEV build's public key never will. Both permissions sit in the manifest even when their settings are off; nothing is read
 until you turn the setting on and grant the permission. On Android 13+, a sideloaded app must
 also be allowed *restricted settings* (App info > ⋮) before Android lets you grant `READ_SMS`; Duet
 links you there when you turn the setting on.
@@ -59,16 +59,19 @@ links you there when you turn the setting on.
 ## Install
 
 Every change merged to `main` that passes CI becomes a
-[GitHub release](https://github.com/jstumfoll2/duet/releases/latest). Each release carries:
+[GitHub release](https://github.com/jstumfoll2/duet/releases/latest). Since v3.0.0 each release
+carries two APKs:
 
-- `duet-dev-<version>.apk`: the DEV build, which installs as **Duet DEV**
-  (`io.github.jstumfoll2.duet.dev`). It is signed with the fixed DEV key in
-  `app/duet-dev.keystore`, so each one installs as an update over the last.
-- `duet-<version>.apk`: the release build (`io.github.jstumfoll2.duet`), attached only once the
-  repository has its release signing secrets.
+- `duet-<version>.apk`: **the one to install for everyday use.** The release build
+  (`io.github.jstumfoll2.duet`), installs as **Duet**, signed with the project's private release
+  key, so each release installs as an update over the last.
+- `duet-dev-<version>.apk`: the DEV build for testers, which installs as **Duet DEV**
+  (`io.github.jstumfoll2.duet.dev`) beside the release app, with its own data. It adds trace
+  recording and practice mode ([below](#for-testers-the-dev-build)). It is signed with the public
+  DEV key in `app/duet-dev.keystore`, so it too updates over the last DEV build.
 
 ```bash
-adb install -r duet-dev-*.apk
+adb install -r duet-3.*.apk
 ```
 
 Or open the APK on the phone. Then open the Duet icon and follow the three steps to enable it.
