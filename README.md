@@ -55,6 +55,13 @@ F-Droid.
 
 ### Decoding
 
+- **Neural decoder** (on by default from v3.0: Settings > Words and learning > *Neural decoder*).
+  Swipes and taps are scored with a real language model and two small neural (CTC) models trained
+  from scratch for this keyboard on FUTO's public swipe dataset, never on FUTO's weights: one
+  scores each stroke against the letters a reading gives it, the other watches both thumbs in time. On the first phone batch typed
+  with it, replay read 85 words in 100 right against 81 for the classic decoder. Everything runs on
+  the phone; turning it off gives the classic decoder. How it scores is under
+  [Algorithm notes](#algorithm-notes).
 - **Interleaved two-thumb reading.** When swipes from the two thumbs overlap in time, Duet also
   reads them as one path on one timeline (`Interleave`, `InterleavedSearch`) instead of only
   cutting them into pieces and merging the pieces. Its readings join the same ranked list as
@@ -276,14 +283,15 @@ and recorded traces and settings carry over because the app id is unchanged.)
 - **Neural rerank** (on by default in the DEV build): a small CTC model, trained from scratch on
   FUTO's MIT swipe dataset (never FUTO's weights), reorders the bar's list when two thumbs draw at
   once, and nudges it lightly on one-thumb words when the top two are close. The traces screen
-  turns it off and sets its two-thumb weight. Off builds exactly the release decoder.
-- **New decoder** (on by default in the DEV build, switches on the traces screen): a log-linear
+  turns it off and sets its two-thumb weight. Off gives the classic decoder.
+- **New decoder switches** (all on by default, one switch each on the traces screen; the release
+  build has the single *Neural decoder* switch instead): a log-linear
   score with a real language model, tap likelihood, speed-aware shape matching, fixing the
   previous word from the next one, lattice word breaks, and the two-thumb encoder (a second small
   CTC model, trained the same way on those swipes redrawn as two thumbs would type them, that
   watches both thumbs in time and re-scores the bar's list). On the first phone batch typed with
   them it read 85 words in 100 right on replay against 81 for the old decoder. The release build
-  still runs the old decoder. Each trace line records which switches were on, so replay can tell
+  runs the same stack from v3.0. Each trace line records which switches were on, so replay can tell
   batches typed on the old and new decoders apart.
 - **Ask after retypes** (on by default in the DEV build, on the traces screen): at most every five
   minutes, after you undo a word and type a close one, the bar asks whether the first was meant as
@@ -303,7 +311,7 @@ two-thumb overlap, taps and swipes, taps only). It first checks that each line r
 ./gradlew -p tools/replay test     # engine JVM suite plus the exact-replay gate
 ```
 
-By default replay runs the release decoder. `--score loglinear --taps --speed` with
+By default replay runs the classic decoder. `--score loglinear --taps --speed` with
 `--duo <model> --duoBeta 0.5` runs the new decoder the DEV build uses; `--personal <backup>`
 decodes with a settings backup's learned words, `--aim 1` and `--touch 1` with the phone's learned
 thumb positions, `--retypes` and `--templates all` with those learned features. Each feature that
@@ -619,8 +627,8 @@ MotionEvent
   `geometric_term(d) = 1 / (1 + min(d, 0.50))^3.75`. Inside half a key width the shape of the gesture
   is scored steeply; past it, a d=0.6 and a d=1.5 match both mean "not this shape", and frequency
   decides. The context and personal multipliers fade with the candidate's fit, so a common or
-  heavily learned word cannot beat a clearly better match. This is the release decoder's score.
-- **The new decoder's score** (`ScoreModel`, the DEV default): a log-linear sum in nats of a real
+  heavily learned word cannot beat a clearly better match. This is the classic decoder's score, used when *Neural decoder* is off.
+- **The new decoder's score** (`ScoreModel`, the default from v3.0): a log-linear sum in nats of a real
   language model (the million-pair table with back-off), a length-aware shape term from the DTW
   distance (speed-weighted in `ShapeModel`), a continuous likelihood for each tap's distance from
   its key, and, when the two-thumb encoder runs, its CTC cost (`DuoReranker`, beta 0.5). Because
@@ -648,6 +656,10 @@ en, it, es, pl, cs, nl, de, fr, no, ru, uk, he and ar.
   and which German nouns are capitalized.
 - English additions: SCOWL decides which entries the English list keeps; C4 web text counts add
   words, the English word triples and the wide word-pair table (`en_pairs.bin`). Both are listed in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
+- Swipe models: `assets/ctc/futo_split_v1.kctc` and `futo_duo_v1.kctc`, trained from scratch by
+  this repository's `train*.yml` workflows on FUTO's MIT-licensed swipe dataset (only the dataset;
+  no FUTO weights or model output). The weights are this project's, under the GPL; see
+  [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) section 8.
 - Emoji: upstream Kinetica 3.0's set in `assets/emoji/` (1,906 emoji from Unicode emoji-test 16.0,
   ZWJ sequences and flags included, in nine tabs), with search words in 14 languages from Unicode
   CLDR 46 plus a few hand-written English ones (lol, rofl). Generated by `tools/generate_emoji.py`;
