@@ -267,10 +267,13 @@ and recorded traces and settings carry over because the app id is unchanged.)
   FUTO's MIT swipe dataset (never FUTO's weights), reorders the bar's list when two thumbs draw at
   once, and nudges it lightly on one-thumb words when the top two are close. The traces screen
   turns it off and sets its two-thumb weight. Off builds exactly the release decoder.
-- **Two-thumb encoder** (off by default, a switch on the traces screen): a second small CTC
-  model, trained the same way on those swipes redrawn as two thumbs would type them, watches both
-  thumbs in time and re-scores the bar's list when the top two are close. It needs the
-  language-model score switch on.
+- **New decoder** (on by default in the DEV build, switches on the traces screen): a log-linear
+  score with a real language model, tap likelihood, speed-aware shape matching, fixing the
+  previous word from the next one, lattice word breaks, and the two-thumb encoder (a second small
+  CTC model, trained the same way on those swipes redrawn as two thumbs would type them, that
+  watches both thumbs in time and re-scores the bar's list). On the first phone batch typed with
+  them it read 85 words in 100 right on replay against 81 for the old decoder. The release build
+  still runs the old decoder.
 
 Traces are personal typing data: keep them out of this repository.
 

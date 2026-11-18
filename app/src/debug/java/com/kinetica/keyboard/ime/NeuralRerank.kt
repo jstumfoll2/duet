@@ -165,59 +165,60 @@ object NeuralRerank {
 
     /**
      * The log-linear candidate score with a real language model ([ScoreModel], decoder rework
-     * step 1, #124). Off by default: on replay it does not yet reach the legacy score's numbers.
+     * step 1, #124). On by default in this build since the 2026-11-18 phone batch (replay of that
+     * batch: 80.7 -> 85.0% top-1 with the switches below); the release build keeps the legacy score.
      */
     var logLinearScore: Boolean
-        get() = prefs?.getBoolean(PREF_LOGLINEAR, false) ?: false
+        get() = prefs?.getBoolean(PREF_LOGLINEAR, true) ?: true
         set(on) {
             prefs?.edit()?.putBoolean(PREF_LOGLINEAR, on)?.apply()
             ScoreModel.mode = if (on) ScoreModel.Mode.LOGLINEAR else ScoreModel.Mode.LEGACY
         }
 
-    /** Continuous tap likelihood ([ScoreModel.taps], decoder rework step 4, #127). Off by default. */
+    /** Continuous tap likelihood ([ScoreModel.taps], decoder rework step 4, #127). On by default in this build. */
     var tapLikelihood: Boolean
-        get() = prefs?.getBoolean(PREF_TAPS, false) ?: false
+        get() = prefs?.getBoolean(PREF_TAPS, true) ?: true
         set(on) {
             prefs?.edit()?.putBoolean(PREF_TAPS, on)?.apply()
             ScoreModel.taps = on
         }
 
-    /** Speed-weighted shape matching ([ShapeModel.speed], decoder rework step 6, #129). Off by default. */
+    /** Speed-weighted shape matching ([ShapeModel.speed], decoder rework step 6, #129). On by default in this build. */
     var speedShape: Boolean
-        get() = prefs?.getBoolean(PREF_SPEED, false) ?: false
+        get() = prefs?.getBoolean(PREF_SPEED, true) ?: true
         set(on) {
             prefs?.edit()?.putBoolean(PREF_SPEED, on)?.apply()
             ShapeModel.speed = on
         }
 
     /**
-     * The previous-word fix ([PreviousWordFix], decoder rework step 7, #130). Off by default, and
+     * The previous-word fix ([PreviousWordFix], decoder rework step 7, #130). On by default in this build, and
      * it only acts with the language-model score on.
      */
     var previousWordFix: Boolean
-        get() = prefs?.getBoolean(PREF_REVISE, false) ?: false
+        get() = prefs?.getBoolean(PREF_REVISE, true) ?: true
         set(on) {
             prefs?.edit()?.putBoolean(PREF_REVISE, on)?.apply()
             PreviousWordFix.enabled = on
         }
 
     /**
-     * Word breaks chosen by the lattice ([LatticeDecoder], decoder rework step 10, #133). Off by
-     * default, and it only acts with the language-model score on.
+     * Word breaks chosen by the lattice ([LatticeDecoder], decoder rework step 10, #133). On by
+     * default in this build, and it only acts with the language-model score on.
      */
     var latticeBreaks: Boolean
-        get() = prefs?.getBoolean(PREF_LATTICE, false) ?: false
+        get() = prefs?.getBoolean(PREF_LATTICE, true) ?: true
         set(on) {
             prefs?.edit()?.putBoolean(PREF_LATTICE, on)?.apply()
             LatticeDecoder.enabled = on
         }
 
     /**
-     * The decoder's candidates scored by the two-thumb encoder too ([DuoReranker]). Off by
-     * default until a phone batch agrees with replay.
+     * The decoder's candidates scored by the two-thumb encoder too ([DuoReranker]). On by
+     * default in this build: the 2026-11-18 phone batch agreed with replay.
      */
     var duoRerank: Boolean
-        get() = prefs?.getBoolean(PREF_DUO, false) ?: false
+        get() = prefs?.getBoolean(PREF_DUO, true) ?: true
         set(on) {
             prefs?.edit()?.putBoolean(PREF_DUO, on)?.apply()
             onChange?.invoke()
