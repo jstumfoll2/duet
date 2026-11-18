@@ -49,9 +49,10 @@ class CtcScorer private constructor(
     private val h1 = FloatArray(n * width)
     private val h2 = FloatArray(n * width)
     private val hs = FloatArray(n * 2 * hidden)
-    private val gates = FloatArray(3 * hidden)
-    private val gatesH = FloatArray(3 * hidden)
-    private val hPrev = FloatArray(hidden)
+    // Scratch per GRU direction, so the two directions can run on two threads ([split]).
+    private val gates = Array(2) { FloatArray(3 * hidden) }
+    private val gatesH = Array(2) { FloatArray(3 * hidden) }
+    private val hPrev = Array(2) { FloatArray(hidden) }
 
     /** Log-probabilities, [RESAMPLE_N * CLASSES], for one resampled piece on [g]. */
     fun logProbs(resampled: FloatArray, g: KeyboardGeometry): FloatArray {
@@ -77,7 +78,7 @@ class CtcScorer private constructor(
         DuoFeatures.of(strokes, g).copyInto(x)
         stops = true
         try {
-            run()
+            run(split)
         } finally {
             stops = false
         }
@@ -90,14 +91,23 @@ class CtcScorer private constructor(
         if (stops && Thread.interrupted()) throw CancellationException("encoder run given up")
     }
 
-    private fun run(): FloatArray {
-        conv(x, inDim, conv1T, conv1B, h1)
-        checkStop()
-        conv(h1, width, conv2T, conv2B, h2)
-        checkStop()
-        gruPass(forward = true)
-        checkStop()
-        gruPass(forward = false)
+    private fun run(parallel: Boolean = false): FloatArray {
+        if (parallel) {
+            val half = n / 2
+            both({ conv(x, inDim, conv1T, conv1B, h1, 0, half, acc[0]) }, { conv(x, inDim, conv1T, conv1B, h1, half, n, acc[1]) })
+            checkStop()
+            both({ conv(h1, width, conv2T, conv2B, h2, 0, half, acc[0]) }, { conv(h1, width, conv2T, conv2B, h2, half, n, acc[1]) })
+            checkStop()
+            both({ gruPass(forward = true) }, { gruPass(forward = false) })
+        } else {
+            conv(x, inDim, conv1T, conv1B, h1)
+            checkStop()
+            conv(h1, width, conv2T, conv2B, h2)
+            checkStop()
+            gruPass(forward = true)
+            checkStop()
+            gruPass(forward = false)
+        }
         val out = FloatArray(n * CLASSES)
         for (t in 0 until n) {
             var mx = Float.NEGATIVE_INFINITY
@@ -115,6 +125,31 @@ class CtcScorer private constructor(
             for (c in 0 until CLASSES) out[t * CLASSES + c] -= lse
         }
         return out
+    }
+
+    /**
+     * [mine] on this thread and [theirs] on [helper], both done before it returns. The two
+     * write disjoint parts of the scratch arrays. An interrupt of this thread while it waits
+     * still lets [theirs] finish first, so no run is left writing into the scratch.
+     */
+    private fun both(mine: () -> Unit, theirs: () -> Unit) {
+        val other = helper.submit(Runnable { theirs() })
+        try {
+            mine()
+        } finally {
+            var interrupted = false
+            while (true) {
+                try {
+                    other.get()
+                    break
+                } catch (e: InterruptedException) {
+                    interrupted = true
+                } catch (e: java.util.concurrent.ExecutionException) {
+                    throw (e.cause ?: e)
+                }
+            }
+            if (interrupted) Thread.currentThread().interrupt()
+        }
     }
 
     private fun features(p: FloatArray, g: KeyboardGeometry) {
@@ -144,7 +179,21 @@ class CtcScorer private constructor(
     private val conv1T = convColumns(conv1W, inDim)
     private val conv2T = convColumns(conv2W, width)
     private val gruT = Array(4) { i -> columns(gru[if (i < 2) i else i + 2], 3 * hidden, if (i % 2 == 0) width else hidden) }
-    private val acc = FloatArray(width)
+    private val acc = Array(2) { FloatArray(width) }
+
+    /**
+     * Whether [logProbsDuoCancellable] splits a run across its caller and one helper thread:
+     * each convolution by halves of time, the GRU by direction. Every output is the same sum of
+     * the same terms in the same order as on one thread, so the frames are bit for bit the same.
+     */
+    @Volatile var split = true
+
+    // The helper thread for [split] runs, made on first use; a daemon that ends when idle.
+    private val helper by lazy {
+        java.util.concurrent.ThreadPoolExecutor(1, 1, 30L, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue()) { r ->
+            Thread(r, "kinetica-ctc-helper").apply { isDaemon = true }
+        }.apply { allowCoreThreadTimeOut(true) }
+    }
 
     /** [w] as [cout, cin, KERNEL] turned to [KERNEL, cin, cout]. */
     private fun convColumns(w: FloatArray, cin: Int): FloatArray {
@@ -163,10 +212,9 @@ class CtcScorer private constructor(
     }
 
     /** Conv1d, kernel 5, padding 2, then ReLU. [inp] is time-major [n * cin]; [wT] from [convColumns]. */
-    private fun conv(inp: FloatArray, cin: Int, wT: FloatArray, b: FloatArray, out: FloatArray) {
-        val acc = acc
+    private fun conv(inp: FloatArray, cin: Int, wT: FloatArray, b: FloatArray, out: FloatArray, from: Int = 0, until: Int = n, acc: FloatArray = this.acc[0]) {
         val width = width
-        for (t in 0 until n) {
+        for (t in from until until) {
             System.arraycopy(b, 0, acc, 0, width)
             for (k in 0 until KERNEL) {
                 val ti = t + k - KERNEL / 2
@@ -193,8 +241,10 @@ class CtcScorer private constructor(
         val bih = gru[base + 2]
         val bhh = gru[base + 3]
         val rows = 3 * hidden
-        val gates = gates
-        val gatesH = gatesH
+        val d = if (forward) 0 else 1
+        val gates = gates[d]
+        val gatesH = gatesH[d]
+        val hPrev = hPrev[d]
         hPrev.fill(0f)
         val off = if (forward) 0 else hidden
         for (step in 0 until n) {
