@@ -1,7 +1,7 @@
 # Duet
 
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-[![CI](https://github.com/jstumfoll2/kinetica/actions/workflows/ci.yml/badge.svg)](https://github.com/jstumfoll2/kinetica/actions/workflows/ci.yml)
+[![CI](https://github.com/jstumfoll2/duet/actions/workflows/ci.yml/badge.svg)](https://github.com/jstumfoll2/duet/actions/workflows/ci.yml)
 
 Duet is an Android keyboard for **two thumbs at once**. Each thumb swipes or taps on its own, at
 the same time as the other, and both streams become one word. The goal is the accuracy and feel of
@@ -12,7 +12,7 @@ keeps its GPL-3.0-or-later licence. Kinetica wrote the keyboard: the gesture eng
 the settings and nearly every feature listed below. Duet adds a two-thumb decoder of its own, a
 way to measure accuracy from real typing, and a set of English and everyday features on top. It
 has its own name, app id and icon, as Kinetica asks of forks. Report Duet bugs
-[here](https://github.com/jstumfoll2/kinetica/issues), not upstream.
+[here](https://github.com/jstumfoll2/duet/issues), not upstream.
 
 Typing SOMETHING:
 
@@ -28,7 +28,7 @@ asked for only if you turn on *Codes from text messages*.
 ## Install
 
 Every change merged to `main` that passes CI becomes a
-[GitHub release](https://github.com/jstumfoll2/kinetica/releases/latest). Each release carries:
+[GitHub release](https://github.com/jstumfoll2/duet/releases/latest). Each release carries:
 
 - `duet-dev-<version>.apk`: the DEV build, which installs as **Duet DEV**
   (`io.github.jstumfoll2.duet.dev`). It is signed with the fixed DEV key in
@@ -74,6 +74,8 @@ F-Droid.
   of one-swipe words and every tap of tapped words) and reads swipes and taps against the board
   moved there. The keys are drawn where they were. On lines with a true label, top-1 went from
   59.3% to 63.1% over 17 trace batches (`replay --aim 1`). The averages stay on the device.
+  *Learn where my thumbs land* (Words and learning, on) turns both off without forgetting them,
+  and *Reset learned thumb positions* starts over.
 - **Brief lifts are joined.** A thumb that leaves the glass for under 120 ms and comes back within
   1.5 keys did not mean to lift; the two pieces are read as one stroke (`ContactRepair.stitch`).
 - **Words of your own stay whole.** A pecked word no dictionary holds (`spacebar`, a name) used
@@ -106,12 +108,18 @@ F-Droid.
 - **Apostrophes, Nintype style.** Swipe out to the apostrophe key and back mid-word
   (`w-e-'-r-e`) for "we're"; the trip is cut out of the path before it is decoded. A stroke can
   also end on the key: `h-o` then down to `'` for "who's", or `i` straight to `'` (with `v-e` on
-  the other thumb) for "I've".
+  the other thumb) for "I've". A tapped apostrophe keeps a pecked word going where a contraction
+  can follow: `I`, `'`, `d` is one word, "I'd", for learning, autocorrect and reopening
+  (`ApostropheJoin`, after Kinetica 3.0.2).
 - **A tap while the first key is held.** Hold the first letter, tap the next one with the other
   thumb, then slide on: `d`, tap `i`, slide to `r` gives "dir" even when the tap comes right after
   the hold starts.
 - **Swipes from the edge.** A swipe or tap that starts in the empty margin beside `a` or `l`, or
   in a gap between keys, starts on the letter beside it instead of being dropped.
+- **Words you keep replacing rank lower (optional).** With *Learn from words I retype* (Words and
+  learning, off), deleting a word Duet wrote and typing a close one, or picking another from the
+  bar, records the pair. When both come up again, the word you keep replacing is scored down by
+  how often it was meant as the other (`RetypePenalties`, `replay --retypes`). Kept on the phone.
 
 ### English
 
@@ -120,10 +128,12 @@ F-Droid.
   the apostrophe, so it never competes with the plain word.
 - Word triples (`en_trigrams.txt`) for context, on top of Kinetica's word pairs.
 - A million English word pairs (`en_pairs.bin`, built by `tools/build_en_pairs.py`) behind the
-  decoder's context boost, ten times the curated list. The grammar, slip and next-word rules keep
-  reading the curated list they were tuned on.
+  decoder's context boost, ten times the curated list. The grammar pass, short slips and the idle
+  bar's next-word guesses read it too (the word typed next is among the three 14.5% of the time,
+  against 12.1% on the curated list); the left-out-space split stays on the curated list.
 - A small grammar pass on the word before the one just written: `a`/`an`, `could of`, `he don't`,
-  and confusion pairs such as `then`/`than` when the next word settles them (`GrammarCheck`).
+  and confusion pairs such as `then`/`than`, `its`/`it's` or `were`/`where` when the words on
+  both sides settle them by a wide margin (`GrammarCheck`).
 - Grammar auto-fixes as a word lands (on by default: Settings > Typing > Fix grammar slips
   automatically): a function word typed twice (`to to`), a contraction split by a space
   (`isn t`), `I are`, and `to` run into a word (`tobe`, `triedto`). One backspace right after
@@ -273,7 +283,12 @@ and recorded traces and settings carry over because the app id is unchanged.)
   CTC model, trained the same way on those swipes redrawn as two thumbs would type them, that
   watches both thumbs in time and re-scores the bar's list). On the first phone batch typed with
   them it read 85 words in 100 right on replay against 81 for the old decoder. The release build
-  still runs the old decoder.
+  still runs the old decoder. Each trace line records which switches were on, so replay can tell
+  batches typed on the old and new decoders apart.
+- **Ask after retypes** (on by default in the DEV build, on the traces screen): at most every five
+  minutes, after you undo a word and type a close one, the bar asks whether the first was meant as
+  the second. The answer goes into the trace as a confirmed label, so replay measures against what
+  you meant rather than a guess.
 
 Traces are personal typing data: keep them out of this repository.
 
@@ -288,7 +303,14 @@ two-thumb overlap, taps and swipes, taps only). It first checks that each line r
 ./gradlew -p tools/replay test     # engine JVM suite plus the exact-replay gate
 ```
 
-See [tools/replay/README.md](tools/replay/README.md). The CTC model's training code is in
+By default replay runs the release decoder. `--score loglinear --taps --speed` with
+`--duo <model> --duoBeta 0.5` runs the new decoder the DEV build uses; `--personal <backup>`
+decodes with a settings backup's learned words, `--aim 1` and `--touch 1` with the phone's learned
+thumb positions, `--retypes` and `--templates all` with those learned features. Each feature that
+is not a plain word decode has its own command that scores it: `spacesplit`, `grammar`, `slips`,
+`nextword`, `sentfix`, `preview`, `spacedip`, `lattice` and `prevfix`.
+
+See [tools/replay/README.md](tools/replay/README.md). The CTC models' training code is in
 [tools/experiment](tools/experiment/README.md); the `train` workflow runs it in GitHub Actions.
 
 ## Features from Kinetica
@@ -568,7 +590,7 @@ MotionEvent
 
 | Package | Contents |
 |---|---|
-| `engine/` | Pure Kotlin decoder: `GestureEngine`, `WordPredictor`, `ThumbBeam`, `DtwMatcher`, `Trie`, `Interleave`, `ContactRepair`, `TouchModel`, `GrammarCheck`, `CtcScorer`, dictionaries and tables |
+| `engine/` | Pure Kotlin decoder: `GestureEngine`, `WordPredictor`, `ThumbBeam`, `DtwMatcher`, `Trie`, `Interleave`, `ContactRepair`, `TouchModel`, `AimModel`, `GrammarCheck`, dictionaries and tables; the new decoder's `ScoreModel`, `ShapeModel`, `LatticeDecoder`, `CtcScorer` and `DuoReranker` |
 | `ime/` | `KineticaIME` (the InputMethodService), editor state, clipboard history, autofill, SMS codes |
 | `spell/` | `KineticaSpellChecker`, the system spell checker service |
 | `ui/` | `KeyboardView`, `SuggestionBarView`, emoji picker, theming, trails |
@@ -597,7 +619,13 @@ MotionEvent
   `geometric_term(d) = 1 / (1 + min(d, 0.50))^3.75`. Inside half a key width the shape of the gesture
   is scored steeply; past it, a d=0.6 and a d=1.5 match both mean "not this shape", and frequency
   decides. The context and personal multipliers fade with the candidate's fit, so a common or
-  heavily learned word cannot beat a clearly better match.
+  heavily learned word cannot beat a clearly better match. This is the release decoder's score.
+- **The new decoder's score** (`ScoreModel`, the DEV default): a log-linear sum in nats of a real
+  language model (the million-pair table with back-off), a length-aware shape term from the DTW
+  distance (speed-weighted in `ShapeModel`), a continuous likelihood for each tap's distance from
+  its key, and, when the two-thumb encoder runs, its CTC cost (`DuoReranker`, beta 0.5). Because
+  every term is a log-probability, `LatticeDecoder` can weigh word breaks at any lift in the same
+  search instead of deciding them before it.
 - **Accents**: the trie stores accent-folded keys per script; spellings that differ from their key
   ("senti", "sentì") carry their own frequencies and come out as separate candidates.
 - Decoding runs in single-digit milliseconds on the JVM against a 100 ms budget (see
