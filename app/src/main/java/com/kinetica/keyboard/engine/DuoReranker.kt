@@ -8,6 +8,7 @@ import com.kinetica.keyboard.engine.models.WordCandidate
 import java.util.concurrent.Callable
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.Future
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -144,7 +145,9 @@ class DuoReranker(
         val g = geometry() ?: return candidates
         val waitStart = System.nanoTime()
         val lp = try {
-            framesFor(tokens, g).get().also {
+            // A budget, not an open wait: a stuck or slow run must not hold the decode thread
+            // (and every decode behind it). Far above the encoder's phone time.
+            framesFor(tokens, g).get(WAIT_BUDGET_MS, TimeUnit.MILLISECONDS).also {
                 // Run: the encoder's time on its thread. Wait: how long this decode blocked on
                 // it, which is all the encoder adds here; the rest ran beside the search.
                 DecodeTrace.log { "duo used run ${ms(frames?.runNs ?: -1L)} wait ${ms(System.nanoTime() - waitStart)}" }
@@ -153,6 +156,11 @@ class DuoReranker(
             frames = null
             return candidates
         } catch (e: CancellationException) {
+            frames = null
+            return candidates
+        } catch (e: TimeoutException) {
+            DecodeTrace.log { "duo timeout wait ${ms(System.nanoTime() - waitStart)}" }
+            frames?.result?.cancel(true)
             frames = null
             return candidates
         }
@@ -178,6 +186,9 @@ class DuoReranker(
     }
 
     private companion object {
+        /** Longest a decode waits for the encoder's frames before going on without them. */
+        const val WAIT_BUDGET_MS = 250L
+
         /** Per-letter cost charged to a word the frames cannot hold. */
         const val MAX_LETTER_COST = 20f
 

@@ -312,4 +312,18 @@ class BackupTest {
         assertEquals(listOf(Backup.Expand("ok", 0, "good")), ok.data.expansions)
     }
 
+
+    @Test
+    fun anOverlongLineIsSkippedNotHeld() {
+        val text = "kinetica-backup\t1\npref\tbool\tpref_autospace\ttrue\r\n" + "x".repeat(200) + "\nword\ten\tkeyboard\t3"
+        val lines = Backup.boundedLines(java.io.StringReader(text), maxChars = 100).toList()
+        assertEquals(4, lines.size)
+        assertEquals("pref\tbool\tpref_autospace\ttrue", lines[1])
+        assertEquals("word\ten\tkeyboard\t3", lines[3])
+        val r = Backup.decode(lines.asSequence())
+        assertTrue(r is Backup.Result.Ok)
+        r as Backup.Result.Ok
+        assertEquals(1, r.skipped)
+        assertEquals(1, r.data.words.size)
+    }
 }

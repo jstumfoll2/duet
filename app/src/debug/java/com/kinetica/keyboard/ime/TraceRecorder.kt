@@ -9,6 +9,10 @@ import com.kinetica.keyboard.engine.trace.SwipeTrace
 import com.kinetica.keyboard.engine.trace.SwipeTraceRecorder
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Debug build: the decode trace goes to a file as well as to logcat, and a crash leaves its
@@ -37,6 +41,35 @@ object TraceRecorder {
     var crashState: (() -> String)? = null
 
     private val lock = Any()
+
+    /**
+     * Every trace write runs here, off the main and decode threads, so a slow flash write never
+     * stalls typing or the latency numbers this build measures. Bounded: when it falls behind
+     * by [QUEUE] lines, new lines are dropped and counted ([dropped]) rather than piling up.
+     */
+    private val writer = ThreadPoolExecutor(
+        1, 1, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(QUEUE),
+        { r -> Thread(r, "duet-trace-writer").apply { priority = Thread.MIN_PRIORITY } },
+        { _, _ -> dropped.incrementAndGet() },
+    )
+    private const val QUEUE = 8192
+
+    /** Lines dropped because the writer fell [QUEUE] behind. */
+    val dropped = AtomicLong()
+
+    /** Runs [write] on the writer thread, in order with every other trace write. */
+    private fun later(write: () -> Unit) {
+        writer.execute(write)
+    }
+
+    /** Waits (up to two seconds) for the lines already handed to the writer. */
+    fun flush() {
+        try {
+            writer.submit {}.get(2, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            Log.w("KineticaTrace", "trace flush incomplete", e)
+        }
+    }
 
     @Volatile
     private var file: File? = null
@@ -70,10 +103,8 @@ object TraceRecorder {
         DecodeTrace.sink = { m ->
             // A practice comparison re-decodes a finished buffer twice; its lines
             // would read as live decodes, so they are dropped here.
-            if (!NeuralRerank.comparing.get()) {
-                Log.d("KineticaTrace", m)
-                append(m)
-            }
+            // File only: logcat is readable over adb and lands in bug reports.
+            if (!NeuralRerank.comparing.get()) append(m)
         }
         // A restart reads as a gap in the trace otherwise: the line says where it began.
         append("process start at=${System.currentTimeMillis()}")
@@ -108,6 +139,10 @@ object TraceRecorder {
     private fun append(message: String) {
         if (!recording) return
         val f = file ?: return
+        later { write(f, message) }
+    }
+
+    private fun write(f: File, message: String) {
         synchronized(lock) {
             try {
                 f.parentFile?.mkdirs()
@@ -131,6 +166,7 @@ object TraceRecorder {
     /** Oldest first, so an exported trace reads in the order it happened. */
     fun readAll(): String {
         val f = file ?: return ""
+        flush()
         synchronized(lock) {
             val previous = File(f.parentFile, "$NAME.1")
             val head = if (previous.exists()) previous.readText() else ""
@@ -149,6 +185,7 @@ object TraceRecorder {
 
     fun clear() {
         val f = file ?: return
+        flush()
         synchronized(lock) {
             File(f.parentFile, "$NAME.1").delete()
             File(f.parentFile, CRASH_NAME).delete()
@@ -291,6 +328,10 @@ object TraceRecorder {
 
         private fun append(line: String) {
             val f = file ?: return
+            later { write(f, line) }
+        }
+
+        private fun write(f: File, line: String) {
             synchronized(lock) {
                 try {
                     f.parentFile?.mkdirs()
@@ -314,6 +355,7 @@ object TraceRecorder {
 
         fun readAll(): String {
             val f = file ?: return ""
+            flush()
             synchronized(lock) {
                 val previous = File(f.parentFile, f.name + ".1")
                 return (if (previous.exists()) previous.readText() else "") +
@@ -329,6 +371,7 @@ object TraceRecorder {
 
         fun clear() {
             val f = file ?: return
+            flush()
             synchronized(lock) {
                 File(f.parentFile, f.name + ".1").delete()
                 f.delete()

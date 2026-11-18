@@ -49,6 +49,9 @@ object BackupRun {
                 fail(app, failedRes(source))
             } catch (e: RuntimeException) {
                 fail(app, failedRes(source))
+            } catch (e: OutOfMemoryError) {
+                // A file too big to hold: the import fails, the settings process lives.
+                fail(app, failedRes(source))
             }
         }
         return true
@@ -60,9 +63,9 @@ object BackupRun {
     private fun run(app: Context, source: Source, replace: Boolean) {
         val result = when (source) {
             is Source.Document -> app.contentResolver.openInputStream(source.uri)?.bufferedReader()?.use {
-                Backup.decode(it.lineSequence())
+                Backup.decode(Backup.boundedLines(it))
             } ?: throw IOException("cannot open ${source.uri}")
-            Source.Snapshot -> snapshotFile(app).bufferedReader().use { Backup.decode(it.lineSequence()) }
+            Source.Snapshot -> snapshotFile(app).bufferedReader().use { Backup.decode(Backup.boundedLines(it)) }
         }
         when (result) {
             is Backup.Result.NotABackup -> fail(app, R.string.backup_import_not_backup)
@@ -155,8 +158,14 @@ object BackupRun {
         val p = PreferenceManager.getDefaultSharedPreferences(app)
         val stored = p.all
         val e = p.edit()
+        val learning = LearningPrefs.get(app)
+        val le = learning.edit()
         for (pref in data.prefs) {
             if (!Backup.carried(pref.key)) continue
+            if (pref.key in LearningPrefs.KEYS) {
+                if (pref.type == Backup.PrefType.STRING) le.putString(pref.key, pref.value)
+                continue
+            }
             // A value whose type differs from the one this build stores under that key (an old
             // build's, or a hand edit) is dropped: read back, it would throw ClassCastException.
             if (!Backup.sameType(pref.type, stored[pref.key])) continue
@@ -171,6 +180,7 @@ object BackupRun {
             }
         }
         e.commit()
+        le.commit()
         // A key this build has never stored has no type to check against; reading the config
         // once types every key it knows and removes the misfits (TypeSafePrefs).
         KeyboardConfig.from(p)
@@ -235,6 +245,10 @@ object BackupRun {
                 else -> null
             }
             if (row != null) prefRows.add(row)
+        }
+        // The learned blobs live in their own file (LearningPrefs) and travel as settings did.
+        for ((key, value) in LearningPrefs.get(context).all) {
+            if (key in LearningPrefs.KEYS && value is String) prefRows.add(Backup.Pref(key, Backup.PrefType.STRING, value))
         }
         val db = KineticaDb.get(context)
         val words = ArrayList<Backup.Word>()

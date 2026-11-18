@@ -279,6 +279,10 @@ class CtcScorer private constructor(
         private const val IN_DIM = 28
         private const val KERNEL = 5
 
+        /** Largest single dimension and tensor (floats) a model may declare; the shipped ones are far below. */
+        private const val MAX_DIM = 4096
+        private const val MAX_TENSOR = 4_000_000L
+
         private fun sigmoid(v: Float): Float = 1f / (1f + exp(-v))
 
         /** CTC class of a letter code: a..z are 1..26, the apostrophe 27. */
@@ -371,9 +375,15 @@ class CtcScorer private constructor(
             val shapes = ArrayList<IntArray>(count)
             val t = Array(count) {
                 val nd = int()
+                // Checked before anything is allocated: a bad file must fail here, not as a
+                // negative array size or an out-of-bounds read at inference.
+                require(nd in 1..3) { "tensor $it has $nd dims" }
                 val dims = IntArray(nd) { int() }
+                require(dims.all { d -> d in 1..MAX_DIM }) { "tensor $it dims ${dims.toList()}" }
+                val wide = dims.fold(1L) { a, b -> a * b }
+                require(wide <= MAX_TENSOR) { "tensor $it too large: $wide" }
                 shapes.add(dims)
-                val size = dims.fold(1) { a, b -> a * b }
+                val size = wide.toInt()
                 val bytes = ByteArray(4 * size).also { d.readFully(it) }
                 val fb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
                 FloatArray(size).also { fb.get(it) }
@@ -383,6 +393,18 @@ class CtcScorer private constructor(
             require(shapes[0][1] == inDim && shapes[0][2] == KERNEL) { "conv1 shape ${shapes[0].toList()}" }
             require(version == 1 || (frames == DuoFeatures.FRAMES && sigma == DuoFeatures.SIGMA_KW)) { "frames $frames sigma $sigma" }
             require(shapes[12][0] == CLASSES && shapes[12][1] == 2 * hidden) { "output shape ${shapes[12].toList()}" }
+            // Every tensor's shape, not three of them: conv1, conv2, both GRU directions, output.
+            val gates = 3 * hidden
+            val expected = listOf(
+                intArrayOf(width, inDim, KERNEL), intArrayOf(width),
+                intArrayOf(width, width, KERNEL), intArrayOf(width),
+                intArrayOf(gates, width), intArrayOf(gates, hidden), intArrayOf(gates), intArrayOf(gates),
+                intArrayOf(gates, width), intArrayOf(gates, hidden), intArrayOf(gates), intArrayOf(gates),
+                intArrayOf(CLASSES, 2 * hidden), intArrayOf(CLASSES),
+            )
+            for (i in expected.indices) {
+                require(shapes[i].contentEquals(expected[i])) { "tensor $i shape ${shapes[i].toList()}, expected ${expected[i].toList()}" }
+            }
             return CtcScorer(
                 sigma, t[0], t[1], t[2], t[3],
                 arrayOf(t[4], t[5], t[6], t[7], t[8], t[9], t[10], t[11]),

@@ -1,0 +1,3 @@
+# Tests that may be skipped in CI, one per line: a class name, or class#method,
+# then a space and the reason. tools/ci/check_skips.py fails the build on any
+# other skipped test (review M13: a test that skips is a test that passes).

@@ -33,7 +33,7 @@ class UsageActivity : AppCompatActivity() {
         val reset = Button(this).apply {
             text = getString(R.string.usage_reset)
             setOnClickListener {
-                PreferenceManager.getDefaultSharedPreferences(this@UsageActivity).edit().remove(Prefs.USAGE_COUNTS).apply()
+                LearningPrefs.get(this@UsageActivity).edit().remove(Prefs.USAGE_COUNTS).apply()
                 show()
             }
         }
@@ -53,7 +53,7 @@ class UsageActivity : AppCompatActivity() {
 
     private fun show() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        val stats = UsageStats.parse(prefs.getString(Prefs.USAGE_COUNTS, null))
+        val stats = UsageStats.parse(LearningPrefs.get(this).getString(Prefs.USAGE_COUNTS, null))
         val on = prefs.getBoolean(Prefs.USAGE_STATS, Prefs.DEFAULT_USAGE_STATS)
         val now = System.currentTimeMillis()
         val today = ((now + TimeZone.getDefault().getOffset(now)) / 86_400_000L).toInt()
