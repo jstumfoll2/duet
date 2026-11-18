@@ -22,8 +22,34 @@ Typing SOMETHING:
 
 **No network permission.** The manifest declares no `INTERNET` permission, so nothing you type can
 leave the phone. Decoding, prediction and learning run on the device; password and private fields
-turn off suggestions, trails and learning. The one other sensitive permission, `READ_SMS`, is
-asked for only if you turn on *Codes from text messages*.
+turn off suggestions, trails and learning.
+
+## Permissions and what Duet reaches beyond Kinetica
+
+This is where Duet differs most from Kinetica. Kinetica asks for one permission, `VIBRATE`, and
+looks only for other keyboards. Duet asks for more, so it can offer one-time codes, contact names,
+clipboard history and a voice key. Each is listed below with what turns it on.
+
+| What | Why Duet needs it | When it is used |
+|---|---|---|
+| `READ_SMS` permission | *Codes from text messages* reads recent texts for a one-time code, and watches the SMS inbox for new ones while the keyboard is open (`SmsCodes`). | Only after you turn on Settings > Typing > Suggestion bar > *Codes from text messages* (off by default) and grant the permission. No text leaves the phone or is stored; only the code is offered. |
+| `READ_CONTACTS` permission | *Names from contacts* adds the words of your contacts' names to the dictionary, so a name swipes before you have typed it. | Only after you turn on Settings > Words and learning > *Names from contacts* (off by default) and grant the permission. Names are read at dictionary load and never copied. |
+| `VIBRATE` permission | Key-press haptics, as in Kinetica. | Always. |
+| Clipboard listener (no permission) | Clipboard history and image paste: Duet sees every copy while it is the active keyboard. | Always on. Clips are kept in memory only, a clip the copying app marks sensitive (`EXTRA_IS_SENSITIVE`) is never kept, history is hidden while the phone is locked, and incognito keeps nothing. |
+| Copied-image file provider (not exported) | A copied image is saved in Duet's private cache and handed to a field that accepts images, through a one-time read grant. | When you paste an image from the history. Deleted when it leaves the history. |
+| System spell checker service | Duet's dictionaries as Android's spell checker, and Harper grammar underlines in apps that support them. | Only if you choose Duet in Languages and input > Spell checker. |
+| Autofill suggestions | The password manager's logins, addresses and codes as bar chips. | Android 11+. Duet shows the chip; Android fills the secret, which the keyboard never sees. |
+| Visibility of speech recognizer apps (`<queries>`, no permission) | The voice key looks for a voice typing keyboard, or else an app that answers the speech recognizer prompt. Duet never records audio itself. | When you press the voice key. |
+| Native code (`libduet_harper.so`) | Harper grammar checking, written in Rust. Offline, like the rest. | Only with Settings > Typing > *Grammar check* on. |
+
+**Play Protect warning.** Android's Play Protect may say Duet "may be harmful" when you install it.
+It is most likely the `READ_SMS` permission: Google's anti-fraud rules for sideloaded apps single
+out `READ_SMS`, and a keyboard that can also read texts matches the profile of malware that steals
+one-time codes. The DEV build is also signed with a public key, so it builds no reputation with
+Google. Both permissions sit in the manifest even when their settings are off; nothing is read
+until you turn the setting on and grant the permission. On Android 13+, a sideloaded app must
+also be allowed *restricted settings* (App info > ⋮) before Android lets you grant `READ_SMS`; Duet
+links you there when you turn the setting on.
 
 ## Install
 
