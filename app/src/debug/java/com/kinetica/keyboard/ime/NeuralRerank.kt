@@ -7,6 +7,8 @@ import android.util.Log
 import com.kinetica.keyboard.engine.BoundaryModel
 import com.kinetica.keyboard.engine.LatticeDecoder
 import com.kinetica.keyboard.engine.PreviousWordFix
+import com.kinetica.keyboard.engine.RetypePenalties
+import com.kinetica.keyboard.engine.ShapeTemplates
 import com.kinetica.keyboard.engine.ScoreModel
 import com.kinetica.keyboard.engine.ShapeModel
 import com.kinetica.keyboard.engine.CandidateReranker
@@ -62,6 +64,7 @@ object NeuralRerank {
     private const val PREF_REVISE = "previous_word_fix"
     private const val PREF_LATTICE = "lattice_breaks"
     private const val PREF_DUO = "duo_rerank"
+    private const val PREF_DUO_AHEAD = "duo_ahead"
 
     /**
      * The two-thumb encoder ([DuoReranker], decoder rework step 11, #134): trained by the
@@ -223,6 +226,30 @@ object NeuralRerank {
             onChange?.invoke()
         }
 
+    /** [DuoReranker.ahead]: the encoder runs beside the search (default) or after it. */
+    var duoAhead: Boolean
+        get() = prefs?.getBoolean(PREF_DUO_AHEAD, true) ?: true
+        set(on) {
+            prefs?.edit()?.putBoolean(PREF_DUO_AHEAD, on)?.apply()
+            onChange?.invoke()
+        }
+
+    /**
+     * The decoder switches in force right now, by name, for the trace's `cfg.switches`: which
+     * decoder wrote a word line can then be read from the line, not guessed from the decode log.
+     */
+    fun switchesOn(): List<String> = buildList {
+        if (ScoreModel.logLinear) add("loglinear")
+        if (ScoreModel.taps) add("taps")
+        if (ShapeModel.speed) add("speed")
+        if (PreviousWordFix.enabled) add("revise")
+        if (LatticeDecoder.enabled) add("lattice")
+        if (duoRerank) add(if (duoAhead) "duo" else "duo-after")
+        if (BoundaryModel.enabled) add("boundary")
+        if (ShapeTemplates.enabled) add("templates")
+        if (RetypePenalties.enabled) add("retypes")
+    }
+
     private var duoModel: ByteArray? = null
 
     /** A fresh two-thumb scorer, or null when the asset is missing or unreadable. */
@@ -291,7 +318,7 @@ object NeuralRerank {
         } else {
             var built: WordPredictor? = null
             val inner = s?.let { twoThumb(CtcReranker(it, { built?.geometry }, b)) }
-            val r: CandidateReranker = if (d == null) inner!! else DuoReranker(d, { built?.geometry }, DUO_BETA, inner)
+            val r: CandidateReranker = if (d == null) inner!! else DuoReranker(d, { built?.geometry }, DUO_BETA, inner).also { it.ahead = duoAhead }
             make(Timed(r), if (inner != null) DEPTH else KineticaConstants.TOP_K).also { built = it }
         }
         live = p

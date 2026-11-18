@@ -67,7 +67,12 @@ class DuoReranker(
     @Volatile var ahead = true
 
     /** The encoder's frames for one buffer on one board, being computed or done. */
-    private class Frames(val tokens: List<InputToken>, val g: KeyboardGeometry, val result: Future<FloatArray>)
+    private class Frames(val tokens: List<InputToken>, val g: KeyboardGeometry) {
+        lateinit var result: Future<FloatArray>
+
+        /** The encoder's own run time on its thread, set when it ends; for the decode trace. */
+        @Volatile var runNs = -1L
+    }
 
     // The last buffer's frames: asked for by [prepare], read by [duo], and kept for the next
     // decode of the same tokens (the composer decodes a buffer again when a resting finger drops).
@@ -92,9 +97,13 @@ class DuoReranker(
         if (f != null && f.g === g && f.tokens.size == tokens.size && tokens.indices.all { f.tokens[it] === tokens[it] }) return f.result
         f?.result?.cancel(true)
         val strokes = DuoFeatures.strokes(tokens)
-        val result = worker.submit(Callable { scorer.logProbsDuoCancellable(strokes, g) })
-        frames = Frames(ArrayList(tokens), g, result)
-        return result
+        val next = Frames(ArrayList(tokens), g)
+        next.result = worker.submit(Callable {
+            val start = System.nanoTime()
+            scorer.logProbsDuoCancellable(strokes, g).also { next.runNs = System.nanoTime() - start }
+        })
+        frames = next
+        return next.result
     }
 
     override fun rerank(tokens: List<InputToken>, candidates: List<WordCandidate>): List<WordCandidate> =
@@ -122,12 +131,20 @@ class DuoReranker(
         if (beta == 0f || !ScoreModel.logLinear || candidates.size < 2 || !applies(tokens)) return candidates
         if (candidates[0].score > 0f && candidates[1].score > 0f && ln(candidates[0].score / candidates[1].score) >= gate) {
             // A clear leader: the frames asked for ahead are not needed. A run still going stops.
-            frames?.let { if (!it.result.isDone) { it.result.cancel(true); frames = null } }
+            frames?.let {
+                DecodeTrace.log { "duo skip lead run ${if (it.result.isDone) ms(it.runNs) else "cut"}" }
+                if (!it.result.isDone) { it.result.cancel(true); frames = null }
+            }
             return candidates
         }
         val g = geometry() ?: return candidates
+        val waitStart = System.nanoTime()
         val lp = try {
-            framesFor(tokens, g).get()
+            framesFor(tokens, g).get().also {
+                // Run: the encoder's time on its thread. Wait: how long this decode blocked on
+                // it, which is all the encoder adds here; the rest ran beside the search.
+                DecodeTrace.log { "duo used run ${ms(frames?.runNs ?: -1L)} wait ${ms(System.nanoTime() - waitStart)}" }
+            }
         } catch (e: ExecutionException) {
             frames = null
             return candidates
@@ -159,5 +176,7 @@ class DuoReranker(
     private companion object {
         /** Per-letter cost charged to a word the frames cannot hold. */
         const val MAX_LETTER_COST = 20f
+
+        fun ms(ns: Long): String = if (ns < 0) "?" else "%.2fms".format(java.util.Locale.ROOT, ns / 1e6)
     }
 }
