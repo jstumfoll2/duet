@@ -40,6 +40,12 @@
                     android:summary="@string/pref_harper_grammar_summary"
                     android:defaultValue="false" />
                 <SwitchPreferenceCompat
+                    android:key="pref_spell_learned_words"
+                    android:title="@string/pref_spell_learned_words_title"
+                    app:singleLineTitle="false"
+                    android:summary="@string/pref_spell_learned_words_summary"
+                    android:defaultValue="false" />
+                <SwitchPreferenceCompat
                     android:key="pref_grammar_autofix"
                     android:title="@string/pref_grammar_autofix_title"
                     app:singleLineTitle="false"

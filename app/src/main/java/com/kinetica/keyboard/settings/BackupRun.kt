@@ -153,9 +153,13 @@ object BackupRun {
     @SuppressLint("ApplySharedPref") // commit: the run is over once this returns
     private fun writePrefs(app: Context, data: Backup.Data) {
         val p = PreferenceManager.getDefaultSharedPreferences(app)
+        val stored = p.all
         val e = p.edit()
         for (pref in data.prefs) {
             if (!Backup.carried(pref.key)) continue
+            // A value whose type differs from the one this build stores under that key (an old
+            // build's, or a hand edit) is dropped: read back, it would throw ClassCastException.
+            if (!Backup.sameType(pref.type, stored[pref.key])) continue
             when (pref.type) {
                 Backup.PrefType.BOOL -> e.putBoolean(pref.key, pref.value == "true")
                 Backup.PrefType.INT -> pref.value.toIntOrNull()?.let { e.putInt(pref.key, it) }
@@ -167,6 +171,9 @@ object BackupRun {
             }
         }
         e.commit()
+        // A key this build has never stored has no type to check against; reading the config
+        // once types every key it knows and removes the misfits (TypeSafePrefs).
+        KeyboardConfig.from(p)
         p.edit()
             .putInt(Prefs.DICT_GENERATION, p.getInt(Prefs.DICT_GENERATION, 0) + 1)
             .putInt(Prefs.EXPANSION_GENERATION, p.getInt(Prefs.EXPANSION_GENERATION, 0) + 1)

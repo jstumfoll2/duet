@@ -122,6 +122,7 @@ import kotlin.math.roundToInt
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Kinetica input method service.
@@ -173,6 +174,21 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
     private val dbExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "kinetica-db")
+    }
+    // Dictionary loads, one at a time: a newer load queued behind an older one makes the older
+    // one's install a no-op (loadGeneration), so a stale parse can never win.
+    private val loadExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "kinetica-dict-load")
+    }
+    private val loadGeneration = AtomicInteger()
+
+    /** Set first in onDestroy; a load or held install that finishes later does nothing. */
+    @Volatile private var destroyed = false
+
+    // Copied images, read from other apps' providers. Their own thread, so a provider that
+    // stalls can hold up nothing but the next image (ClipImages cuts it off at a deadline).
+    private val clipExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "duet-clip-images")
     }
     // Harper's grammar check for the proofread strip, off the main thread.
     private val proofExecutor = Executors.newSingleThreadExecutor { r ->
@@ -531,6 +547,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private val heldInstall = HeldInstall()
     private val heldInstallRunnable: Runnable = object : Runnable {
         override fun run() {
+            // A held install never outlives the service: it would keep polling, holding the
+            // dead service and its tries, and hand decodes to shut executors.
+            if (destroyed) return
             if (heldInstall.release(installWaits())) {
                 DecodeTrace.log { "  userdict install run" }
             } else if (heldInstall.isHeld) {
@@ -814,10 +833,12 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             clipListener = l
         }
         // The history is in memory, so images a previous process copied are no one's now.
-        dbExecutor.execute { clipImages.sweep(emptySet()) }
+        clipExecutor.execute { clipImages.sweep(emptySet()) }
     }
 
     override fun onDestroy() {
+        destroyed = true
+        loadGeneration.incrementAndGet()
         backdrop.shutdown()
         prefListener?.let {
             PreferenceManager.getDefaultSharedPreferences(this)
@@ -836,6 +857,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         alternateDecodeExecutor.shutdown()
         extraDecodeExecutor.shutdown()
         dbExecutor.shutdown()
+        loadExecutor.shutdownNow()
+        clipExecutor.shutdownNow()
         proofExecutor.shutdown()
         super.onDestroy()
     }
@@ -851,7 +874,13 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val detectLang = if (config.autoDetectLanguage || config.noPrimary) sameScript.firstOrNull() else null
         // With no primary language, a third resident: the next enabled one in the same script.
         val extraLang = if (config.noPrimary && KineticaConstants.MAX_RESIDENT_LANGUAGES > 2) sameScript.getOrNull(1) else null
-        Thread({
+        if (destroyed) return
+        val generation = loadGeneration.incrementAndGet()
+        // True once a newer load (or onDestroy) has superseded this one.
+        val stale = { destroyed || generation != loadGeneration.get() }
+        loadExecutor.execute {
+            // A load queued behind another that a newer one has already replaced: skip the parse.
+            if (stale()) return@execute
             try {
                 // Learned words merge into the trie at load, gated and scaled by
                 // PERSONAL_MERGE_MIN_COUNT and USER_FREQ_SCALE (rationale in KineticaConstants).
@@ -954,6 +983,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         null
                     }
                 }
+                // Parsed here, not in the install on the main thread (audit #180).
+                val neural = NeuralRerank.prepare()
                 val others = sameScript.filter { it != detectLang && it != extraLang }.mapNotNull { other ->
                     try {
                         other to openWordlist(other).bufferedReader().use {
@@ -964,13 +995,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         null
                     }
                 }
+                if (stale()) return@execute
                 mainHandler.post {
+                    // Checked again on the main thread, where installs and new loads both start.
+                    if (stale()) return@post
                     blockedSpellings = allBlocked
                     // Installing replaces the composer, so a word typed while the parse ran would
                     // lose its tokens and fuse with the next one: wait for it to end (upstream 2.1.3).
                     val held = heldInstall.offer(installWaits()) install@{
-                        // The user may have toggled languages again mid-parse, or while it was held.
-                        if (lang != config.language) return@install
+                        // The user may have toggled languages again mid-parse, or while it was held,
+                        // or a newer load may have started since.
+                        if (lang != config.language || stale()) return@install
                         otherLexicon = SpellLexicon(others)
                         languageStreak.reset()
                         val counts = ConcurrentHashMap<String, Int>(userRows.size * 2)
@@ -983,7 +1018,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                         extraLang?.let { learnedCases[it] = ConcurrentHashMap(casesOf(extraRows)) }
                         val pairs = pairMap(pairRows)
                         personalPairs = pairs
-                        val p = NeuralRerank.primary { reranker, depth ->
+                        val p = NeuralRerank.primary(neural) { reranker, depth ->
                             WordPredictor(
                                 dict.trie, bigrams, currentGeometry, dict.forms, counts, pairs, lang,
                                 reranker = reranker, rerankDepth = depth, learnedOnly = dict.ownWords,
@@ -1067,7 +1102,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 // loaded keeps serving instead.
                 Log.e(TAG, "dictionary load failed for $lang", e)
             }
-        }, "kinetica-dict-load").start()
+        }
     }
 
     /**
@@ -3907,10 +3942,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val now = System.currentTimeMillis()
         // An image's text form is its content URI: kept as the image, never as that text.
         if (keepImage(clip, now, sensitive, fresh = true)) return
-        clipboardHistory.add(clip.getItemAt(0).coerceToText(this), now, sensitive)
+        // Only the clip's own text. coerceToText would open a URI item's provider and read it
+        // whole on the main thread, which any app can make hang or run out of memory.
+        val text = clipText(clip) ?: return
+        clipboardHistory.add(text, now, sensitive)
         DecodeTrace.log { "  clip copied sensitive=$sensitive" }
         if (!sensitive && isInputViewShown) refreshPredictions()
     }
+
+    /** The text of [clip]'s first item, never read through a URI; null when it has none. */
+    private fun clipText(clip: ClipData): CharSequence? =
+        clip.getItemAt(0).text?.takeIf { it.isNotEmpty() }
 
     /**
      * When [clip] is an image, copies it into the cache off the main thread and adds it to the
@@ -3921,7 +3963,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val mime = RichContent.imageMime((0 until desc.mimeTypeCount).map { desc.getMimeType(it) }) ?: return false
         val uri = clip.getItemAt(0).uri ?: return false
         if (sensitive) return true
-        dbExecutor.execute {
+        clipExecutor.execute {
             val image = clipImages.copy(uri, mime)
             mainHandler.post {
                 DecodeTrace.log { "  clip image copied kept=${image != null}" }
@@ -3940,7 +3982,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     /** Deletes the image files the history no longer holds. */
     private fun sweepImages() {
         val keep = clipboardHistory.imageNames(System.currentTimeMillis())
-        dbExecutor.execute { clipImages.sweep(keep) }
+        clipExecutor.execute { clipImages.sweep(keep) }
     }
 
     /** True when the open field takes an image of type [mime] (EditorInfo.contentMimeTypes). */
@@ -3977,7 +4019,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 ) {
                     // An image is copied first; the offer opens once it is in (seed = false: once).
                     if (keepImage(clip, now, sensitive = false, fresh = false) { offerClipboard(seed = false) }) return
-                    clipboardHistory.add(clip.getItemAt(0).coerceToText(this), now)
+                    clipText(clip)?.let { clipboardHistory.add(it, now) }
                     clipboardHistory.markFreshUsed()
                 }
             }
@@ -4223,12 +4265,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (!config.smsCodes) return
         val kind = SmsCodes.fieldKind(info, config.smsCodesAnyField)
         if (kind == OneTimeCodes.Field.NEVER || !smsCodes.allowed()) return
+        // The lock screen's keyboard serves whoever holds the phone: no codes there, like clips.
+        if (clipsHidden()) {
+            DecodeTrace.log { "  sms codes refused=locked" }
+            return
+        }
         val read = {
             dbExecutor.execute {
                 val now = System.currentTimeMillis()
                 val codes = smsCodes.read(now)
                 mainHandler.post {
                     if (generation != codeFieldGeneration || codes.isEmpty()) return@post
+                    if (clipsHidden()) return@post
                     if (tentativeLength > 0 || composer?.hasPendingWord == true) return@post
                     val offered = OneTimeCodes.offer(kind, codes, now, usedCodes, fieldEmpty())
                     if (offered.isEmpty()) return@post
@@ -4238,7 +4286,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             }
         }
         read()
-        smsCodes.watch { if (generation == codeFieldGeneration) read() }
+        smsCodes.watch { if (generation == codeFieldGeneration && !clipsHidden()) read() }
     }
 
     /** Whether the field holds no text around the cursor; unknown counts as not empty. */

@@ -324,8 +324,9 @@ class DictionarySettingsActivity : AppCompatActivity() {
                                         toastLater(R.string.dict_db_error)
                                     }
                                     main.post {
+                                        // Bumped whether or not the screen is still open: the keyboard must reload.
+                                        bumpGeneration()
                                         if (!isDestroyed) {
-                                            bumpGeneration()
                                             refresh()
                                         }
                                     }
@@ -351,8 +352,9 @@ class DictionarySettingsActivity : AppCompatActivity() {
                                         toastLater(R.string.dict_db_error)
                                     }
                                     main.post {
+                                        // Bumped whether or not the screen is still open: the keyboard must reload.
+                                        bumpGeneration()
                                         if (!isDestroyed) {
-                                            bumpGeneration()
                                             refresh()
                                         }
                                     }
@@ -517,8 +519,8 @@ class DictionarySettingsActivity : AppCompatActivity() {
                 return@execute
             }
             main.post {
-                if (isDestroyed) return@post
                 bumpGeneration()
+                if (isDestroyed) return@post
                 refresh()
             }
         }
@@ -673,8 +675,9 @@ class DictionarySettingsActivity : AppCompatActivity() {
                 return@execute
             }
             main.post {
+                // Bumped whether or not the screen is still open: the keyboard must reload.
+                bumpGeneration()
                 if (!isDestroyed) {
-                    bumpGeneration()
                     Toast.makeText(
                         this,
                         resources.getQuantityString(R.plurals.dict_words_raised, words.size, words.size),
@@ -710,8 +713,9 @@ class DictionarySettingsActivity : AppCompatActivity() {
                         return@execute
                     }
                     main.post {
+                        // Bumped whether or not the screen is still open: the keyboard must reload.
+                        bumpGeneration()
                         if (!isDestroyed) {
-                            bumpGeneration()
                             Toast.makeText(
                                 this,
                                 resources.getQuantityString(
@@ -747,7 +751,8 @@ class DictionarySettingsActivity : AppCompatActivity() {
                 }
                 val sb = StringBuilder(result.rows.size * 12)
                 for ((w, c) in result.rows) sb.append(w).append('\t').append(c).append('\n')
-                DictionaryStore.wordlistOverride(this, lang).writeText(sb.toString())
+                if (result.rows.isEmpty()) throw IOException("empty merge")
+                DictionaryStore.writeOverride(this, lang, sb.toString())
                 DictionaryStore.writeInfo(
                     this, lang,
                     DictionaryStore.Info(
@@ -758,8 +763,9 @@ class DictionarySettingsActivity : AppCompatActivity() {
                     ),
                 )
                 main.post {
+                    // Bumped whether or not the screen is still open: the keyboard must reload.
+                    bumpGeneration()
                     if (!isDestroyed) {
-                        bumpGeneration()
                         Toast.makeText(
                             this,
                             getString(R.string.dict_import_done, result.added),
@@ -769,6 +775,9 @@ class DictionarySettingsActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: IOException) {
+                toastLater(R.string.dict_import_failed)
+            } catch (e: RuntimeException) {
+                // A malformed file the merge chokes on must not take the settings screen down.
                 toastLater(R.string.dict_import_failed)
             }
         }
@@ -865,8 +874,9 @@ class DictionarySettingsActivity : AppCompatActivity() {
                     imported++
                 }
                 main.post {
+                    // Bumped whether or not the screen is still open: the keyboard must reload.
+                    bumpGeneration()
                     if (!isDestroyed) {
-                        bumpGeneration()
                         Toast.makeText(
                             this,
                             getString(R.string.dict_personal_import_done, imported),

@@ -79,6 +79,19 @@ object Backup {
      */
     fun carried(key: String): Boolean = key !in NOT_CARRIED
 
+    /**
+     * True when a backed-up value of [type] may overwrite [current], the value stored under that
+     * key now: always when nothing is stored, else only a value of the same type.
+     */
+    fun sameType(type: PrefType, current: Any?): Boolean = when (current) {
+        null -> true
+        is Boolean -> type == PrefType.BOOL
+        is Int -> type == PrefType.INT
+        is String -> type == PrefType.STRING
+        is Set<*> -> type == PrefType.SET
+        else -> false
+    }
+
     private val NOT_CARRIED = setOf(
         Prefs.BACKDROP, Prefs.BACKDROP_CROP, Prefs.BACKDROP_CROP_LANDSCAPE, Prefs.SETUP_STEP, Prefs.SETUP_DONE,
     )

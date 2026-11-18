@@ -24,6 +24,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@d9c87d481d55275bb5441eef3fe0e46805f9ef70 # v3.5.0
 
+      # Harper's native library, packed into the APK and loaded by HarperNativeTest.
+      # Built before the key is on disk, and with no cache: its build scripts and every
+      # crate's build.rs run here, and none of them should ever see the signing key.
+      - uses: ./.github/actions/harper
+        with:
+          cache: "false"
+
       # The signing key exists only as a repository secret. keystore.properties
       # is the same file app/build.gradle reads for a local release build, so
       # the build script needs no CI-specific branch.
@@ -43,9 +50,6 @@ jobs:
             printf 'keyAlias=%s\n' "$KEY_ALIAS"
             printf 'keyPassword=%s\n' "$KEY_PASSWORD"
           } > keystore.properties
-
-      # Harper's native library, packed into the APK and loaded by HarperNativeTest.
-      - uses: ./.github/actions/harper
 
       # A release passes the same gate as any other change: JVM golden suite and
       # lint before anything is signed.

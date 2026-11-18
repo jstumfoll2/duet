@@ -7,6 +7,7 @@
 //! as one flat string ([encode]) so the Kotlin side needs no JSON parser and the format is
 //! testable on the JVM.
 
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use harper_core::linting::{Lint, LintGroup, LintKind, Linter, Suggestion};
@@ -120,7 +121,17 @@ pub extern "system" fn Java_com_kinetica_keyboard_grammar_HarperNative_create(
     _class: JClass,
     dialect: jint,
 ) -> jlong {
-    Box::into_raw(Box::new(Checker::new(dialect))) as jlong
+    // A panic must never unwind into the JVM (undefined behaviour) or abort the process:
+    // 0 tells the Kotlin side there is no checker.
+    catch_unwind(|| Box::into_raw(Box::new(Checker::new(dialect))) as jlong).unwrap_or(0)
+}
+
+/// [lint]'s answer when Harper panicked: the Kotlin side drops the checker and builds a new one.
+pub const PANICKED: &str = "!panic";
+
+/// Lints [text] with the checker at [handle], catching any panic inside harper-core.
+pub fn lint_caught(checker: &mut Checker, text: &str) -> String {
+    catch_unwind(AssertUnwindSafe(|| encode(text, &checker.lint(text)))).unwrap_or_else(|_| PANICKED.to_string())
 }
 
 #[unsafe(no_mangle)]
@@ -139,7 +150,7 @@ pub extern "system" fn Java_com_kinetica_keyboard_grammar_HarperNative_lint(
                 // SAFETY: handle came from create() and is used from one thread at a time
                 // (HarperGrammar serializes every call).
                 let checker = unsafe { &mut *(handle as *mut Checker) };
-                encode(&text, &checker.lint(&text))
+                lint_caught(checker, &text)
             }
             Err(_) => String::new(),
         }
@@ -155,7 +166,8 @@ pub extern "system" fn Java_com_kinetica_keyboard_grammar_HarperNative_destroy(
 ) {
     if handle != 0 {
         // SAFETY: handle came from create() and is destroyed once.
-        drop(unsafe { Box::from_raw(handle as *mut Checker) });
+        let checker = unsafe { Box::from_raw(handle as *mut Checker) };
+        let _ = catch_unwind(AssertUnwindSafe(move || drop(checker)));
     }
 }
 
@@ -193,6 +205,15 @@ mod tests {
     #[test]
     fn spelling_is_left_to_duet() {
         assert_eq!(fixes("Jasonn typed it."), "");
+    }
+
+    #[test]
+    fn a_panic_is_caught_not_fatal() {
+        let caught = catch_unwind(|| -> String { panic!("boom") }).unwrap_or_else(|_| PANICKED.to_string());
+        assert_eq!(caught, PANICKED);
+        // And a real lint still runs through the caught path.
+        let mut c = Checker::new(0);
+        assert_eq!(lint_caught(&mut c, "I went to the store yesterday."), "");
     }
 
     #[test]

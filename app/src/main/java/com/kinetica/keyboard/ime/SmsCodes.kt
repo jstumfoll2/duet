@@ -50,12 +50,23 @@ class SmsCodes(private val context: Context, private val handler: Handler) {
         return OneTimeCodes.recent(messages, nowMs)
     }
 
-    /** Calls [callback] on the main thread whenever the message store changes, until [unwatch]. */
+    private var pending: Runnable? = null
+
+    /**
+     * Calls [callback] on the main thread whenever the message store changes, until [unwatch].
+     * A burst of changes (a sync, mark-all-read) is coalesced into one call [DEBOUNCE_MS] after
+     * the last of them, so it cannot flood the thread the read runs on.
+     */
     fun watch(callback: () -> Unit) {
         unwatch()
         if (!allowed()) return
+        val fire = Runnable { callback() }
+        pending = fire
         val o = object : ContentObserver(handler) {
-            override fun onChange(selfChange: Boolean) = callback()
+            override fun onChange(selfChange: Boolean) {
+                handler.removeCallbacks(fire)
+                handler.postDelayed(fire, DEBOUNCE_MS)
+            }
         }
         try {
             context.contentResolver.registerContentObserver(Telephony.Sms.CONTENT_URI, true, o)
@@ -68,11 +79,16 @@ class SmsCodes(private val context: Context, private val handler: Handler) {
     fun unwatch() {
         observer?.let { context.contentResolver.unregisterContentObserver(it) }
         observer = null
+        pending?.let { handler.removeCallbacks(it) }
+        pending = null
     }
 
     companion object {
         private const val TAG = "SmsCodes"
         private const val MAX_MESSAGES = 10
+
+        /** Quiet time after the last message-store change before the codes are read again. */
+        const val DEBOUNCE_MS = 300L
 
         /** Where [info] stands on being offered a code ([OneTimeCodes.fieldKind]). */
         fun fieldKind(info: EditorInfo?, anyField: Boolean): OneTimeCodes.Field {

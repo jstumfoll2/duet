@@ -729,6 +729,14 @@ object Prefs {
     const val HARPER_GRAMMAR = "pref_harper_grammar"
 
     /**
+     * Whether Duet's system spell checker counts the words the keyboard learned as correct in
+     * other apps. Off by default: any app can open a spell-check session and probe a word, so
+     * with it on an app could confirm that a rare name or term is in the owner's vocabulary.
+     * The keyboard's own bar always uses learned words.
+     */
+    const val SPELL_LEARNED_WORDS = "pref_spell_learned_words"
+
+    /**
      * Grammar auto-fixes: slips no reading makes right are fixed as the word lands (`to to`,
      * `isn t`, `I are`, `tobe`), and one backspace takes the fix back (GrammarAutoFix).
      */
@@ -1045,6 +1053,7 @@ object Prefs {
     const val DEFAULT_INCOGNITO = false
     const val DEFAULT_KEY_SOUND = false
     const val DEFAULT_HARPER_GRAMMAR = false
+    const val DEFAULT_SPELL_LEARNED_WORDS = false
     const val DEFAULT_GRAMMAR_AUTOFIX = true
     const val DEFAULT_EMOJI_SUGGESTIONS = false
     const val DEFAULT_EMOJI_TONE = 0

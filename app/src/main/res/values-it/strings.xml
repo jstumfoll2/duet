@@ -789,4 +789,6 @@
     <string name="edit_page_text_hint">Testo che il tasto scrive</string>
     <string name="notice_cut_line">Riga tagliata</string>
     <string name="notice_name_select">Selezione</string>
+    <string name="pref_spell_learned_words_title">Il correttore conosce le parole imparate</string>
+    <string name="pref_spell_learned_words_summary">Quando Duet è il correttore ortografico di sistema, le parole che la tastiera ha imparato da te sono considerate corrette nelle altre app. Disattivato di base, perché qualsiasi app può chiedere al correttore se una parola è nota</string>
 </resources>
