@@ -12,14 +12,14 @@ class TypeSafePrefsTest {
     /** Casts the way Android's SharedPreferencesImpl does: a wrong type throws. */
     private class StrictPrefs(val values: MutableMap<String, Any>) : SharedPreferences {
         override fun getAll(): Map<String, *> = values
-        override fun getString(key: String?, defValue: String?): String? = (values[key] ?: return defValue) as String
+        override fun getString(key: String?, defValue: String?): String? = values[key]?.let { it as String } ?: defValue
         @Suppress("UNCHECKED_CAST")
         override fun getStringSet(key: String?, defValues: Set<String>?): Set<String>? =
-            (values[key] ?: return defValues) as Set<String>
-        override fun getInt(key: String?, defValue: Int): Int = (values[key] ?: return defValue) as Int
-        override fun getLong(key: String?, defValue: Long): Long = (values[key] ?: return defValue) as Long
-        override fun getFloat(key: String?, defValue: Float): Float = (values[key] ?: return defValue) as Float
-        override fun getBoolean(key: String?, defValue: Boolean): Boolean = (values[key] ?: return defValue) as Boolean
+            values[key]?.let { it as Set<String> } ?: defValues
+        override fun getInt(key: String?, defValue: Int): Int = values[key]?.let { it as Int } ?: defValue
+        override fun getLong(key: String?, defValue: Long): Long = values[key]?.let { it as Long } ?: defValue
+        override fun getFloat(key: String?, defValue: Float): Float = values[key]?.let { it as Float } ?: defValue
+        override fun getBoolean(key: String?, defValue: Boolean): Boolean = values[key]?.let { it as Boolean } ?: defValue
         override fun contains(key: String?): Boolean = values.containsKey(key)
         override fun edit(): SharedPreferences.Editor = Editor()
         override fun registerOnSharedPreferenceChangeListener(l: SharedPreferences.OnSharedPreferenceChangeListener?) = Unit
