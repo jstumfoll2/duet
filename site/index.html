@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Duet: the two-thumb keyboard</title>
-<meta name="description" content="Duet is a free, open-source Android keyboard for two thumbs at once. Both thumbs swipe or tap at the same time and become one word. No internet permission.">
+<meta name="description" content="Duet is a free, open-source Android keyboard for two thumbs at once. Both thumbs swipe or tap at the same time and become one word. Neural decoding, offline grammar, clipboard history, themes. No internet permission.">
 <meta property="og:title" content="Duet: the two-thumb keyboard">
 <meta property="og:description" content="Both thumbs swipe or tap at once and become one word. Free, open source, and offline.">
 <meta property="og:type" content="website">
@@ -18,6 +18,7 @@
 <header class="top">
   <a class="brand" href="#"><img src="icon.svg" alt="" width="32" height="32"><span>Duet</span></a>
   <nav>
+    <a href="#see-it">See it</a>
     <a href="#features">Features</a>
     <a href="#privacy">Privacy</a>
     <a href="#install">Install</a>
@@ -32,12 +33,13 @@
     <img class="hero-icon" src="icon.svg" alt="Duet icon: two strands, amber and coral, braided together" width="96" height="96">
     <h1>Type with <em class="l">both</em> <em class="r">thumbs</em>, at once.</h1>
     <p class="lede">Duet is an Android keyboard where each thumb swipes or taps on its own, at the same
-      time as the other, and both become one word. Free, open source, and fully offline.</p>
+      time as the other, and both become one word. A neural decoder, offline grammar, and everyday
+      tools, all on your phone. Free, open source, and no internet permission.</p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/jstumfoll2/duet/releases/latest">Download the APK</a>
-      <a class="btn" href="https://github.com/jstumfoll2/duet">View the source</a>
+      <a class="btn" href="#see-it">Watch it type</a>
     </div>
-    <p class="fine">Android 8.0 or later. GPL-3.0-or-later. No internet permission.</p>
+    <p class="fine">Android 8.0 or later. GPL-3.0-or-later.</p>
     <!-- F-Droid badge slot: when Duet is listed, replace this comment with
          <a href="https://f-droid.org/packages/io.github.jstumfoll2.duet/"><img src="get-it-on-fdroid.svg" alt="Get it on F-Droid" height="56"></a> -->
   </div>
@@ -45,10 +47,8 @@
   <figure class="demo" aria-label="Animation: the left thumb taps S and E while the right thumb swipes O to M and T-H-I-N-G; Duet types 'something'.">
     <svg viewBox="0 0 400 200" role="img" aria-hidden="true">
       <g class="keys" id="keys"></g>
-      <!-- right thumb swipes -->
       <path class="trail r om" pathLength="1" d="M340,26 Q350,92 320,146"/>
       <path class="trail r thing" pathLength="1" d="M180,26 L240,86 L300,26 L280,146 L200,86"/>
-      <!-- left thumb taps -->
       <circle class="tap l ts" cx="80" cy="86" r="15"/>
       <circle class="tap l te" cx="100" cy="26" r="15"/>
     </svg>
@@ -70,45 +70,150 @@
   </ol>
 </section>
 
-<section id="features">
-  <h2>What's inside</h2>
-  <div class="grid">
-    <article>
-      <h3>A two-thumb decoder</h3>
-      <p>When swipes from both thumbs overlap, Duet also reads them as one path on one timeline, so fast two-handed words don't fall apart.</p>
-    </article>
-    <article>
-      <h3>Neural, and on the phone</h3>
-      <p>Strokes are scored by a language model and two small neural models trained from scratch for this keyboard. Nothing is sent anywhere to decode.</p>
-    </article>
-    <article>
-      <h3>Learns where you aim</h3>
-      <p>Thumbs don't hit key centres. Duet learns each key's offset from the words you commit, and only applies it once it beats your raw touches.</p>
-    </article>
-    <article>
-      <h3>Forgives the glass</h3>
-      <p>When the thumbs meet mid-board, touchscreens can merge them. Duet repairs those contacts and joins brief accidental lifts.</p>
-    </article>
-    <article>
-      <h3>Taps and swipes mix</h3>
-      <p>Peck a short word, swipe the next one straight after, and get two words. One backspace splits a word that joined by mistake.</p>
-    </article>
-    <article>
-      <h3>Grammar, offline</h3>
-      <p>Optional grammar checking by Harper runs in native code on the device. Common slips like "going ti" fix themselves.</p>
-    </article>
-    <article>
-      <h3>Everyday comforts</h3>
-      <p>Clipboard history with image paste, emoji search with skin tones, a voice key, password-manager autofill chips, and an incognito switch.</p>
-    </article>
-    <article>
-      <h3>Make it yours</h3>
-      <p>Theme presets, exact colours, background images, trail styles, split layout, row heights, key spacing, and a night theme.</p>
-    </article>
-    <article>
-      <h3>Many languages</h3>
-      <p>Built on Kinetica's open dictionaries and layouts, with English given extra depth: contractions, grammar, and a larger word list.</p>
-    </article>
+<!-- Media slots. Each <img>/<video> removes itself if its file is missing, leaving the labelled
+     placeholder behind it. Expected files are listed in site/media/README.md. -->
+<section id="see-it">
+  <h2>See it in action</h2>
+  <div class="video-row">
+    <div class="phone video">
+      <div class="slot"><span>Video coming soon</span><small>Typing a few sentences with both thumbs</small></div>
+      <video controls muted loop playsinline preload="metadata" poster="media/demo-poster.webp">
+        <source src="media/duet-demo.mp4" type="video/mp4" onerror="this.parentNode.remove()">
+      </video>
+    </div>
+    <div class="phone video">
+      <div class="slot"><span>Video coming soon</span><small>Tap a word, swipe the next, split a joined word with one backspace</small></div>
+      <video controls muted loop playsinline preload="metadata" poster="media/spacing-poster.webp">
+        <source src="media/duet-spacing.mp4" type="video/mp4" onerror="this.parentNode.remove()">
+      </video>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="features">
+  <h2>What Duet adds</h2>
+  <p class="sub">Duet started from Kinetica and has grown its own decoder and a long list of features. Everything below is new in Duet.</p>
+
+  <div class="feature">
+    <div class="phone">
+      <div class="slot"><span>Screenshot</span><small>Both thumbs mid-swipe, two trail colours</small></div>
+      <img src="media/two-thumbs.webp" alt="Duet keyboard with two swipe trails, one from each thumb" onerror="this.remove()">
+    </div>
+    <div class="feature-text">
+      <h3 class="l">A decoder built for two thumbs</h3>
+      <p>Duet's default decoder is its own. Every swipe and tap is scored as a probability, so word
+        breaks are weighed in the same search as the words.</p>
+      <ul>
+        <li><b>Neural models, on the phone.</b> Two small CTC models trained from scratch for this keyboard: one scores each stroke, the other watches both thumbs in time.</li>
+        <li><b>Interleaved reading.</b> Overlapping swipes are also read as one path on one timeline, so fast two-handed words hold together.</li>
+        <li><b>Touch repair.</b> When thumbs meet mid-board and the screen merges them, Duet pulls them apart again.</li>
+        <li><b>Learns where you aim.</b> Each key's real landing spot is learned from words you commit, and only used once it beats your raw touches.</li>
+        <li><b>Forgiving strokes.</b> Brief accidental lifts are joined, long swipes keep their length, and a pause on a key reads as a double letter.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feature flip">
+    <div class="phone">
+      <div class="slot"><span>Screenshot</span><small>Grammar row with a red underline and its fix</small></div>
+      <img src="media/grammar.webp" alt="Grammar row above the suggestion bar, with a mistake underlined and its fix" onerror="this.remove()">
+    </div>
+    <div class="feature-text">
+      <h3 class="r">Grammar and spelling, offline</h3>
+      <p>Real grammar checking runs on the device, in every app.</p>
+      <ul>
+        <li><b>Harper grammar check.</b> A slim row above the bar mirrors your sentence with mistakes underlined; tap one for the fix.</li>
+        <li><b>Auto-fixes as you type.</b> <code>to to</code>, <code>isn t</code>, <code>I are</code>, <code>tobe</code> fix themselves, and one backspace puts them back.</li>
+        <li><b>Context fixes.</b> <code>a</code>/<code>an</code>, <code>could of</code>, <code>then</code>/<code>than</code>, <code>its</code>/<code>it's</code> when the words around settle it.</li>
+        <li><b>Short slips.</b> <code>going ti</code> becomes <code>going to</code> when the context is clear.</li>
+        <li><b>System spell checker.</b> Pick Duet in Android's settings and apps underline with its dictionaries.</li>
+        <li><b>Bigger English.</b> A larger word list, a million word pairs and word triples for context.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feature">
+    <div class="phone">
+      <div class="slot"><span>Screenshot</span><small>Clipboard history on the bar, with an image clip</small></div>
+      <img src="media/clipboard.webp" alt="Clipboard history chips on the suggestion bar, including a copied image" onerror="this.remove()">
+    </div>
+    <div class="feature-text">
+      <h3 class="l">A smarter suggestion bar</h3>
+      <ul>
+        <li><b>Clipboard history.</b> Recent clips on the bar, kept in memory only. Clips marked sensitive are never kept.</li>
+        <li><b>Image paste.</b> Copy an image and paste it into any chat or email field that takes one.</li>
+        <li><b>Autofill chips.</b> Your password manager's logins, addresses and codes as chips. The keyboard never sees the secret.</li>
+        <li><b>One-time codes.</b> Optionally offer the code from a recent text in the code box.</li>
+        <li><b>Word menu.</b> Hold a suggestion for <i>Never</i>, <i>Less</i>, <i>More</i>, <i>Forget</i> or <i>Why?</i></li>
+        <li><b>Menu button.</b> ☰ brings up paste, undo and clipboard mid-sentence.</li>
+        <li><b>Voice key.</b> Hands the field to your voice typing app. Duet itself never listens.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feature flip">
+    <div class="phone">
+      <div class="slot"><span>Screenshot</span><small>The keyboard in a theme preset</small></div>
+      <img src="media/themes.webp" alt="Duet keyboard in one of its theme presets" onerror="this.remove()">
+    </div>
+    <div class="feature-text">
+      <h3 class="r">Themes and layout</h3>
+      <p>Seven presets alongside Duet dark, Material You and custom colours:</p>
+      <div class="swatches" id="swatches" aria-label="The seven theme presets"></div>
+      <ul>
+        <li><b>Hue picker with live swatches.</b> Accent and trail colours show as a dot and a rainbow track, and rows gray out when your theme ignores them.</li>
+        <li><b>Trail styles and effects.</b> Classic, glow, dots and comet trails; burst, ripple, sparks and pulse key presses.</li>
+        <li><b>Fit your thumbs.</b> A gap above the space bar that still types the letter above, number and space row heights, key spacing, and a split-layout gap.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feature">
+    <div class="phone">
+      <div class="slot"><span>Screenshot</span><small>Emoji search with a skin tone picked</small></div>
+      <img src="media/emoji.webp" alt="Emoji search tab with results and skin tones" onerror="this.remove()">
+    </div>
+    <div class="feature-text">
+      <h3 class="l">Emoji, found fast</h3>
+      <ul>
+        <li><b>Search 1,906 emoji</b> by name and keyword in 14 languages: "pi" finds 🍕 and 🥧, "fuego" finds 🔥.</li>
+        <li><b>Skin tones.</b> Set a default, or long-press one emoji to give it its own, remembered.</li>
+        <li><b>Emoji on the bar</b> use the same tones.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feature flip">
+    <div class="phone">
+      <div class="slot"><span>Screenshot</span><small>Holding a suggestion: Never, Less, More, Forget, Why?</small></div>
+      <img src="media/word-menu.webp" alt="The word menu on the suggestion bar" onerror="this.remove()">
+    </div>
+    <div class="feature-text">
+      <h3 class="r">Spaces and word breaks that keep up</h3>
+      <ul>
+        <li><b>Tap one word, swipe the next.</b> Peck <code>to</code>, swipe <code>help</code> with no space, and get "to help".</li>
+        <li><b>One backspace splits a joined word.</b> <code>toddle</code> goes back to "to feel".</li>
+        <li><b>Too-early swipes.</b> Start the next word before the space lands and one backspace still gives both words.</li>
+        <li><b>Adaptive autospace.</b> The space waits for your pace, and a word typed mid-paragraph never doubles a space.</li>
+        <li><b>Start words from the spacebar</b>, and optionally swipe through it to keep going without lifting.</li>
+        <li><b>Whole-word backspace</b> (optional) deletes a swiped word in one tap and offers its other readings.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid more">
+    <article><h3>Incognito</h3><p>One switch and Duet learns nothing in any field, while suggestions keep working. The spacebar shows 🕶.</p></article>
+    <article><h3>Learns carefully</h3><p>A new word needs three commits, and is learned in the language it belongs to.</p></article>
+    <article><h3>Typing accuracy</h3><p>Optional per-day counts of retypes, bar picks and words per minute. Numbers only, never words.</p></article>
+    <article><h3>Contacts' names</h3><p>Optionally add your contacts' names so they swipe before you've typed them.</p></article>
+    <article><h3>Tidy settings</h3><p>Three groups, short headings, and search that reaches every row.</p></article>
+    <article><h3>Practice mode</h3><p>The DEV build prompts words and sentences, records traces you export, and helps tune the decoder.</p></article>
+  </div>
+
+  <div class="kinetica">
+    <h3>Plus everything from Kinetica</h3>
+    <p>Dozens of languages and layouts, chord shortcuts and edge swipes, the editing page, background
+      images, exact colours, a night theme, guided setup, backup and restore, and much more.</p>
   </div>
 </section>
 
@@ -116,8 +221,8 @@
   <div>
     <h2>Nothing you type leaves the phone</h2>
     <p>Duet's manifest declares <b>no internet permission</b>. Android won't let it open a network
-      connection, so decoding, prediction and learning all happen on the device. Password and private
-      fields turn off suggestions, trails and learning.</p>
+      connection, so decoding, prediction, grammar and learning all happen on the device. Password and
+      private fields turn off suggestions, trails and learning.</p>
     <p>A few features ask for more, and every one is off until you turn it on:</p>
     <ul>
       <li><b>Codes from text messages</b> reads recent texts for a one-time code (<code>READ_SMS</code>).</li>
@@ -140,7 +245,7 @@
       <a href="https://github.com/jstumfoll2/duet/releases/latest">latest release</a>. It's signed with the
       project's release key, so later versions install as updates.</li>
     <li><b>Open it on your phone</b> and allow your browser or file manager to install apps.</li>
-    <li><b>Open Duet</b> and follow the three setup steps to turn it on and pick it as your keyboard.</li>
+    <li><b>Open Duet</b> and follow the setup steps to turn it on and pick it as your keyboard.</li>
   </ol>
   <p class="note"><b>About Play Protect.</b> Android may warn that Duet "may be harmful". That's most likely
     the optional <code>READ_SMS</code> permission, which Google's rules flag on sideloaded apps, together
@@ -157,17 +262,20 @@
 
 <section class="credit">
   <h2>Credit where it's due</h2>
-  <p>Duet is a fork of <a href="https://github.com/EZ-eta/kinetica">Kinetica</a> by Elia Zanella, who wrote
-    the keyboard: the gesture engine, the original decoder, the settings, and most of the features above.
-    Duet adds its two-thumb decoder, the neural models, and a way to measure accuracy from real typing.
-    If Kinetica is useful to you, its author accepts tips at
+  <p>Duet is built on <a href="https://github.com/EZ-eta/kinetica">Kinetica</a> by Elia Zanella: its
+    keyboard, gesture engine, layouts, settings and many everyday features. Duet's default decoder is its
+    own: the probability-based scoring that weighs word breaks in one search, the two neural models, the
+    interleaved two-thumb reader, touch repair and learned aim points. It still finds candidates with
+    Kinetica's trie search and swipe-shape matching, and Kinetica's classic decoder is one switch away in
+    Settings. If Kinetica is useful to you, its author accepts tips at
     <a href="https://ko-fi.com/ez_eta">ko-fi.com/ez_eta</a>.</p>
   <p>Duet's swipe models were trained from scratch on FUTO's MIT-licensed swipe dataset (not on FUTO's
     model weights). Grammar checking uses <a href="https://github.com/Automattic/harper">Harper</a>
     (Apache-2.0). Dictionary data comes from FrequencyWords, Tatoeba, SCOWL and C4; their licences and
     attributions are in <a href="https://github.com/jstumfoll2/duet/blob/main/THIRD_PARTY_NOTICES">THIRD_PARTY_NOTICES</a>.</p>
-  <p>Duet is free software under the
-    <a href="https://github.com/jstumfoll2/duet/blob/main/LICENSE">GNU General Public License, version 3 or later</a>.</p>
+  <p>Duet is a modified version of Kinetica and is free software under the
+    <a href="https://github.com/jstumfoll2/duet/blob/main/LICENSE">GNU General Public License, version 3 or later</a>.
+    Kinetica is Copyright (C) 2026 Elia Zanella; Duet's changes are in the repository's history.</p>
 </section>
 
 </main>
@@ -180,25 +288,49 @@
 </footer>
 
 <script>
-// Draw the keyboard for the demo (keeps the HTML short; the page works without it, minus the keys).
 (function () {
-  var rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"], offs = [0, 20, 60], g = document.getElementById("keys");
   var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  // Keyboard for the hero demo.
+  var rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"], offs = [0, 20, 60], g = document.getElementById("keys");
   rows.forEach(function (row, r) {
     for (var i = 0; i < row.length; i++) {
       var x = offs[r] + 40 * i, y = 60 * r;
-      var rect = document.createElementNS(NS, "rect");
-      rect.setAttribute("x", x + 3); rect.setAttribute("y", y + 3);
-      rect.setAttribute("width", 34); rect.setAttribute("height", 46); rect.setAttribute("rx", 7);
-      var t = document.createElementNS(NS, "text");
-      t.setAttribute("x", x + 20); t.setAttribute("y", y + 33); t.textContent = row[i].toUpperCase();
-      g.appendChild(rect); g.appendChild(t);
+      el("rect", { x: x + 3, y: y + 3, width: 34, height: 46, rx: 7 }, g);
+      el("text", { x: x + 20, y: y + 33 }, g).textContent = row[i].toUpperCase();
     }
   });
-  var sp = document.createElementNS(NS, "rect");
-  sp.setAttribute("x", 103); sp.setAttribute("y", 183); sp.setAttribute("width", 194);
-  sp.setAttribute("height", 14); sp.setAttribute("rx", 7); sp.setAttribute("class", "space");
-  g.appendChild(sp);
+  el("rect", { x: 103, y: 183, width: 194, height: 14, rx: 7, "class": "space" }, g);
+
+  // Theme preset swatches: background, key, key text and accent from ThemePresets.kt.
+  var presets = [
+    ["Pure black", "#000000", "#161616", "#F2F2F2", "#5468FF"],
+    ["Ocean", "#0B1A2A", "#15304A", "#E6F1FA", "#3FC5F0"],
+    ["Forest", "#0F1A13", "#1D3024", "#E8F3EA", "#6FCF7F"],
+    ["Sunset", "#1C1018", "#33202C", "#F8E9EF", "#FF8A50"],
+    ["Paper", "#E9E4DA", "#FBF8F2", "#2A2520", "#B5651D"],
+    ["Lavender", "#E6E1F2", "#FAF8FF", "#231D3A", "#7A5AD8"],
+    ["High contrast", "#000000", "#262626", "#FFFFFF", "#FFD60A"]
+  ];
+  var box = document.getElementById("swatches");
+  presets.forEach(function (p) {
+    var fig = document.createElement("figure");
+    var svg = el("svg", { viewBox: "0 0 84 52", "aria-hidden": "true" }, fig);
+    el("rect", { width: 84, height: 52, rx: 8, fill: p[1] }, svg);
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 5 - (r === 2 ? 1 : 0); c++)
+      el("rect", { x: 5 + c * 15 + (r === 2 ? 8 : 0), y: 5 + r * 12, width: 13, height: 10, rx: 2, fill: p[2] }, svg);
+    el("rect", { x: 22, y: 42, width: 40, height: 6, rx: 3, fill: p[2] }, svg);
+    el("path", { d: "M10 30 Q30 8 52 22 T76 12", fill: "none", stroke: p[4], "stroke-width": 3, "stroke-linecap": "round" }, svg);
+    var cap = document.createElement("figcaption");
+    cap.textContent = p[0];
+    fig.appendChild(cap);
+    box.appendChild(fig);
+  });
 })();
 </script>
 </body>
