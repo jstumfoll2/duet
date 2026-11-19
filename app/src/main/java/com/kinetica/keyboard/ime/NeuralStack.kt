@@ -2,16 +2,12 @@ package com.kinetica.keyboard.ime
 
 import android.content.Context
 import android.util.Log
-import com.kinetica.keyboard.engine.BoundaryModel
 import com.kinetica.keyboard.engine.CandidateReranker
 import com.kinetica.keyboard.engine.CtcReranker
 import com.kinetica.keyboard.engine.CtcScorer
+import com.kinetica.keyboard.engine.DecoderConfig
 import com.kinetica.keyboard.engine.DuoReranker
 import com.kinetica.keyboard.engine.KeyboardGeometry
-import com.kinetica.keyboard.engine.LatticeDecoder
-import com.kinetica.keyboard.engine.PreviousWordFix
-import com.kinetica.keyboard.engine.ScoreModel
-import com.kinetica.keyboard.engine.ShapeModel
 import java.io.IOException
 
 /**
@@ -59,12 +55,7 @@ object NeuralStack {
 
     /** The engine switches of the new decoder, all on or all off ([on] false is the classic decoder). */
     fun applyScore(on: Boolean) {
-        ScoreModel.mode = if (on) ScoreModel.Mode.LOGLINEAR else ScoreModel.Mode.LEGACY
-        ScoreModel.taps = on
-        ShapeModel.speed = on
-        PreviousWordFix.enabled = on
-        LatticeDecoder.enabled = on
-        BoundaryModel.enabled = on
+        DecoderConfig.set(if (on) DecoderConfig.NEW else DecoderConfig.CLASSIC)
     }
 
     /** The one-stroke model's settings as replay measured them: light on one thumb, full on two. */

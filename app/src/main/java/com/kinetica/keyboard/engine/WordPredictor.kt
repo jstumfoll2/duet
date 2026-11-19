@@ -83,6 +83,12 @@ class WordPredictor(
     /** [LoadedDictionary.learned]: spellings in the trie that the bundled list does not hold. */
     private val learnedOnly: Set<String> = emptySet(),
 ) {
+    /**
+     * The decoder switches in force when this predictor was built (#184). A decode the composer
+     * runs reads these, not whatever a switch says later; outside one, [DecoderConfig.global].
+     */
+    val config: DecoderConfig = DecoderConfig.global
+
     /** The letters this predictor's trie and geometry are spelled in. */
     val alphabet: Alphabet get() = trie.alphabet
 

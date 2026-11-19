@@ -279,7 +279,7 @@ object Prefs {
      * beside the key-centre path (engine.ShapeTemplates, issue #138).
      */
     const val SHAPE_TEMPLATES = "pref_shape_templates"
-    const val DEFAULT_SHAPE_TEMPLATES = false
+    const val DEFAULT_SHAPE_TEMPLATES = true
 
     /**
      * The paths behind [SHAPE_TEMPLATES] (engine.ShapeTemplates.serialize). Not on any settings
@@ -922,7 +922,7 @@ object Prefs {
      */
     const val DEFAULT_SPACE_CHORD_ARM_MS = 50
     const val DEFAULT_RETYPE_AVOIDS_REJECTED = true
-    const val DEFAULT_RETYPE_PENALTIES = false
+    const val DEFAULT_RETYPE_PENALTIES = true
     const val DEFAULT_USAGE_STATS = false
     const val DEFAULT_AUTOCORRECT_LEVEL = "normal"
     const val DEFAULT_REINFORCE_INCREMENT = "medium"

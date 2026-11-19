@@ -9,6 +9,7 @@ import android.view.textservice.SuggestionsInfo
 import android.view.textservice.TextInfo
 import androidx.annotation.RequiresApi
 import androidx.preference.PreferenceManager
+import com.kinetica.keyboard.data.BundledDictionaries
 import com.kinetica.keyboard.data.DictionaryStore
 import com.kinetica.keyboard.data.KineticaDb
 import com.kinetica.keyboard.engine.Alphabet
@@ -147,8 +148,14 @@ class KineticaSpellChecker : SpellCheckerService() {
             return cached
         }
 
-        private fun load(context: Context, lang: String, withLearned: Boolean): LoadedDictionary? = try {
-            val rows = if (!withLearned) emptyList() else try {
+        private fun load(context: Context, lang: String, withLearned: Boolean): LoadedDictionary? {
+            // Without learned words the list is the plain one the keyboard parses too (#185).
+            if (!withLearned) return BundledDictionaries.get(context, lang)
+            return loadWithLearned(context, lang)
+        }
+
+        private fun loadWithLearned(context: Context, lang: String): LoadedDictionary? = try {
+            val rows = try {
                 KineticaDb.get(context).userWords().topN(lang, USER_WORD_LIMIT)
             } catch (e: RuntimeException) {
                 Log.w(TAG, "user dictionary unavailable for $lang", e)

@@ -12,7 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         UserWord::class, ChordShortcut::class, BlockedWord::class, EmojiUse::class,
         UserBigram::class, Expansion::class,
     ],
-    version = 7,
+    version = KineticaDb.VERSION,
     exportSchema = false,
 )
 abstract class KineticaDb : RoomDatabase() {
@@ -24,6 +24,11 @@ abstract class KineticaDb : RoomDatabase() {
     abstract fun expansions(): ExpansionDao
 
     companion object {
+        /** The schema version. A file from a newer Duet is handled by [DbDowngrade]. */
+        const val VERSION = 7
+
+        private const val NAME = "user_dict.db"
+
         @Volatile
         private var instance: KineticaDb? = null
 
@@ -116,14 +121,29 @@ abstract class KineticaDb : RoomDatabase() {
 
         fun get(context: Context): KineticaDb =
             instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    KineticaDb::class.java,
-                    "user_dict.db",
-                ).addMigrations(
-                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                    MIGRATION_6_7,
-                ).build().also { instance = it }
+                instance ?: build(context.applicationContext).also { instance = it }
             }
+
+        private fun build(app: Context): KineticaDb {
+            // A newer Duet's file is moved aside, and its rows come back once Room has made a
+            // fresh one: in onOpen, outside the creation transaction (review L2).
+            val kept = DbDowngrade.setAside(app, NAME, VERSION)
+            val builder = Room.databaseBuilder(app, KineticaDb::class.java, NAME).addMigrations(
+                MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                MIGRATION_6_7,
+            )
+            if (kept != null) {
+                builder.addCallback(object : Callback() {
+                    private var done = false
+
+                    override fun onOpen(db: SupportSQLiteDatabase) {
+                        if (done) return
+                        done = true
+                        DbDowngrade.restore(db, kept)
+                    }
+                })
+            }
+            return builder.build()
+        }
     }
 }

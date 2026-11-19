@@ -117,6 +117,8 @@ class WordComposer(
         val swipeSplit: Boolean = false,
         /** [DecodeTrace.suppressed] when the gesture ended: the field it was typed in decides. */
         val privateField: Boolean = false,
+        /** The predictor's decoder switches, read throughout this decode on every thread (#184). */
+        val config: DecoderConfig = DecoderConfig.global,
     )
 
     private val decodeLock = Any()
@@ -131,6 +133,7 @@ class WordComposer(
             DecodeTrace.log { "decode failed ${e.javaClass.simpleName}: ${e.message}" }
         } finally {
             DecodeTrace.gestureSuppressed.set(false)
+            DecoderConfig.exit(null)
             // A predictor or main-executor failure must not leave the composer
             // "scheduled" forever. If input arrived while the failed worker ran,
             // hand that snapshot to a fresh executor task; otherwise reopen
@@ -438,15 +441,19 @@ class WordComposer(
     private fun traceCommitMiss(word: String) {
         val committed = ArrayList(tokens)
         val previous = previousBuffer
+        val config = predictor.config
         decodeExecutor.execute {
             // A trace line is never worth the keyboard: the same executor's failure kills it.
             try {
+                DecoderConfig.enter(config)
                 val g = predictor.geometry ?: return@execute
                 emitCommitMiss(word, committed, g, "commit", -1L)
                 val gap = gapBetween(previous, committed)
                 if (gap in 0..KineticaConstants.MAX_RETYPE_GAP_MS) emitCommitMiss(word, previous, g, "previous", gap)
             } catch (e: RuntimeException) {
                 DecodeTrace.log { "commit miss trace failed ${e.javaClass.simpleName}" }
+            } finally {
+                DecoderConfig.exit(null)
             }
         }
     }
@@ -589,6 +596,7 @@ class WordComposer(
             rejoinHead = rejoinHead,
             swipeSplit = seeded == 0,
             privateField = DecodeTrace.suppressed,
+            config = predictor.config,
         )
         val scheduleWorker = synchronized(decodeLock) {
             pendingDecode = request
@@ -622,6 +630,8 @@ class WordComposer(
             // Its lines are dropped if the gesture was made in a private field, even when the
             // decode finishes after focus moved to a plain one.
             DecodeTrace.gestureSuppressed.set(request.privateField)
+            // One decoder for the whole request, whatever a switch does meanwhile (#184).
+            DecoderConfig.enter(request.config)
 
             val alternate = request.alternate
             val weights = request.weights
@@ -639,7 +649,9 @@ class WordComposer(
                         if (request.generation != generation.get()) {
                             null
                         } else {
-                            DecodeTrace.holding { alternate.decodeFor(request, beam = false) }
+                            DecoderConfig.using(request.config) {
+                                DecodeTrace.holding { alternate.decodeFor(request, beam = false) }
+                            }
                         }
                     },
                 )
@@ -739,7 +751,7 @@ class WordComposer(
             return executor.submit(
                 Callable {
                     if (request.generation != generation.get()) null
-                    else DecodeTrace.holding { p.decodeFor(request) }
+                    else DecoderConfig.using(request.config) { DecodeTrace.holding { p.decodeFor(request) } }
                 },
             )
         }
