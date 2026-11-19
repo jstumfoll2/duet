@@ -55,6 +55,12 @@ class InputContainerView(
     // Empty space below the keys, not chrome. Painted the keyboard's background in applyTheme:
     // left plain it would show the window's own colour, a band unlike the keys above it.
     private val bottomGap = View(context)
+    // The gap is the setting plus the navigation bar's inset, when the window draws under the
+    // bar (edge-to-edge, enforced from targetSdk 35 on Android 15). The keys then sit above the
+    // bar and the bar's band shows the keyboard's own background, which replaces the deprecated
+    // window.navigationBarColor.
+    private var settingGapPx = bottomGapPx.coerceAtLeast(0)
+    private var navInsetPx = 0
     private var dragStartRawY = 0f
     private var dragStartHeight = 0
     private var lastRawX = 0f
@@ -162,13 +168,6 @@ class InputContainerView(
         settingGapPx = px.coerceAtLeast(0)
         applyGap()
     }
-
-    // The gap is the setting plus the navigation bar's inset, when the window draws under the
-    // bar (edge-to-edge, enforced from targetSdk 35 on Android 15). The keys then sit above the
-    // bar and the bar's band shows the keyboard's own background, which replaces the deprecated
-    // window.navigationBarColor.
-    private var settingGapPx = bottomGapPx.coerceAtLeast(0)
-    private var navInsetPx = 0
 
     /**
      * Follow the navigation bar's inset. Off below targetSdk 35, where the system lays the
