@@ -32,6 +32,8 @@ android {
         targetSdk 34
         versionCode 138
         versionName "3.0.2"
+        // Only for the website's screenshot tour (src/androidTest, run by site-media.yml).
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     sourceSets {
@@ -149,4 +151,8 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     // Runs the service itself on the JVM (ImeWiringTest); test-only, never in the APK.
     testImplementation 'org.robolectric:robolectric:4.13'
+
+    // The website's screenshot tour on an emulator (site-media.yml); never in the APK.
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
 }

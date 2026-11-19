@@ -901,6 +901,23 @@ class KeyboardView @JvmOverloads constructor(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         GhostPath.attach(this)
+        ViewProbe.keyboard = java.lang.ref.WeakReference(this)
+    }
+
+    /**
+     * Each key's centre in screen pixels, by key id ("q", "space", "shift"...). For the
+     * instrumented screenshot tour only (see [ViewProbe]); call on the main thread.
+     */
+    fun keyCentersOnScreen(): Map<String, android.graphics.PointF> {
+        val l = layout ?: return emptyMap()
+        val loc = IntArray(2)
+        getLocationOnScreen(loc)
+        val out = LinkedHashMap<String, android.graphics.PointF>()
+        for (i in l.keys.indices) {
+            val r = keyRects.getOrNull(i) ?: continue
+            out[l.keys[i].id] = android.graphics.PointF(loc[0] + r.centerX(), loc[1] + r.centerY())
+        }
+        return out
     }
 
     override fun onDetachedFromWindow() {
