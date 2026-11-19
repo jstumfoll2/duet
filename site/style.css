@@ -230,3 +230,7 @@ footer img { vertical-align: -4px; border-radius: 4px; }
   .gallery img { scroll-snap-align: start; }
   .gallery img:nth-child(even) { margin-top: 0; }
 }
+/* Phone recordings are 1096x2560; match the frame so nothing is cropped. */
+.phone.video { aspect-ratio: 1096 / 2560; }
+.video-row figure { margin: 0; }
+.video-row figcaption { margin-top: 12px; text-align: center; font-size: 0.9rem; color: var(--muted, inherit); }

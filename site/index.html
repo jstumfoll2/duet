@@ -75,18 +75,24 @@
 <section id="see-it">
   <h2>See it in action</h2>
   <div class="video-row">
-    <div class="phone video">
-      <div class="slot"><span>Video coming soon</span><small>Typing a few sentences with both thumbs</small></div>
-      <video controls muted loop playsinline preload="metadata" poster="media/demo-poster.webp">
-        <source src="media/duet-demo.mp4" type="video/mp4" onerror="this.parentNode.remove()">
-      </video>
-    </div>
-    <div class="phone video">
-      <div class="slot"><span>Video coming soon</span><small>Tap a word, swipe the next, split a joined word with one backspace</small></div>
-      <video controls muted loop playsinline preload="metadata" poster="media/spacing-poster.webp">
-        <source src="media/duet-spacing.mp4" type="video/mp4" onerror="this.parentNode.remove()">
-      </video>
-    </div>
+    <figure>
+      <div class="phone video">
+        <div class="slot"><span>Video coming soon</span><small>Typing with both thumbs</small></div>
+        <video controls muted loop playsinline preload="metadata" poster="media/demo-poster.webp" aria-label="Typing a sentence with both thumbs, mixing swipes and taps">
+          <source src="media/duet-demo.mp4" type="video/mp4" onerror="this.parentNode.remove()">
+        </video>
+      </div>
+      <figcaption>Both thumbs at once, swiping and tapping into one sentence.</figcaption>
+    </figure>
+    <figure>
+      <div class="phone video">
+        <div class="slot"><span>Video coming soon</span><small>Pecking and swiping in any mix</small></div>
+        <video controls muted loop playsinline preload="metadata" poster="media/mix-poster.webp" aria-label="Pecking some words and swiping others, with one thumb or two">
+          <source src="media/duet-mix.mp4" type="video/mp4" onerror="this.parentNode.remove()">
+        </video>
+      </div>
+      <figcaption>Peck, swipe, or both: the spaces land where they should.</figcaption>
+    </figure>
   </div>
 </section>
 
