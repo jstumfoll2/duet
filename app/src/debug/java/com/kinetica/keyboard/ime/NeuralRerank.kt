@@ -297,17 +297,27 @@ object NeuralRerank {
     private var plainShadow: WordPredictor? = null
     private var neuralShadow: WordPredictor? = null
 
+    /** The models parsed for one predictor build, off the main thread ([prepare]). */
+    class Prepared internal constructor(internal val split: CtcScorer?, internal val duo: CtcScorer?, internal val beta: Float)
+
+    /**
+     * Reads and parses the switched-on models. Call it on the dictionary load thread: [primary]
+     * then only assembles, on the main thread.
+     */
+    fun prepare(): Prepared =
+        Prepared(if (enabled) scorer() else null, if (duoRerank) duoScorer() else null, beta)
+
     /**
      * Builds the active language's predictor with [make] (a reranker or null, and
      * the heap depth). Off, that is `make(null, TOP_K)`, the release decode.
      */
-    fun primary(make: (CandidateReranker?, Int) -> WordPredictor): WordPredictor {
+    fun primary(prepared: Prepared, make: (CandidateReranker?, Int) -> WordPredictor): WordPredictor {
         factory = make
         plainShadow = null
         neuralShadow = null
-        val b = beta
-        val s = if (enabled) scorer() else null
-        val d = if (duoRerank) duoScorer() else null
+        val b = prepared.beta
+        val s = prepared.split
+        val d = prepared.duo
         liveBeta = if (s == null) 0f else b
         val p = if (s == null && d == null) {
             make(null, KineticaConstants.TOP_K)

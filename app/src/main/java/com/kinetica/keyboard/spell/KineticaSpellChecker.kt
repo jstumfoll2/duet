@@ -19,6 +19,7 @@ import com.kinetica.keyboard.engine.LoadedDictionary
 import com.kinetica.keyboard.engine.SpellLexicon
 import com.kinetica.keyboard.grammar.HarperGrammar
 import com.kinetica.keyboard.settings.KeyboardConfig
+import com.kinetica.keyboard.settings.Prefs
 
 /**
  * Android spell checker backed by the keyboard's own dictionaries, chosen in the system's
@@ -89,7 +90,9 @@ class KineticaSpellChecker : SpellCheckerService() {
         ): SentenceSuggestionsInfo? {
             val text = textInfo.text
             if (text.isBlank()) return words
-            val encoded = HarperGrammar.lint(text, dialect) ?: return words
+            // Other apps' text: a short wait, so a long check of the keyboard's own cannot
+            // hold a binder thread (HarperGrammar caps the text length).
+            val encoded = HarperGrammar.lint(text, dialect, waitMs = SPELL_GRAMMAR_WAIT_MS) ?: return words
             val marks = HarperLints.marks(HarperLints.parse(encoded), text, limit)
             DecodeTrace.log { "  spellcheck grammar chars=${text.length} marks=${marks.size}" }
             if (marks.isEmpty()) return words
@@ -118,6 +121,8 @@ class KineticaSpellChecker : SpellCheckerService() {
         private const val TAG = "KineticaSpell"
         private const val MAX_SUGGESTIONS = 5
         private const val USER_WORD_LIMIT = 5000
+        /** How long the spell checker waits for the grammar checker before answering without it. */
+        private const val SPELL_GRAMMAR_WAIT_MS = 250L
 
         private var cachedKey: String? = null
         private var cached: SpellLexicon = SpellLexicon(emptyList())
@@ -132,16 +137,18 @@ class KineticaSpellChecker : SpellCheckerService() {
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val config = KeyboardConfig.from(prefs)
             val ordered = listOf(config.language) + config.enabledLanguages.filter { it != config.language }
-            val key = ordered.joinToString(",") + "#" + config.dictionaryGeneration
+            // Learned words only with the owner's say-so: any app can probe this checker.
+            val learned = prefs.getBoolean(Prefs.SPELL_LEARNED_WORDS, Prefs.DEFAULT_SPELL_LEARNED_WORDS)
+            val key = ordered.joinToString(",") + "#" + config.dictionaryGeneration + "#" + learned
             if (key == cachedKey) return cached
-            val dicts = ordered.mapNotNull { lang -> load(context, lang)?.let { lang to it } }
+            val dicts = ordered.mapNotNull { lang -> load(context, lang, learned)?.let { lang to it } }
             cached = SpellLexicon(dicts)
             cachedKey = key
             return cached
         }
 
-        private fun load(context: Context, lang: String): LoadedDictionary? = try {
-            val rows = try {
+        private fun load(context: Context, lang: String, withLearned: Boolean): LoadedDictionary? = try {
+            val rows = if (!withLearned) emptyList() else try {
                 KineticaDb.get(context).userWords().topN(lang, USER_WORD_LIMIT)
             } catch (e: RuntimeException) {
                 Log.w(TAG, "user dictionary unavailable for $lang", e)

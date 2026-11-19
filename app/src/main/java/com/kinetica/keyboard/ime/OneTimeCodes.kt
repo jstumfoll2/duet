@@ -85,11 +85,11 @@ object OneTimeCodes {
 
     /** Where a field stands on being offered a code. */
     enum class Field {
-        /** Says it wants a code (hint or name), or is a number or PIN field. */
+        /** Says it wants a code (hint or name). */
         CODE,
 
         /**
-         * A single-line text, password or phone-pad field that says nothing either way: what most web forms
+         * A number field, or a single-line text, password or phone-pad field, that says nothing either way: what most web forms
          * and many apps put up for a code. Offered only fresh, unused codes, and only while empty.
          */
         MAYBE,
@@ -112,7 +112,10 @@ object OneTimeCodes {
     ): Field {
         val cls = inputType and InputType.TYPE_MASK_CLASS
         if (isCodeField(emptyList(), hintText, fieldName)) return Field.CODE
-        if (cls == InputType.TYPE_CLASS_NUMBER) return Field.CODE
+        // A bare number field says nothing about wanting a code (any app can put one up, a
+        // phishing "verify" screen included), so it gets the guarded offer: fresh, unused codes,
+        // only while empty. Only a field that names a code gets every recent one.
+        if (cls == InputType.TYPE_CLASS_NUMBER) return Field.MAYBE
         if (!anyField) return Field.NEVER
         // Many apps put a code on the phone pad for its digits; a phone-number field gets the
         // same guarded offer as any other plain field.

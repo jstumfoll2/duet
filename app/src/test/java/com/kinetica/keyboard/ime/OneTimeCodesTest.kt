@@ -70,13 +70,15 @@ class OneTimeCodesTest {
     ) = OneTimeCodes.fieldKind(type, action, hint, name, anyField)
 
     @Test
-    fun aFieldThatAsksOrIsNumericIsACodeFieldEitherWay() {
+    fun aFieldThatAsksIsACodeFieldEitherWayAndABareNumberFieldIsOnlyMaybe() {
         for (any in listOf(true, false)) {
-            assertEquals(OneTimeCodes.Field.CODE, kind(InputType.TYPE_CLASS_NUMBER, anyField = any))
+            // A bare number field could be anyone's "verify" screen: guarded offer only.
+            assertEquals(OneTimeCodes.Field.MAYBE, kind(InputType.TYPE_CLASS_NUMBER, anyField = any))
             assertEquals(
-                OneTimeCodes.Field.CODE,
+                OneTimeCodes.Field.MAYBE,
                 kind(InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD, anyField = any),
             )
+            assertEquals(OneTimeCodes.Field.CODE, kind(InputType.TYPE_CLASS_NUMBER, hint = "Code", anyField = any))
             assertEquals(OneTimeCodes.Field.CODE, kind(text, hint = "Enter the 6-digit code", anyField = any))
             assertEquals(OneTimeCodes.Field.CODE, kind(InputType.TYPE_CLASS_PHONE, name = "otp", anyField = any))
         }

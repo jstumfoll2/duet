@@ -37,6 +37,10 @@ jobs:
       # DEV versionCode is the commit time in minutes, so newer builds always update.
       - run: ./gradlew assembleDebug assembleRelease test lint -PdevVersionCode=$(( $(git log -1 --format=%ct) / 60 ))
 
+      # A skipped test reads as a pass; only the ones on the allow list may skip.
+      - name: No unexpected skipped tests
+        run: python3 tools/ci/check_skips.py app/build/test-results
+
       # The fixed DEV key's certificate, so two runs can be compared at a glance.
       - name: Show the DEV APK's signer
         run: |
@@ -76,6 +80,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
 
       - run: ./gradlew -p tools/replay test
+
+      - name: No unexpected skipped tests
+        run: python3 tools/ci/check_skips.py tools/replay/build/test-results
 
   # The release step a pull request will cause once merged (see auto-release.yml),
   # read from its title the same way, plus the classifier's own checks.

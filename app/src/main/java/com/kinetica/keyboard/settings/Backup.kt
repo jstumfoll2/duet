@@ -3,9 +3,10 @@ package com.kinetica.keyboard.settings
 /**
  * The whole of a user's keyboard, as lines of text.
  *
- * A line format, not one JSON document, encoded and decoded a record at a time so a large
- * personal dictionary cannot exhaust memory. Nothing is held whole but the caller's own
- * collections.
+ * A line format, not one JSON document, encoded a record at a time. Decoding collects the
+ * records into lists (they are applied in one transaction), so it is bounded instead: a line
+ * longer than [MAX_LINE_CHARS] is skipped without being held whole ([boundedLines]), and reading
+ * stops after [MAX_RECORDS] records.
  *
  * Pure, with no `org.json`: the JVM test runtime stubs Android's JSON classes, so a document
  * built on them could not be tested. Everything here is `String` in, `String` out; the activity
@@ -78,6 +79,19 @@ object Backup {
      * would skip the setup on a new phone.
      */
     fun carried(key: String): Boolean = key !in NOT_CARRIED
+
+    /**
+     * True when a backed-up value of [type] may overwrite [current], the value stored under that
+     * key now: always when nothing is stored, else only a value of the same type.
+     */
+    fun sameType(type: PrefType, current: Any?): Boolean = when (current) {
+        null -> true
+        is Boolean -> type == PrefType.BOOL
+        is Int -> type == PrefType.INT
+        is String -> type == PrefType.STRING
+        is Set<*> -> type == PrefType.SET
+        else -> false
+    }
 
     private val NOT_CARRIED = setOf(
         Prefs.BACKDROP, Prefs.BACKDROP_CROP, Prefs.BACKDROP_CROP_LANDSCAPE, Prefs.SETUP_STEP, Prefs.SETUP_DONE,
@@ -196,6 +210,53 @@ object Backup {
      * Unknown record types and malformed lines are skipped and counted, not fatal: a line this
      * build has no use for should not lose the user their dictionary.
      */
+    /** Longest line read; a longer one is skipped as malformed, never held whole. */
+    const val MAX_LINE_CHARS = 64 * 1024
+
+    /** Records read at most; far above any real keyboard (the word table holds tens of thousands). */
+    const val MAX_RECORDS = 2_000_000
+
+    /** Stands in for a line over [MAX_LINE_CHARS]: no record type, so it counts as skipped. */
+    private const val OVERLONG = "\u0000overlong"
+
+    /**
+     * The lines of [reader], each at most [maxChars] long: a longer one is read past a buffer at
+     * a time and comes back as a marker [decode] skips, so one huge line cannot exhaust memory.
+     */
+    fun boundedLines(reader: java.io.Reader, maxChars: Int = MAX_LINE_CHARS): Sequence<String> = sequence {
+        val sb = StringBuilder()
+        var overlong = false
+        val buf = CharArray(8192)
+        var lastCr = false
+        while (true) {
+            val n = reader.read(buf)
+            if (n < 0) break
+            for (i in 0 until n) {
+                val c = buf[i]
+                if (c == '\n' || c == '\r') {
+                    if (c == '\n' && lastCr) {
+                        lastCr = false
+                        continue
+                    }
+                    lastCr = c == '\r'
+                    yield(if (overlong) OVERLONG else sb.toString())
+                    sb.setLength(0)
+                    overlong = false
+                    continue
+                }
+                lastCr = false
+                if (overlong) continue
+                if (sb.length >= maxChars) {
+                    overlong = true
+                    sb.setLength(0)
+                } else {
+                    sb.append(c)
+                }
+            }
+        }
+        if (overlong) yield(OVERLONG) else if (sb.isNotEmpty()) yield(sb.toString())
+    }
+
     fun decode(lines: Sequence<String>): Result {
         val it = lines.iterator()
         var header: String? = null
@@ -217,9 +278,14 @@ object Backup {
         val base = ArrayList<String>()
         val capitals = ArrayList<Capital>()
         var skipped = 0
+        var records = 0
         while (it.hasNext()) {
             val line = it.next()
             if (line.isBlank()) continue
+            if (++records > MAX_RECORDS) {
+                skipped++
+                continue
+            }
             val f = line.split("\t")
             val ok = when (f[0]) {
                 "pref" -> parsePref(f)?.also { p -> prefs.add(p) } != null

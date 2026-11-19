@@ -26,6 +26,17 @@ object DecodeTrace {
     var suppressed: Boolean = false
 
     /**
+     * This thread's own suppression, for work that outlives the field it was started in: the
+     * decode thread sets it from the request, so a gesture made in a password field writes no
+     * line even when its decode finishes after focus moved to a plain field.
+     */
+    @JvmField
+    val gestureSuppressed: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
+
+    /** True when a line written on this thread now must be dropped. */
+    val dropping: Boolean get() = suppressed || gestureSuppressed.get() == true
+
+    /**
      * Bumped when the sink's file starts over (cleared or rotated), so a line written once per
      * board is written again where the next capture reads it.
      */
@@ -38,7 +49,7 @@ object DecodeTrace {
 
     inline fun log(message: () -> String) {
         val s = sink ?: return
-        if (suppressed) return
+        if (dropping) return
         val held = heldLines.get()
         if (held != null) held.add(message()) else s(message())
     }
@@ -62,7 +73,7 @@ object DecodeTrace {
     /** Writes lines [holding] kept back, in order. */
     fun write(lines: List<String>) {
         val s = sink ?: return
-        if (suppressed) return
+        if (dropping) return
         for (l in lines) s(l)
     }
 }

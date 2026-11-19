@@ -21,5 +21,7 @@ jni = { version = "0.21.1", default-features = false }
 opt-level = 3
 lto = "fat"
 codegen-units = 1
-panic = "abort"
+# unwind, not abort: a panic inside harper-core is caught at the JNI boundary
+# (catch_unwind) instead of killing the process the keyboard runs in.
+panic = "unwind"
 strip = true

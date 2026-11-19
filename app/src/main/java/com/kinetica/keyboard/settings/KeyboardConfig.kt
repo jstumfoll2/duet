@@ -281,7 +281,20 @@ data class KeyboardConfig(
          * The snapshot of [stored]. With [systemNight] and the day and night themes on
          * ([LookSets]), the theme rows are the night theme's.
          */
+        /**
+         * The config [stored] describes. A value of the wrong type (a hand-edited or old backup,
+         * #H4 of the 2026-11-18 review) reads as its default instead of throwing, and is removed
+         * so the settings screens that bind it do not throw either: one bad key must never
+         * crash-loop the keyboard.
+         */
         fun from(stored: SharedPreferences, systemNight: Boolean = false): KeyboardConfig {
+            val safe = TypeSafePrefs(stored)
+            val config = read(safe, systemNight)
+            safe.removeMistyped()
+            return config
+        }
+
+        private fun read(stored: SharedPreferences, systemNight: Boolean): KeyboardConfig {
             val prefs = LookSets.view(stored, LookSets.nightDrawn(stored, systemNight))
             // Read once: the tap delay defaults to it and the retraction window to twice the tap
             // delay, so an untouched keyboard keeps the single-slider behaviour.

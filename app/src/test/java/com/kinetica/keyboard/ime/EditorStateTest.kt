@@ -216,4 +216,16 @@ class EditorStateTest {
         val noLearning = stateForOptions(InputType.TYPE_CLASS_TEXT, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
         assertTrue(noLearning.withIncognito(false).teachesNothing)
     }
+
+    @Test
+    fun aFieldThatAsksForNoSuggestionsLearnsNothingAndKeepsItsSuggestionsOff() {
+        val s = stateFor(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+        assertTrue(s.noSuggestions)
+        assertTrue(s.noLearning)
+        assertTrue(s.teachesNothing)
+        assertFalse(s.privateMode)
+        val plain = stateFor(InputType.TYPE_CLASS_TEXT)
+        assertFalse(plain.noSuggestions)
+        assertFalse(plain.noLearning)
+    }
 }

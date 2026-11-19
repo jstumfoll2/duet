@@ -214,8 +214,9 @@ class ExpansionSettingsActivity : AppCompatActivity() {
                         io.execute {
                             dao().assign(row.trigger, keep)
                             main.post {
+                                // Bumped whether or not the screen is still open: the keyboard must reload.
+                                bumpGeneration()
                                 if (!isDestroyed) {
-                                    bumpGeneration()
                                     refresh()
                                 }
                             }
@@ -318,8 +319,9 @@ class ExpansionSettingsActivity : AppCompatActivity() {
                 io.execute {
                     for ((trig, targets) in writes) dao().assign(trig, targets)
                     main.post {
+                        // Bumped whether or not the screen is still open: the keyboard must reload.
+                        bumpGeneration()
                         if (!isDestroyed) {
-                            bumpGeneration()
                             refresh()
                         }
                     }

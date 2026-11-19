@@ -60,6 +60,13 @@ data class EditorState(
      * DEV build's practice screens, whose prompts repeat by design.
      */
     val noRecent: Boolean = false,
+    /**
+     * TYPE_TEXT_FLAG_NO_SUGGESTIONS: the app asks for no corrections (Chrome on autocorrect=off
+     * and autocomplete=off inputs, usernames, IDs, terminals). Taps stay literal (no
+     * autocorrect), and the field also learns nothing ([noLearning]): what is typed there is
+     * rarely a word. Swipes still decode, since a swipe has no literal reading.
+     */
+    val noSuggestions: Boolean = false,
 ) {
     /** True when nothing about this field may be persisted, for either reason. */
     val teachesNothing: Boolean get() = privateMode || noLearning
@@ -121,8 +128,10 @@ data class EditorState(
             // IME_FLAG_NO_PERSONALIZED_LEARNING asks only that nothing be learned. Apps such as
             // DuckDuckGo and Molly set it on ordinary text fields; folded into privateMode it
             // cost them suggestions, autocorrect and autospace.
+            val noSuggestions = cls == InputType.TYPE_CLASS_TEXT &&
+                inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS != 0
             val noLearning =
-                info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
+                info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0 || noSuggestions
 
             // A field whose whole value is one token: an email address or a URL. An automatic
             // space there lands before the '@', deleting it re-arms the timer, and the address
@@ -162,6 +171,7 @@ data class EditorState(
                 customActionId = info.actionId,
                 fieldKind = kind,
                 noRecent = info.privateImeOptions?.split(',')?.any { it.trim() == NO_RECENT_OPTION } == true,
+                noSuggestions = noSuggestions,
             )
         }
     }

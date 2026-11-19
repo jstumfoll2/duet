@@ -26,6 +26,26 @@ object DictionaryStore {
     fun wordlistOverride(context: Context, lang: String): File =
         File(dir(context), "${lang}_wordlist.txt")
 
+    /**
+     * Replaces [lang]'s override with [text] atomically: written to a side file, synced, then
+     * renamed over the old one. A kill mid-write leaves the old list (or none), never a
+     * truncated one the keyboard would load for good. Throws IOException when it cannot.
+     */
+    fun writeOverride(context: Context, lang: String, text: String) {
+        val target = wordlistOverride(context, lang)
+        val side = File(target.parentFile, "${target.name}.part")
+        try {
+            java.io.FileOutputStream(side).use { out ->
+                out.write(text.toByteArray(Charsets.UTF_8))
+                out.flush()
+                out.fd.sync()
+            }
+            if (!side.renameTo(target)) throw java.io.IOException("could not replace ${target.name}")
+        } finally {
+            side.delete()
+        }
+    }
+
     private fun infoFile(context: Context, lang: String): File =
         File(dir(context), "${lang}_info.json")
 

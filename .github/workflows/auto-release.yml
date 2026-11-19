@@ -59,8 +59,8 @@ jobs:
       contents: write        # push the bump commit and tag, create the release
       pull-requests: read    # read the merged pull requests' titles and labels
     steps:
-      # The tip of main, not the commit CI ran on: a later merge or an earlier
-      # release's bump commit may already be on top of it.
+      # The tip of main, so the bump commit can be pushed on top of it. The plan
+      # below releases only when that tip is the commit CI passed on.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
@@ -72,8 +72,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           INPUT_BUMP: ${{ inputs.bump }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
+          # Never sign code CI has not passed: if main moved past the commit this CI
+          # run tested, the newer merge's own CI run releases it (or, if that fails,
+          # nothing is released until a green one).
+          if [ "$EVENT" != workflow_dispatch ] && [ "$(git rev-parse HEAD)" != "$TESTED_SHA" ]; then
+            echo "::notice::main is at $(git rev-parse --short HEAD), not the tested ${TESTED_SHA:0:7}; the newer merge's run releases."
+            echo "bump=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           subject=$(git log -1 --format=%s)
           if [ "$EVENT" != workflow_dispatch ] && [[ "$subject" =~ ^Release\ v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "main already ends in '$subject'; nothing new to release"
@@ -143,6 +152,13 @@ jobs:
           echo "previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
           git diff app/build.gradle
 
+      # Harper's native library, packed into both APKs. Before the key is restored and with
+      # no cache, as in release.yml: no build script ever runs with the signing key on disk.
+      - uses: ./.github/actions/harper
+        if: steps.plan.outputs.bump != 'none'
+        with:
+          cache: "false"
+
       # Same restore as release.yml. Skipped, not failed, when the secrets are
       # absent: the build script then leaves the release APK unsigned.
       - name: Restore the release keystore
@@ -170,10 +186,6 @@ jobs:
             printf 'keyPassword=%s\n' "$KEY_PASSWORD"
           } > keystore.properties
           echo "signed=true" >> "$GITHUB_OUTPUT"
-
-      # Harper's native library, packed into both APKs.
-      - uses: ./.github/actions/harper
-        if: steps.plan.outputs.bump != 'none'
 
       # CI already ran the tests and lint on this code; the bump only changes
       # the version, so build the APKs and nothing more.

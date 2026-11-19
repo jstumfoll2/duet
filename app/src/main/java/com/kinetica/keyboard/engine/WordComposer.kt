@@ -115,6 +115,8 @@ class WordComposer(
         val peckSplit: Boolean = false,
         val rejoinHead: Int = 0,
         val swipeSplit: Boolean = false,
+        /** [DecodeTrace.suppressed] when the gesture ended: the field it was typed in decides. */
+        val privateField: Boolean = false,
     )
 
     private val decodeLock = Any()
@@ -128,6 +130,7 @@ class WordComposer(
             // costs its own buffer's candidates, never the keyboard.
             DecodeTrace.log { "decode failed ${e.javaClass.simpleName}: ${e.message}" }
         } finally {
+            DecodeTrace.gestureSuppressed.set(false)
             // A predictor or main-executor failure must not leave the composer
             // "scheduled" forever. If input arrived while the failed worker ran,
             // hand that snapshot to a fresh executor task; otherwise reopen
@@ -304,7 +307,14 @@ class WordComposer(
     // Tokens at the head of the buffer that came from [seed], not from a touch.
     private var seeded = 0
 
+    /**
+     * True while the field forbids keeping anything (a password, incognito, no learning). The
+     * touch and aim models persist, so they learn nothing there either. Main thread.
+     */
+    var teachesNothing: () -> Boolean = { false }
+
     private fun teachTouch(word: String) {
+        if (teachesNothing()) return
         val m = touchModel
         val aim = predictor.aimModel
         if (m == null && aim == null) return
@@ -578,6 +588,7 @@ class WordComposer(
             peckSplit = peckSplit && seeded == 0,
             rejoinHead = rejoinHead,
             swipeSplit = seeded == 0,
+            privateField = DecodeTrace.suppressed,
         )
         val scheduleWorker = synchronized(decodeLock) {
             pendingDecode = request
@@ -608,6 +619,9 @@ class WordComposer(
             // A clear/commit or newer token can supersede a request before its
             // queued worker starts. Do not spend any dictionary work on it.
             if (request.generation != generation.get()) continue
+            // Its lines are dropped if the gesture was made in a private field, even when the
+            // decode finishes after focus moved to a plain one.
+            DecodeTrace.gestureSuppressed.set(request.privateField)
 
             val alternate = request.alternate
             val weights = request.weights
