@@ -230,7 +230,11 @@ footer img { vertical-align: -4px; border-radius: 4px; }
   .gallery img { scroll-snap-align: start; }
   .gallery img:nth-child(even) { margin-top: 0; }
 }
-/* Phone recordings are 1096x2560; match the frame so nothing is cropped. */
-.phone.video { aspect-ratio: 1096 / 2560; }
+/* Phone recordings are cropped to the note's text line plus the keyboard (1096x1410 from the phone). */
+.video-row { grid-template-columns: repeat(2, minmax(0, 460px)); }
+.phone.video { aspect-ratio: 1096 / 1410; max-width: 460px; border-radius: 20px; }
 .video-row figure { margin: 0; }
 .video-row figcaption { margin-top: 12px; text-align: center; font-size: 0.9rem; color: var(--muted, inherit); }
+@media (max-width: 760px) {
+  .video-row { grid-template-columns: minmax(0, 460px); }
+}
