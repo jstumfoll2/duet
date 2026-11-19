@@ -34,6 +34,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.preference.PreferenceManager
 import com.kinetica.keyboard.R
 import com.kinetica.keyboard.data.DictionaryStore
+import com.kinetica.keyboard.data.BundledDictionaries
 import com.kinetica.keyboard.data.KineticaDb
 import com.kinetica.keyboard.data.UserBigram
 import com.kinetica.keyboard.data.UserWord
@@ -991,15 +992,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 }
                 // Parsed here, not in the install on the main thread (audit #180).
                 val neural = NeuralRerank.prepare()
+                // Plain parses, shared with the spell checker in this process (#185).
                 val others = sameScript.filter { it != detectLang && it != extraLang }.mapNotNull { other ->
-                    try {
-                        other to openWordlist(other).bufferedReader().use {
-                            DictionaryLoader.load(it, alphabet = Alphabet.forLanguage(other))
-                        }
-                    } catch (e: IOException) {
-                        Log.w(TAG, "filing dictionary load failed for $other", e)
-                        null
-                    }
+                    BundledDictionaries.get(this, other)?.let { other to it }
                 }
                 if (stale()) return@execute
                 mainHandler.post {
