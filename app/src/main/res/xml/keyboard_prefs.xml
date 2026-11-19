@@ -467,7 +467,7 @@
                     android:title="@string/pref_retype_penalties_title"
                     app:singleLineTitle="false"
                     android:summary="@string/pref_retype_penalties_summary"
-                    android:defaultValue="false" />
+                    android:defaultValue="true" />
                 <SwitchPreferenceCompat
                     android:key="pref_usage_stats"
                     android:title="@string/pref_usage_stats_title"
@@ -494,7 +494,7 @@
                     android:title="@string/pref_shape_templates_title"
                     app:singleLineTitle="false"
                     android:summary="@string/pref_shape_templates_summary"
-                    android:defaultValue="false" />
+                    android:defaultValue="true" />
                 <SwitchPreferenceCompat
                     android:key="pref_delete_on_block"
                     android:title="@string/pref_delete_on_block_title"
