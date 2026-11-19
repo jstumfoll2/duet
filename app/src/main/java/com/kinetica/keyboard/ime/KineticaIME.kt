@@ -390,16 +390,17 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // Held here: SharedPreferences keeps its listeners weakly.
     private var touchResetListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
-    private var editorState = EditorState.DEFAULT
+    /** The open field and its privacy ([FieldSession]). */
+    private val fieldSession = FieldSession()
 
-    /** The field as the app described it, before the incognito switch is applied. */
-    private var fieldState = EditorState.DEFAULT
+    private val editorState: EditorState get() = fieldSession.state
 
     private lateinit var config: KeyboardConfig
 
     // Word-in-progress bookkeeping (main thread only).
-    private var tentativeLength = 0
-    private var tentativeWord = ""
+    private val tentative = TentativeText()
+    private var tentativeLength by tentative::length
+    private var tentativeWord by tentative::word
     private var wordShift = ShiftState.State.NONE
     private var lastCandidates: List<WordCandidate> = emptyList()
     // The candidate the merge cleared to lead, the only one that may autocorrect a tapped
@@ -778,8 +779,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             }
             if (config.incognito != previous.incognito) {
                 // Applies to the field already open, not only the next one.
-                editorState = fieldState.withIncognito(config.incognito)
-                DecodeTrace.suppressed = editorState.teachesNothing
+                fieldSession.setIncognito(config.incognito)
             }
             if (config.emojiSuggestions != previous.emojiSuggestions) refreshEmojiOffer()
             if (config.peckMode != previous.peckMode) {
@@ -1443,18 +1443,19 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // The old field's word ends under the old field's privacy. A restart (restarting=true)
         // skips onFinishInput, and abandoning after the new state is set would let a password
         // field's buffer reach the DEV trace once the same view turns into a plain field.
-        abandonWord()
-        composer?.reset()
-        ich.invalidate()
+        fieldSession.start(
+            EditorState.from(attribute),
+            FieldClass.of(attribute?.inputType ?: 0, attribute?.imeOptions ?: 0),
+            config.incognito,
+        ) {
+            abandonWord()
+            composer?.reset()
+            ich.invalidate()
+        }
         synchronizeLanguageOnStart()
-        fieldState = EditorState.from(attribute)
         sentenceWords.clear()
         sentencePlan = null
-        editorState = fieldState.withIncognito(config.incognito)
-        fieldClass = FieldClass.of(attribute?.inputType ?: 0, attribute?.imeOptions ?: 0)
         applyFieldWords(reload = false)
-        // The DEV build's trace names what is typed; a private field leaves no line in it.
-        DecodeTrace.suppressed = editorState.teachesNothing
         applySessionWords()
         backspaceTarget = null
         spaceOwedAt = -1
@@ -3106,7 +3107,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // whether the counts have changed since they were stored. Main thread only; the predictors
     // read the same store, which is safe to read while it is written.
     private var fieldWords = FieldWords()
-    private var fieldClass = FieldClass.OTHER
+    private val fieldClass: FieldClass get() = fieldSession.fieldClass
     private var fieldWordsDirty = false
 
     /**
@@ -6265,26 +6266,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         noteLanguageMomentum(word)
         // Correction options, each a tappable zone: the committed word, the other ranked
         // candidates, then the literal tap string (the way back from a wrong autocorrect).
-        val options = ArrayList<String>(KineticaConstants.TOP_K + 1)
-        options.add(word)
-        for (c in lastCandidates) {
-            val d = displayWord(c.word)
-            if (!options.contains(d)) options.add(d)
-        }
-        var typed: String? = null
-        if (lastLiteral.isNotEmpty()) {
-            val d = displayWord(lastLiteral)
-            if (!options.contains(d)) options.add(d)
-            if (!d.equals(word, ignoreCase = true)) typed = d
-        }
-        // The word itself stays first; a blocked one among the others is never offered back.
-        if (blockedSpellings.isNotEmpty()) {
-            options.subList(1, options.size).removeAll { it.lowercase() in blockedSpellings }
-            if (typed?.lowercase() in blockedSpellings) typed = null
-        }
-        // The letters as typed come straight after the word, one tap from a wrong correction:
-        // at the end of ten candidates they fell off the strip.
-        typed?.let { moveTypedSecond(options, it) }
+        val corrections = correctionOptions(word, lastCandidates.map { it.word }, lastLiteral, blockedSpellings, ::displayWord)
+        val options = corrections.options
+        val typed = corrections.typed
         val lang = languageOf(word)
         if (word.isNotEmpty()) {
             val alts = options.drop(1).let { o -> if (typed == null) o else listOf(typed) + (o - typed) }
@@ -6777,24 +6761,15 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     private fun replaceTentative(word: String) {
-        // The editor reports edits asynchronously, so the app may have changed the text since
-        // the tentative word went in (a chat app turning `:)` into an emoji, a mention chip, a
-        // formatter). Deleting tentativeLength characters then would delete the user's own
-        // text: when what sits before the cursor is no longer the tentative word, the buffer is
-        // dropped and the field left alone. Case is ignored (an app may capitalize); an editor
-        // that does not answer is trusted, as before.
-        if (tentativeLength > 0 && tentativeWord.length == tentativeLength) {
-            val before = ich.textBeforeCursor(tentativeLength)
-            if (before != null && !before.toString().equals(tentativeWord, ignoreCase = true)) {
-                DecodeTrace.log { "  tentative changed by editor len=$tentativeLength; abandoned" }
-                abandonWord()
-                return
-            }
+        // An app that changed the word since it went in keeps its text: the buffer is dropped.
+        if (!tentative.stillInField { ich.textBeforeCursor(it) }) {
+            DecodeTrace.log { "  tentative changed by editor len=$tentativeLength; abandoned" }
+            abandonWord()
+            return
         }
         ich.replaceBeforeCursor(tentativeLength, word)
         expectAfter(tentativeLength, word.length)
-        tentativeLength = word.length
-        tentativeWord = word
+        tentative.set(word)
     }
 
     private fun commitTracked(text: String) {
