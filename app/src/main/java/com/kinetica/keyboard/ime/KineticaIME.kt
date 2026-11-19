@@ -34,7 +34,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.preference.PreferenceManager
 import com.kinetica.keyboard.R
 import com.kinetica.keyboard.data.DictionaryStore
-import com.kinetica.keyboard.data.BundledDictionaries
 import com.kinetica.keyboard.data.KineticaDb
 import com.kinetica.keyboard.data.UserBigram
 import com.kinetica.keyboard.data.UserWord
@@ -345,11 +344,25 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private val clipImages by lazy { ClipImages(this) }
     private val smsCodes by lazy { SmsCodes(this, mainHandler) }
 
-    /** Bumped per field, so a code read for one field is not offered in the next. */
-    private var codeFieldGeneration = 0
-
-    /** Codes picked from the bar this session, kept in memory only ([OneTimeCodes.offer]). */
-    private val usedCodes = HashSet<String>()
+    /** SMS codes on the bar, every gate in one place ([CodeOffers]). */
+    private val codeOffers by lazy {
+        CodeOffers(
+            source = object : CodeOffers.Source {
+                override fun allowed() = smsCodes.allowed()
+                override fun read(nowMs: Long) = smsCodes.read(nowMs)
+                override fun watch(callback: () -> Unit) = smsCodes.watch(callback)
+                override fun unwatch() = smsCodes.unwatch()
+            },
+            host = object : CodeOffers.Host {
+                override fun locked() = clipsHidden()
+                override fun busy() = tentativeLength > 0 || composer?.hasPendingWord == true
+                override fun fieldEmpty() = this@KineticaIME.fieldEmpty()
+                override fun show(codes: List<String>) = showBarOffer(BarOffer.Kind.CODES, codes)
+            },
+            io = dbExecutor,
+            main = mainExecutor,
+        )
+    }
 
     /** Bumped per autofill response, so a slow inflation of an old one cannot replace a newer strip. */
     private var inlineGeneration = 0
@@ -888,113 +901,33 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             // A load queued behind another that a newer one has already replaced: skip the parse.
             if (stale()) return@execute
             try {
-                // Learned words merge into the trie at load, gated and scaled by
-                // PERSONAL_MERGE_MIN_COUNT and USER_FREQ_SCALE (rationale in KineticaConstants).
-                val userRows = try {
-                    withoutStrayLetters(KineticaDb.get(this).userWords().topN(lang, USER_DICT_LIMIT), lang)
-                } catch (e: RuntimeException) {
-                    Log.w(TAG, "user dictionary unavailable", e)
-                    emptyList()
-                }
-                val userWords =
-                    DictionaryLoader.userWordsForMerge(userRows.map { it.word to it.frequency })
-                val pairRows = if (config.learnPhrases) userBigramRows(lang) else emptyList()
-                // Words the user has blocked never reach the trie, so they
-                // cannot be decoded, completed or suggested.
-                val blocked = blockedWords(lang)
-                val allBlocked = allBlockedWords()
-                val swaps = spellingSwaps(lang)
-                val vocabulary = SystemVocabulary.words(this, lang, config.contactNames)
-                val dict = openWordlist(lang).bufferedReader().use {
-                    DictionaryLoader.load(
-                        it, userWords, blocked, swaps, Alphabet.forLanguage(lang), DictionaryLoader.NEW_WORD_MIN_WEIGHT, casesOf(userRows),
-                        vocabulary,
-                    )
-                }
-                val bigrams = assets.open(bigramsAsset(lang)).bufferedReader().use {
-                    DictionaryLoader.loadBigrams(it, dict.trie)
-                }.let { withContextPairs(lang, it, dict.trie) }
-                // Only some languages ship a two-word table; a missing asset means none.
-                val trigrams = try {
-                    assets.open("dictionaries/${lang}_trigrams.txt").bufferedReader().use {
-                        DictionaryLoader.loadTrigrams(it, dict.trie)
-                    }
-                } catch (e: IOException) {
-                    com.kinetica.keyboard.engine.TrigramTable.EMPTY
-                }
-                // The other enabled language stays resident so swipe decodes consult both
-                // dictionaries, with its own personal counts: both lists rank together, and
-                // one-sided weighting favoured the active language by up to 1.83x on device.
-                var altRows: List<UserWord> = emptyList()
-                var altPairRows: List<UserBigram> = emptyList()
-                val alt = detectLang?.let { other ->
-                    try {
-                        altRows = try {
-                            withoutStrayLetters(KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT), other)
-                        } catch (e: RuntimeException) {
-                            Log.w(TAG, "user dictionary unavailable for $other", e)
-                            emptyList()
-                        }
-                        altPairRows = if (config.learnPhrases) userBigramRows(other) else emptyList()
-                        val d = openWordlist(other).bufferedReader().use {
-                            DictionaryLoader.load(
-                                it,
-                                DictionaryLoader.userWordsForMerge(
-                                    altRows.map { r -> r.word to r.frequency },
-                                ),
-                                blockedWords(other),
-                                spellingSwaps(other),
-                                Alphabet.forLanguage(other),
-                                DictionaryLoader.NEW_WORD_MIN_WEIGHT,
-                                casesOf(altRows),
-                            )
-                        }
-                        val b = assets.open(bigramsAsset(other)).bufferedReader().use {
-                            DictionaryLoader.loadBigrams(it, d.trie)
-                        }.let { withContextPairs(other, it, d.trie) }
-                        d to b
-                    } catch (e: IOException) {
-                        Log.w(TAG, "secondary dictionary load failed for $other", e)
-                        null
-                    }
-                }
-                var extraRows: List<UserWord> = emptyList()
-                var extraPairRows: List<UserBigram> = emptyList()
-                val extra = extraLang?.let { other ->
-                    try {
-                        extraRows = try {
-                            withoutStrayLetters(KineticaDb.get(this).userWords().topN(other, USER_DICT_LIMIT), other)
-                        } catch (e: RuntimeException) {
-                            Log.w(TAG, "user dictionary unavailable for $other", e)
-                            emptyList()
-                        }
-                        extraPairRows = if (config.learnPhrases) userBigramRows(other) else emptyList()
-                        val d = openWordlist(other).bufferedReader().use {
-                            DictionaryLoader.load(
-                                it,
-                                DictionaryLoader.userWordsForMerge(extraRows.map { r -> r.word to r.frequency }),
-                                blockedWords(other),
-                                spellingSwaps(other),
-                                Alphabet.forLanguage(other),
-                                DictionaryLoader.NEW_WORD_MIN_WEIGHT,
-                                casesOf(extraRows),
-                            )
-                        }
-                        val b = assets.open(bigramsAsset(other)).bufferedReader().use {
-                            DictionaryLoader.loadBigrams(it, d.trie)
-                        }.let { withContextPairs(other, it, d.trie) }
-                        d to b
-                    } catch (e: IOException) {
-                        Log.w(TAG, "third dictionary load failed for $other", e)
-                        null
-                    }
-                }
+                val loaded = DictionaryLoad(this).run(
+                    DictionaryLoad.Plan(
+                        lang = lang,
+                        detect = detectLang,
+                        extra = extraLang,
+                        others = sameScript.filter { it != detectLang && it != extraLang },
+                        learnPhrases = config.learnPhrases,
+                        britishSpelling = config.britishSpelling,
+                        contactNames = config.contactNames,
+                    ),
+                )
                 // Parsed here, not in the install on the main thread (audit #180).
                 val neural = NeuralRerank.prepare()
-                // Plain parses, shared with the spell checker in this process (#185).
-                val others = sameScript.filter { it != detectLang && it != extraLang }.mapNotNull { other ->
-                    BundledDictionaries.get(this, other)?.let { other to it }
-                }
+                val userRows = loaded.primary.rows
+                val pairRows = loaded.primary.pairRows
+                val blocked = loaded.blocked
+                val allBlocked = loaded.allBlocked
+                val dict = loaded.primary.dict
+                val bigrams = loaded.primary.bigrams
+                val trigrams = loaded.trigrams
+                val alt = loaded.detect?.let { it.dict to it.bigrams }
+                val altRows = loaded.detect?.rows.orEmpty()
+                val altPairRows = loaded.detect?.pairRows.orEmpty()
+                val extra = loaded.extra?.let { it.dict to it.bigrams }
+                val extraRows = loaded.extra?.rows.orEmpty()
+                val extraPairRows = loaded.extra?.pairRows.orEmpty()
+                val others = loaded.others
                 if (stale()) return@execute
                 mainHandler.post {
                     // Checked again on the main thread, where installs and new loads both start.
@@ -1106,48 +1039,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
     }
 
-    /**
-     * Spelling pairs to exchange for [lang], empty unless the user asked for British spelling
-     * and this is English. Both spellings are already in the trie, so only the two counts
-     * trade places.
-     */
-    private fun spellingSwaps(lang: String): Map<String, String> {
-        if (lang != "en" || !config.britishSpelling) return emptyMap()
-        return try {
-            assets.open("dictionaries/en_gb_variants.txt").bufferedReader().use {
-                DictionaryLoader.loadSpellingSwaps(it)
-            }
-        } catch (e: IOException) {
-            Log.w(TAG, "British spelling variants asset unavailable", e)
-            emptyMap()
-        }
-    }
-
-    private fun allBlockedWords(): Set<String> = try {
-        KineticaDb.get(this).blockedWords().allWords().mapTo(HashSet()) { it.lowercase() }
-    } catch (e: RuntimeException) {
-        Log.w(TAG, "blocked words unavailable", e)
-        emptySet()
-    }
-
-    /**
-     * Blocked spellings for [lang], lower-cased to match the loader's test. An unavailable
-     * table is an empty block list, not a failed load: the keyboard has to come up either way.
-     */
-    private fun blockedWords(lang: String): Set<String> = try {
-        KineticaDb.get(this).blockedWords().wordsForLanguage(lang)
-            .mapTo(HashSet()) { it.lowercase() }
-    } catch (e: RuntimeException) {
-        Log.w(TAG, "blocked words unavailable for $lang", e)
-        emptySet()
-    }
-
-    /** Imported (AOSP-merged) wordlist overrides the bundled asset. */
-    private fun openWordlist(lang: String): java.io.InputStream {
-        val override = DictionaryStore.wordlistOverride(this, lang)
-        return if (override.exists()) override.inputStream() else assets.open(wordlistAsset(lang))
-    }
-
     // Bundled layout names, listed once. The alpha layer falls back to plain qwerty when no
     // qwerty_<lang>.json is bundled, so a new language never inherits another language's
     // accent alternates.
@@ -1174,21 +1065,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     // The letter under each numbers-row digit on the letters last built, for [fixDigitSlip].
     private var digitLetters: Map<Char, Char> = emptyMap()
-
-    private fun wordlistAsset(lang: String) = "dictionaries/${lang}_wordlist.txt"
-    private fun bigramsAsset(lang: String) = "dictionaries/${lang}_bigrams.txt"
-
-    /**
-     * [table] with the language's wide pair file behind the decoder's boost, where one ships
-     * (English: a million pairs to the text table's 100,000). A language without the file,
-     * or a file that cannot be read, keeps the text table alone.
-     */
-    private fun withContextPairs(lang: String, table: com.kinetica.keyboard.engine.BigramTable, trie: com.kinetica.keyboard.engine.Trie): com.kinetica.keyboard.engine.BigramTable =
-        try {
-            assets.open("dictionaries/${lang}_pairs.bin").use { table.withContext(com.kinetica.keyboard.engine.PairFile.read(it, trie)) }
-        } catch (e: IOException) {
-            table
-        }
 
     // ------------------------------------------------------------------ views
 
@@ -1691,8 +1567,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     override fun onFinishInput() {
-        codeFieldGeneration++
-        smsCodes.unwatch()
+        codeOffers.fieldFinished()
         containerView?.hideInlineStrip()
         mainHandler.removeCallbacks(proofRunnable)
         proofGeneration++
@@ -3136,15 +3011,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun standaloneLetters(lang: String): Set<Char> =
         ('a'..'z').filterTo(HashSet()) { StandaloneLetters.isWord(it, lang) }
 
-    /**
-     * [rows] without lone letters that can only be slips in [lang] ([ShortSlips.isStrayLetter]):
-     * a count earned by uncorrected `s`-for-`a` slips must not rank `s` above `a` in the decode.
-     */
-    private fun withoutStrayLetters(rows: List<UserWord>, lang: String): List<UserWord> {
-        val standalone = standaloneLetters(lang)
-        return rows.filterNot { it.word.length == 1 && ShortSlips.isStrayLetter(it.word[0], standalone) }
-    }
-
     private fun shortSlip(literal: String): String? {
         val g = currentGeometry ?: return null
         val prev = composer?.contextSnapshot()?.lastOrNull()
@@ -4235,7 +4101,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
         val text = offer.texts[index]
         // A code picked once is not offered again in a field that never asked for one.
-        if (offer.kind == BarOffer.Kind.CODES) usedCodes.add(text)
+        if (offer.kind == BarOffer.Kind.CODES) codeOffers.picked(text)
         DecodeTrace.log { "  bar offer pick kind=${offer.kind} len=${text.length}" }
         // Written as is, never learned: a clip or a code is not something the user typed.
         abandonWord()
@@ -4322,33 +4188,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * ([OneTimeCodes.offer]).
      */
     private fun watchCodes(info: EditorInfo?) {
-        val generation = ++codeFieldGeneration
-        smsCodes.unwatch()
-        if (!config.smsCodes) return
-        val kind = SmsCodes.fieldKind(info, config.smsCodesAnyField)
-        if (kind == OneTimeCodes.Field.NEVER || !smsCodes.allowed()) return
-        // The lock screen's keyboard serves whoever holds the phone: no codes there, like clips.
-        if (clipsHidden()) {
-            DecodeTrace.log { "  sms codes refused=locked" }
-            return
-        }
-        val read = {
-            dbExecutor.execute {
-                val now = System.currentTimeMillis()
-                val codes = smsCodes.read(now)
-                mainHandler.post {
-                    if (generation != codeFieldGeneration || codes.isEmpty()) return@post
-                    if (clipsHidden()) return@post
-                    if (tentativeLength > 0 || composer?.hasPendingWord == true) return@post
-                    val offered = OneTimeCodes.offer(kind, codes, now, usedCodes, fieldEmpty())
-                    if (offered.isEmpty()) return@post
-                    DecodeTrace.log { "  sms codes n=${offered.size} kind=$kind" }
-                    showBarOffer(BarOffer.Kind.CODES, offered.map { it.code })
-                }
-            }
-        }
-        read()
-        smsCodes.watch { if (generation == codeFieldGeneration && !clipsHidden()) read() }
+        codeOffers.fieldStarted(SmsCodes.fieldKind(info, config.smsCodesAnyField), config.smsCodes)
     }
 
     /** Whether the field holds no text around the cursor; unknown counts as not empty. */
@@ -6234,13 +6074,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     /** Learned pairs for [lang], or none when the store is unavailable. */
-    private fun userBigramRows(lang: String): List<UserBigram> = try {
-        KineticaDb.get(this).userBigrams().topN(lang, USER_PAIR_LIMIT)
-    } catch (e: RuntimeException) {
-        Log.w(TAG, "phrase store unavailable for $lang", e)
-        emptyList()
-    }
-
     private fun pairMap(rows: List<UserBigram>): ConcurrentHashMap<String, Int> {
         val out = ConcurrentHashMap<String, Int>(rows.size * 2 + 1)
         // Folded keys, so two spellings of one pair add up instead of overwriting.
@@ -6333,8 +6166,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun casesFor(lang: String): ConcurrentHashMap<String, DictionaryLoader.LearnedCase> =
         learnedCases.getOrPut(lang) { ConcurrentHashMap() }
 
-    private fun casesOf(rows: List<UserWord>): Map<String, DictionaryLoader.LearnedCase> =
-        DictionaryLoader.learnedCases(rows.map { Triple(it.word, it.display, it.caseVotes) })
+    private fun casesOf(rows: List<UserWord>): Map<String, DictionaryLoader.LearnedCase> = DictionaryLoad.casesOf(rows)
 
     /** Live count map backing [lang]'s predictor; the active one by default. */
     private fun countsFor(lang: String): ConcurrentHashMap<String, Int> = when {
@@ -7053,8 +6885,8 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         /** Swipes in a row on another layout before the stored shape templates start again for it. */
         const val SHAPE_MISFITS_TO_RESTART = 30
         const val AIM_MODEL_KEY = Prefs.AIM_MODEL_KEY
-        const val USER_DICT_LIMIT = 5000
-        const val USER_PAIR_LIMIT = 5000
+        const val USER_DICT_LIMIT = DictionaryLoad.USER_DICT_LIMIT
+        const val USER_PAIR_LIMIT = DictionaryLoad.USER_PAIR_LIMIT
         // Undone autocorrects remembered at once: more distinct words than one session undoes.
         const val REJECTED_CORRECTIONS_MAX = 64
         // A learned word only becomes searchable at a dictionary load, and a load parses
