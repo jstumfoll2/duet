@@ -548,7 +548,17 @@ internal fun casedLike(like: String, word: String): String = when {
 }
 
 /** A committed word's correction options and the letters as typed, when they differ ([correctionOptions]). */
-internal class CorrectionOptions(val options: MutableList<String>, val typed: String?)
+internal class CorrectionOptions(val options: MutableList<String>, val typed: String?) {
+    /**
+     * What goes in the committed word's column after it (the commit history and the recent
+     * words): the letters as typed first, when they are not the word, then the other options.
+     */
+    fun alternatives(): List<String> = options.drop(1).let { o -> if (typed == null) o else listOf(typed) + (o - typed) }
+
+    /** [languages] with the letters as typed filed under [lang], the language of the word. */
+    fun languages(languages: Map<String, String>, lang: String): Map<String, String> =
+        languages + (typed?.let { mapOf(it.lowercase() to lang) } ?: emptyMap())
+}
 
 /**
  * The correction options for committing [word] (split out of commitWordInternal, #184): the word

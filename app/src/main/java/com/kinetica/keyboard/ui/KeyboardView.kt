@@ -850,6 +850,9 @@ class KeyboardView @JvmOverloads constructor(
         if (l.name != before) listener?.onBoardShown(l.name)
     }
 
+    /** Whether the letters are drawn as capitals: the shift the user sees; for tests. */
+    internal val shiftShown: Boolean get() = uppercase
+
     fun setShiftUppercase(value: Boolean) {
         if (uppercase != value) {
             uppercase = value
