@@ -107,7 +107,6 @@ class SiteMediaTour {
 
         scene("clipboard") {
             open("Notes")
-            typeWords("meet me at")
             onMain {
                 val cm = app.getSystemService(ClipboardManager::class.java)
                 cm.setPrimaryClip(ClipData.newPlainText("address", "221B Baker Street, London"))
@@ -124,8 +123,8 @@ class SiteMediaTour {
             val bar = onMain { ViewProbe.bar?.get()?.let { v -> IntArray(2).also { v.getLocationOnScreen(it) } to (v.width to v.height) } }
             if (bar != null) {
                 val (loc, size) = bar
-                val p = PointF(loc[0] + size.first / 2f, loc[1] + size.second / 2f)
-                hold(p, 1400) { shot("word-menu") }
+                val p = PointF(loc[0] + size.first * 0.25f, loc[1] + size.second / 2f)
+                hold(p, 2600) { shot("word-menu") }
             }
         }
 
@@ -218,9 +217,10 @@ class SiteMediaTour {
     private fun typeWords(text: String) {
         for (w in text.split(' ')) {
             typeWord(w)
-            pause(140)
+            // The emulator decodes far slower than a phone: let the word settle before the space.
+            pause(900)
             tapKey("space")
-            pause(260)
+            pause(350)
         }
     }
 
@@ -262,9 +262,9 @@ class SiteMediaTour {
         val strokes = ArrayList<Stroke>()
         var t = 0L
         for ((side, pts) in runs) {
-            val dur = if (pts.size == 1) 60L else 70L + 85L * (pts.size - 1)
+            val dur = if (pts.size == 1) 70L else 90L + 110L * (pts.size - 1)
             strokes.add(Stroke(side, pts, t, dur))
-            t += maxOf(45L, dur - 35L)
+            t += maxOf(60L, dur - 30L)
         }
         val end = strokes.maxOf { it.start + it.dur }
         inject(strokes, pauseAtFraction?.let { (end * it).toLong() }, whilePaused)
