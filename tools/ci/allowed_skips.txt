@@ -3,3 +3,4 @@
 # other skipped test (review M13: a test that skips is a test that passes).
 com.kinetica.keyboard.engine.FlatBoardProbe opt-in measurement probe, runs only with KINETICA_FLAT=1
 com.kinetica.keyboard.engine.LongWordProbe opt-in measurement probe, runs only with KINETICA_LONG=1
+com.kinetica.keyboard.engine.HomeRowSpreadProbe opt-in measurement probe, runs only with KINETICA_SPREAD=1
