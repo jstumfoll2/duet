@@ -1,0 +1,37 @@
+--------- beginning of crash
+11-19 17:10:18.089   903   903 E AndroidRuntime: FATAL EXCEPTION: main
+11-19 17:10:18.089   903   903 E AndroidRuntime: Process: com.android.systemui, PID: 903
+11-19 17:10:18.089   903   903 E AndroidRuntime: java.lang.RuntimeException: Error receiving broadcast Intent { act=android.intent.action.PACKAGE_CHANGED dat=package: flg=0x5000010 (has extras) } in com.android.systemui.recents.OverviewProxyService$2@c742114
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at android.app.LoadedApk$ReceiverDispatcher$Args.lambda$getRunnable$0(LoadedApk.java:1810)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at android.app.LoadedApk$ReceiverDispatcher$Args.$r8$lambda$gDuJqgxY6Zb-ifyeubKeivTLAwk(Unknown Source:0)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at android.app.LoadedApk$ReceiverDispatcher$Args$$ExternalSyntheticLambda0.run(Unknown Source:2)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at android.os.Handler.handleCallback(Handler.java:958)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:99)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:205)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:294)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:8177)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971)
+11-19 17:10:18.089   903   903 E AndroidRuntime: Caused by: java.lang.NullPointerException: Attempt to read from field 'android.content.pm.ServiceInfo android.content.pm.ResolveInfo.serviceInfo' on a null object reference in method 'void com.android.systemui.recents.OverviewProxyService$2.onReceive(android.content.Context, android.content.Intent)'
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at com.android.systemui.recents.OverviewProxyService$2.onReceive(go/retraceme 19693c2b0a8439b7183751b64d60893829dbf56dc1e08e0669fc0cfc55754948:44)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	at android.app.LoadedApk$ReceiverDispatcher$Args.lambda$getRunnable$0(LoadedApk.java:1802)
+11-19 17:10:18.089   903   903 E AndroidRuntime: 	... 10 more
+--------- beginning of main
+11-19 17:10:24.917  4829  4851 I TestRunner: run started: 1 tests
+11-19 17:10:24.919  4829  4851 I TestRunner: started: tour(com.kinetica.keyboard.SiteMediaTour)
+11-19 17:10:25.016  4829  4851 I SiteMediaTour: $ ime enable io.github.jstumfoll2.duet.dev/com.kinetica.keyboard.ime.KineticaIME -> Input method io.github.jstumfoll2.duet.dev/com.kinetica.keyboard.ime.KineticaIME: already enabled for user #0
+11-19 17:10:25.051  4829  4851 I SiteMediaTour: $ ime set io.github.jstumfoll2.duet.dev/com.kinetica.keyboard.ime.KineticaIME -> Input method io.github.jstumfoll2.duet.dev/com.kinetica.keyboard.ime.KineticaIME selected for user #0
+11-19 17:10:25.083  4829  4851 I SiteMediaTour: $ settings get secure default_input_method -> io.github.jstumfoll2.duet.dev/com.kinetica.keyboard.ime.KineticaIME
+11-19 17:10:32.233  4829  4851 I SiteMediaTour: open(Notes): 44 keys on screen
+11-19 17:10:35.228  4829  4829 I KineticaIME: dictionary ready [en]: 59270 words, 99999 bigrams (1000000 behind the boost), 0 display forms, auto-detect vs es
+11-19 17:10:59.764  4829  4851 I SiteMediaTour: open(Notes): 44 keys on screen
+11-19 17:11:03.461  4829  4851 I SiteMediaTour: open(Notes): 44 keys on screen
+11-19 17:11:07.015  4829  4851 I SiteMediaTour: open(Notes): 44 keys on screen
+11-19 17:11:10.542  4829  4851 I SiteMediaTour: open(Notes): 44 keys on screen
+11-19 17:11:14.049  4829  4851 I SiteMediaTour: open(Notes): 44 keys on screen
+11-19 17:11:17.678  4829  4851 I SiteMediaTour: open(Notes): 44 keys on screen
+11-19 17:11:21.779  4829  4851 I SiteMediaTour: open(Notes): 44 keys on screen
+11-19 17:11:27.117  4829  4851 I SiteMediaTour: open(Notes): 44 keys on screen
+11-19 17:11:28.579  4829  4851 I TestRunner: finished: tour(com.kinetica.keyboard.SiteMediaTour)
+11-19 17:11:28.996  4829  4851 I TestRunner: run finished: 1 tests, 0 failed, 0 ignored
