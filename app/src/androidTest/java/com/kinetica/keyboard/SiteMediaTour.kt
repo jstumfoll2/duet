@@ -42,6 +42,7 @@ class SiteMediaTour {
         sh("ime set $ime")
         // The emulator has a hardware keyboard, which hides soft keyboards unless this is on.
         sh("settings put secure show_ime_with_hard_keyboard 1")
+        sh("settings get secure default_input_method")
         statusBarDemoMode()
         prefs {
             putBoolean(Prefs.SETUP_DONE, true)
@@ -352,8 +353,12 @@ class SiteMediaTour {
         return result!!.getOrThrow()
     }
 
-    private fun sh(cmd: String) {
-        android.os.ParcelFileDescriptor.AutoCloseInputStream(ui.executeShellCommand(cmd)).use { it.readBytes() }
+    private fun sh(cmd: String): String {
+        val out = android.os.ParcelFileDescriptor.AutoCloseInputStream(ui.executeShellCommand(cmd)).use {
+            String(it.readBytes())
+        }
+        if (cmd.startsWith("ime") || cmd.startsWith("settings get")) Log.i(TAG, "$ $cmd -> ${out.trim()}")
+        return out
     }
 
     private fun pause(ms: Long) = SystemClock.sleep(ms)
