@@ -134,7 +134,14 @@ class SwipeTraceRecorder(
             SwipeTrace.Shown(shownFor, SwipeTrace.candidates(shown)), committed, how, goal,
             compare(tokens, context, goal), apostropheMark,
         )
-        sink(SwipeTrace.encode(word))
+        // A line the writer refuses (a NaN candidate score, seen on the emulator tour) is
+        // dropped: recording must never take the keyboard down mid-word.
+        val line = try {
+            SwipeTrace.encode(word)
+        } catch (e: IllegalArgumentException) {
+            null
+        }
+        if (line != null) sink(line)
         gold.onWord(committed, goal, now())
     }
 

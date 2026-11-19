@@ -50,6 +50,10 @@ class SiteMediaTour {
             putBoolean(Prefs.HARPER_GRAMMAR, false)
         }
 
+        // The dictionary loads in the background; swipes before it are dropped.
+        open("Notes")
+        pause(25_000)
+
         scene("two-thumbs") {
             open("Notes")
             typeWords("we can type")
@@ -346,7 +350,7 @@ class SiteMediaTour {
             InputDevice.SOURCE_TOUCHSCREEN, 0,
         )
         try {
-            ui.injectInputEvent(ev, true)
+            ui.injectInputEvent(ev, false)
         } finally {
             ev.recycle()
         }
