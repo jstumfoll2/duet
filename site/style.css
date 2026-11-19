@@ -215,3 +215,18 @@ footer img { vertical-align: -4px; border-radius: 4px; }
   .phone { max-width: 240px; }
   .video-row { grid-template-columns: minmax(0, 280px); }
 }
+
+/* Round 3: theme gallery and text-only feature rows */
+.feature.themes-row { grid-template-columns: 1fr 1.1fr; }
+.feature.flip .gallery { order: 2; }
+.gallery { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.gallery img { width: 100%; height: auto; border-radius: 12px; border: 3px solid var(--ink); display: block; box-shadow: 0 6px 18px rgba(80, 40, 10, 0.15); }
+.gallery img:nth-child(even) { margin-top: 28px; }
+.feature.solo { grid-template-columns: 1fr; max-width: 820px; }
+@media (max-width: 760px) {
+  .feature.themes-row { grid-template-columns: 1fr; }
+  .feature.flip .gallery { order: 0; }
+  .gallery { grid-template-columns: repeat(5, 42vw); overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; }
+  .gallery img { scroll-snap-align: start; }
+  .gallery img:nth-child(even) { margin-top: 0; }
+}
