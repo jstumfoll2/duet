@@ -113,6 +113,7 @@ import com.kinetica.keyboard.ui.FloatingFrame
 import com.kinetica.keyboard.ui.BarAdjust
 import com.kinetica.keyboard.ui.BarMark
 import com.kinetica.keyboard.ui.InputContainerView
+import com.kinetica.keyboard.ui.NavInsets
 import com.kinetica.keyboard.ui.Hsv
 import com.kinetica.keyboard.ui.KeyboardTheme
 import com.kinetica.keyboard.ui.KeyboardView
@@ -1223,6 +1224,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             bottomGapPx = dpToPx(config.bottomPadDp.toFloat()),
         )
         containerView = container
+        container.followNavigationBarInset(edgeToEdge())
         container.proofStrip.listener = proofListener
         val frame = FloatingFrame(this, container)
         floating.frame = frame
@@ -1361,6 +1363,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             .edit().putInt(key, pct).apply()
     }
 
+    private fun edgeToEdge(): Boolean =
+        NavInsets.edgeToEdge(Build.VERSION.SDK_INT, applicationInfo.targetSdkVersion)
+
     private fun isLandscape(): Boolean =
         resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -1470,14 +1475,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         }
     }
 
-    /**
-     * Paints the system navigation bar to match the keyboard; left alone it is a black band
-     * under a themed keyboard.
-     *
-     * Icon contrast comes from the background's luminance, so it holds for a custom hue too.
-     * navigationBarColor is deprecated once targetSdk 35 enforces edge-to-edge; at 34 it still
-     * applies, and raising the target is a reproducible-build change of its own.
-     */
     /** The background image under the bar and keys, or each view's own fill when there is none. */
     private fun applyBackdrop() {
         val image = backdrop.bitmap
@@ -1488,10 +1485,20 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         suggestionBar?.overBackdrop = on
     }
 
+    /**
+     * Paints the system navigation bar to match the keyboard; left alone it is a black band
+     * under a themed keyboard.
+     *
+     * Icon contrast comes from the background's luminance, so it holds for a custom hue too.
+     * Edge-to-edge (targetSdk 35 on Android 15) ignores navigationBarColor: there the container
+     * pads itself by the bar's inset and its gap paints the band ([NavInsets], #186).
+     */
     private fun applyNavigationBarColor(theme: KeyboardTheme) {
         val w = window?.window ?: return
-        @Suppress("DEPRECATION")
-        w.navigationBarColor = theme.background
+        if (!edgeToEdge()) {
+            @Suppress("DEPRECATION")
+            w.navigationBarColor = theme.background
+        }
         val lightBackground = Hsv.luminance(theme.background) > 0.5
         WindowInsetsControllerCompat(w, w.decorView)
             .isAppearanceLightNavigationBars = lightBackground

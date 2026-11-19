@@ -159,7 +159,37 @@ class InputContainerView(
      * are. A child view, like the handle strip, so it resizes live without a rebuild.
      */
     fun setBottomGap(px: Int) {
-        val h = px.coerceAtLeast(0)
+        settingGapPx = px.coerceAtLeast(0)
+        applyGap()
+    }
+
+    // The gap is the setting plus the navigation bar's inset, when the window draws under the
+    // bar (edge-to-edge, enforced from targetSdk 35 on Android 15). The keys then sit above the
+    // bar and the bar's band shows the keyboard's own background, which replaces the deprecated
+    // window.navigationBarColor.
+    private var settingGapPx = bottomGapPx.coerceAtLeast(0)
+    private var navInsetPx = 0
+
+    /**
+     * Follow the navigation bar's inset. Off below targetSdk 35, where the system lays the
+     * keyboard out above the bar and paints the bar itself.
+     */
+    fun followNavigationBarInset(on: Boolean) {
+        if (!on) {
+            setOnApplyWindowInsetsListener(null)
+            if (navInsetPx != 0) { navInsetPx = 0; applyGap() }
+            return
+        }
+        setOnApplyWindowInsetsListener { _, insets ->
+            val bar = NavInsets.bottom(insets)
+            if (bar != navInsetPx) { navInsetPx = bar; applyGap() }
+            insets
+        }
+        requestApplyInsets()
+    }
+
+    private fun applyGap() {
+        val h = NavInsets.gap(settingGapPx, navInsetPx)
         if (bottomGap.layoutParams?.height == h) return
         bottomGap.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, h)
         bottomGap.visibility = if (h == 0) GONE else VISIBLE
