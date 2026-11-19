@@ -50,8 +50,9 @@ import kotlin.math.ln1p
 object BoundaryModel {
 
     /** Whether [PeckSplit] decides with this model instead of its ratios. */
-    @Volatile
-    var enabled = false
+    var enabled: Boolean
+        get() = DecoderConfig.current().boundary
+        set(value) = DecoderConfig.update { it.copy(boundary = value) }
 
     const val BIAS = -1.375f
     const val EVIDENCE = 3.344f
@@ -67,7 +68,7 @@ object BoundaryModel {
     const val LL_REST_SWIPE = 10.057f
 
     /** Whether this model decides now: switched on, or the score is the log-linear one. */
-    val decides: Boolean get() = enabled || ScoreModel.logLinear
+    val decides: Boolean get() = DecoderConfig.current().let { it.boundary || it.logLinear }
 
     /**
      * Log-odds that [tapScore]'s word and [restScore]'s word, typed with no space, are two

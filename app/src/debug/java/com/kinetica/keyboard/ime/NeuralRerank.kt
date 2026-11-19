@@ -159,6 +159,8 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_BOUNDARY, on)?.apply()
             BoundaryModel.enabled = on
+            // A predictor keeps the switches it was built with (#184): rebuild them.
+            onChange?.invoke()
         }
 
     /**
@@ -171,6 +173,8 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_LOGLINEAR, on)?.apply()
             ScoreModel.mode = if (on) ScoreModel.Mode.LOGLINEAR else ScoreModel.Mode.LEGACY
+            // A predictor keeps the switches it was built with (#184): rebuild them.
+            onChange?.invoke()
         }
 
     /** Continuous tap likelihood ([ScoreModel.taps], decoder rework step 4, #127). On by default in this build. */
@@ -179,6 +183,8 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_TAPS, on)?.apply()
             ScoreModel.taps = on
+            // A predictor keeps the switches it was built with (#184): rebuild them.
+            onChange?.invoke()
         }
 
     /** Speed-weighted shape matching ([ShapeModel.speed], decoder rework step 6, #129). On by default in this build. */
@@ -187,6 +193,8 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_SPEED, on)?.apply()
             ShapeModel.speed = on
+            // A predictor keeps the switches it was built with (#184): rebuild them.
+            onChange?.invoke()
         }
 
     /**
@@ -198,6 +206,8 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_REVISE, on)?.apply()
             PreviousWordFix.enabled = on
+            // A predictor keeps the switches it was built with (#184): rebuild them.
+            onChange?.invoke()
         }
 
     /**
@@ -209,6 +219,8 @@ object NeuralRerank {
         set(on) {
             prefs?.edit()?.putBoolean(PREF_LATTICE, on)?.apply()
             LatticeDecoder.enabled = on
+            // A predictor keeps the switches it was built with (#184): rebuild them.
+            onChange?.invoke()
         }
 
     /**

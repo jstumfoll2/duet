@@ -24,7 +24,9 @@ object PreviousWordFix {
      * Whether the keyboard revises at all. Off by default; the developer build turns it on from
      * the traces screen. It only acts under the log-linear score, whose scores it was fitted on.
      */
-    @Volatile @JvmField var enabled = false
+    var enabled: Boolean
+        get() = DecoderConfig.current().previousWordFix
+        set(value) = DecoderConfig.update { it.copy(previousWordFix = value) }
 
     /** A runner-up further than this behind the committed word, in nats, is not tried. */
     @Volatile @JvmField var GAP = 2f

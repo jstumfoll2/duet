@@ -34,9 +34,10 @@ object ScoreModel {
 
     enum class Mode { LEGACY, LOGLINEAR }
 
-    @Volatile
-    @JvmField
-    var mode: Mode = Mode.LEGACY
+    /** The score in use: this decode's ([DecoderConfig.current]); a write sets [DecoderConfig.global]. */
+    var mode: Mode
+        get() = DecoderConfig.current().mode
+        set(value) = DecoderConfig.update { it.copy(mode = value) }
 
     /** Weight of the language model's log-probability. */
     @Volatile @JvmField var A = 0.3f
@@ -63,7 +64,7 @@ object ScoreModel {
     /** What an interleaved reading's score is worth against the passes' (legacy: INTERLEAVE_WEIGHT). */
     @Volatile @JvmField var IL_WEIGHT = 1f
 
-    val logLinear: Boolean get() = mode == Mode.LOGLINEAR
+    val logLinear: Boolean get() = DecoderConfig.current().logLinear
 
     /**
      * Continuous tap likelihood (decoder rework step 4, #127). Off: a tap reads as the key under
@@ -73,7 +74,9 @@ object ScoreModel {
      * nat), d0 the nearest centre's distance, so the key under the finger is free and a
      * neighbour costs what the touch spread says it should. Independent of [mode].
      */
-    @Volatile @JvmField var taps = false
+    var taps: Boolean
+        get() = DecoderConfig.current().taps
+        set(value) = DecoderConfig.update { it.copy(taps = value) }
 
     /**
      * Touch spread, kw. The developer's taps scatter 0.25 to 0.35 kw around where they aim; 0.4

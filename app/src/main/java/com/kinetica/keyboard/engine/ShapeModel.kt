@@ -17,7 +17,9 @@ import kotlin.math.pow
  */
 object ShapeModel {
 
-    @Volatile @JvmField var speed = false
+    var speed: Boolean
+        get() = DecoderConfig.current().speed
+        set(value) = DecoderConfig.update { it.copy(speed = value) }
 
     /** 0 is no weighting, 1 is weight proportional to time spent. */
     @Volatile @JvmField var GAMMA = 0.5f

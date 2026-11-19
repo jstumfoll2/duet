@@ -108,7 +108,8 @@ class LatticeDecoderTest {
         val direct = java.util.concurrent.Executor { it.run() }
         fun composer(): Pair<WordComposer, () -> List<com.kinetica.keyboard.engine.models.WordCandidate>> {
             var last: List<com.kinetica.keyboard.engine.models.WordCandidate> = emptyList()
-            val c = WordComposer(p!!, direct, direct, object : WordComposer.Callbacks {
+            // Built here, after the switches: a predictor keeps the ones it was built with (#184).
+            val c = WordComposer(predictor()!!, direct, direct, object : WordComposer.Callbacks {
                 override fun onCandidates(candidates: List<com.kinetica.keyboard.engine.models.WordCandidate>, tentative: com.kinetica.keyboard.engine.models.WordCandidate?, literal: String, generation: Int) {
                     last = candidates
                 }

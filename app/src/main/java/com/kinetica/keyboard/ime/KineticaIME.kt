@@ -42,6 +42,7 @@ import com.kinetica.keyboard.engine.AccentFolder
 import com.kinetica.keyboard.engine.ApostropheJoin
 import com.kinetica.keyboard.engine.DecodeTrace
 import com.kinetica.keyboard.engine.Alphabet
+import com.kinetica.keyboard.engine.DecoderConfig
 import com.kinetica.keyboard.engine.DictionaryLoader
 import com.kinetica.keyboard.engine.DigitSlips
 import com.kinetica.keyboard.engine.GestureEngine
@@ -54,11 +55,9 @@ import com.kinetica.keyboard.engine.LanguageMomentum
 import com.kinetica.keyboard.engine.FieldClass
 import com.kinetica.keyboard.engine.FieldWords
 import com.kinetica.keyboard.engine.LanguageStreak
-import com.kinetica.keyboard.engine.LatticeDecoder
 import com.kinetica.keyboard.engine.PreviousWordFix
 import com.kinetica.keyboard.engine.RetypePenalties
 import com.kinetica.keyboard.engine.UsageStats
-import com.kinetica.keyboard.engine.ScoreModel
 import com.kinetica.keyboard.engine.SentenceFix
 import com.kinetica.keyboard.engine.ShapeTemplates
 import com.kinetica.keyboard.engine.SharedWordFiling
@@ -1358,6 +1357,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             .edit().putInt(key, pct).apply()
     }
 
+    /** The installed predictor's decoder switches (#184), or the global ones before an install. */
+    private fun decoder(): DecoderConfig = predictor?.config ?: DecoderConfig.global
+
     private fun edgeToEdge(): Boolean =
         NavInsets.edgeToEdge(Build.VERSION.SDK_INT, applicationInfo.targetSdkVersion)
 
@@ -2132,7 +2134,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * wait for automatic spaces to be on: the lattice is what stands in for them.
      */
     private fun latticeAllowed(): Boolean {
-        if (!LatticeDecoder.enabled || !ScoreModel.logLinear) return false
+        if (!decoder().lattice || !decoder().logLinear) return false
         if (config.wordEndsOnSpace || editorState.privateMode) return false
         if (editorState.addressField || reloadedWord != null) return false
         val joiner = ich.textBeforeCursor(tentativeLength + 1)?.dropLast(tentativeLength) ?: ""
@@ -4152,7 +4154,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     private fun fixSentence() {
         val bar = suggestionBar ?: return
         val p = predictor
-        val plan = if (p == null || !ScoreModel.logLinear || editorState.privateMode || selectionLength() != 0 ||
+        val plan = if (p == null || !decoder().logLinear || editorState.privateMode || selectionLength() != 0 ||
             tentativeLength > 0 || composer?.hasPendingWord == true
         ) {
             null
@@ -6468,10 +6470,10 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                 ?.takeIf { it.endsWith(word) }?.dropLast(word.length)
         }
         // Read before composer.commitWord empties the tokens and before the candidates go.
-        val reviseTokens = if (PreviousWordFix.enabled) composer?.tokensSnapshot() else null
+        val reviseTokens = if (decoder().previousWordFix) composer?.tokensSnapshot() else null
         val reviseNext = lastCandidates
         val revisePrev = revisable
-        revisable = if (PreviousWordFix.enabled && !lastCommitDeliberate && word.isNotEmpty() &&
+        revisable = if (decoder().previousWordFix && !lastCommitDeliberate && word.isNotEmpty() &&
             lastCandidates.firstOrNull()?.word.equals(word, ignoreCase = true)
         ) {
             Revisable(word.lowercase(), lastCandidates.map { PreviousWordFix.Reading(it.word, it.score) })
@@ -6655,7 +6657,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         tokens: List<InputToken>,
         next: List<WordCandidate>,
     ) {
-        if (!ScoreModel.logLinear || !editorState.offersCorrections || editorState.addressField) return
+        if (!decoder().logLinear || !editorState.offersCorrections || editorState.addressField) return
         if (word.isEmpty() || tokens.isEmpty() || next.isEmpty() || lastCommitDeliberate) return
         if (languageOf(word) != config.language || languageOf(prev.word) != config.language) return
         val p = predictor ?: return
@@ -6682,7 +6684,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     private fun applyRevision(generation: Int, prev: String, word: String, flip: String) {
-        if (generation != reviseGeneration || !PreviousWordFix.enabled) return
+        if (generation != reviseGeneration || !decoder().previousWordFix) return
         // Nothing may have happened since the commit but its own space.
         if (selectionLength() != 0 || tentativeLength > 0 || composer?.hasPendingWord == true || midWordOffer != null) return
         val tail = ich.textBeforeCursor(GRAMMAR_TAIL_CHARS)?.toString() ?: return

@@ -40,9 +40,9 @@ import kotlin.math.ln1p
 object LatticeDecoder {
 
     /** Whether callers may read a buffer as several words. Nothing in the keyboard asks yet. */
-    @Volatile
-    @JvmField
-    var enabled = false
+    var enabled: Boolean
+        get() = DecoderConfig.current().lattice
+        set(value) = DecoderConfig.update { it.copy(lattice = value) }
 
     /** Boundaries tried in one buffer: the longest lifts. */
     @JvmField var MAX_BOUNDARIES = 3
