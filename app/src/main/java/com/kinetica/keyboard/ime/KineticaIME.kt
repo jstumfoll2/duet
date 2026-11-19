@@ -325,10 +325,14 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         enum class Kind { CLIPS, FRESH_CLIP, CODES, GOLD, SENTENCE }
     }
 
-    // The words committed lately with the ranked readings each came from, oldest first, for the
-    // "fix this sentence" action ([SentenceFix], #139). A word the user typed, picked or
-    // corrected has no readings. In memory only; a new field starts it again.
-    private val sentenceWords = ArrayList<SentenceFix.Word>()
+    // The commits the keyboard may still revise: the last decoded one for the previous-word fix,
+    // and the sentence so far for "fix this sentence" ([CommitRevision]). A new field starts the
+    // sentence again.
+    private val revision = CommitRevision()
+
+    /** Whether a dictionary is installed and words can be composed; for tests that wait on the load. */
+    internal val wordsReady: Boolean get() = composer != null
+    private val sentenceWords: MutableList<SentenceFix.Word> get() = revision.sentence
 
     // The fix a SENTENCE offer is showing, until it is answered or the bar moves on.
     private var sentencePlan: SentenceFix.Plan? = null
@@ -418,32 +422,18 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      */
     @Volatile private var blockedSpellings: Set<String> = emptySet()
 
-    /** The last autocorrect, until anything else is typed: a backspace puts the letters back. */
-    private class AutocorrectUndo(val typed: String, val corrected: String, val end: Int)
+    // The undo records ([CommitUndo.kt]). The autocorrect's lasts until anything else is typed.
     private var autocorrectUndo: AutocorrectUndo? = null
-
-    // The grammar pass's last rewrite: [shown] became [replacement] because [next] followed. The
-    // next word is its only evidence, so when that word is deleted the rewrite goes back
-    // ([undoGrammarFix]). Traces held four rewrites, two of them `an` made `a` by a fragment
-    // the user then deleted. Cleared by the next commit.
-    private class GrammarFix(val shown: String, val replacement: String, val next: String)
+    // The grammar pass's last rewrite ([undoGrammarFix]). Cleared by the next commit.
     private var grammarFix: GrammarFix? = null
-
-    // The last grammar auto-fix ([autoFixGrammar]): [shown] became [fixed], ending at [end], with
-    // the composer's context as it was before. A backspace right after puts [shown] back, as it
-    // does an autocorrect. Cleared when an autocorrect's undo would be.
-    private class AutoFixUndo(val shown: String, val fixed: String, val end: Int, val context: List<String>?)
+    // The last grammar auto-fix ([autoFixGrammar]). Cleared when an autocorrect's undo would be.
     private var autoFixUndo: AutoFixUndo? = null
 
-    // The last decoded commit's ranked readings, for the previous-word fix ([PreviousWordFix]):
-    // null after a word the user typed, picked or corrected, which is not the decoder's to revise.
-    private class Revisable(val word: String, val readings: List<PreviousWordFix.Reading>)
-    private var revisable: Revisable? = null
-    // Bumped by every commit, so a revision decided for one commit never lands after another.
-    // Read on the decode thread.
-    @Volatile private var reviseGeneration = 0
-    // Auto-fixes the user took back, lowercased (`to to`): not made again while the keyboard runs.
-    private val rejectedAutoFixes = LinkedHashSet<String>()
+    // The last decoded commit's readings ([CommitRevision]); null after a word the user chose.
+    private var revisable by revision::revisable
+    private val reviseGeneration: Int get() = revision.generation
+    // Auto-fixes the user took back (`to to`): not made again while the keyboard runs.
+    private val rejectedAutoFixes = RecentRejections(REJECTED_CORRECTIONS_MAX)
 
     /**
      * The autocorrect the last commit made, for the strip: unlike [autocorrectUndo] it outlives
@@ -473,9 +463,11 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
      * first. They are not corrected again while the keyboard runs, so an acronym or a name
      * undone once is not rewritten at every delimiter after it.
      */
-    private val rejectedCorrections = LinkedHashSet<String>()
+    private val rejectedCorrections = RecentRejections(REJECTED_CORRECTIONS_MAX)
+    // What the last commit taught, so a take-back takes back exactly that ([LearnedTakeBack]).
+    private val takeBack = LearnedTakeBack()
     // The last commit, lowercased, while the +1 it earned can still be taken back by deleting it.
-    private var lastCommitLearned: String? = null
+    private var lastCommitLearned by takeBack::commit
 
     // The one-shot Ctrl: set by CTRL_NEXT, spent by the next key.
     private var ctrlPending = false
@@ -509,15 +501,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     // be autospaced or learned.
     private var swipeDecodeEmpty = false
 
-    // The pair learnPair last recorded, so a retype can take that one back. Cleared once
-    // used, so a second retype cannot un-learn a pair twice.
-    private var lastLearnedPair: Pair<String, String>? = null
-    private var lastLearnedPairLang: String? = null
-
-    // The word the last commit learned and the list it went to. A shared word can be filed away
-    // from its provenance, so a take-back must not re-derive the language.
-    private var lastLearnedWord: String? = null
-    private var lastLearnedWordLang: String? = null
     private val sharedFiling = SharedWordFiling()
     private val lastCommit = CommitMemory()
 
@@ -2987,13 +2970,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
     }
 
     private fun rememberRejectedCorrection(typed: String) {
-        val t = typed.lowercase()
-        if (t.isEmpty()) return
-        rejectedCorrections.remove(t)
-        rejectedCorrections.add(t)
-        while (rejectedCorrections.size > REJECTED_CORRECTIONS_MAX) {
-            rejectedCorrections.remove(rejectedCorrections.first())
-        }
+        rejectedCorrections.add(typed)
     }
 
     /**
@@ -4561,7 +4538,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (learned != null && learned == word.lowercase() && deleteTakesBackCommit(left, word.length)) {
             lastCommitLearned = null
             unlearnWord(word)
-            if (lastLearnedPair?.second == learned) unlearnLastPair()
+            if (takeBack.pairEndsWith(learned)) unlearnLastPair()
             DecodeTrace.log { "  unlearn word=$word src=$src" }
         }
     }
@@ -5564,7 +5541,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         usagePicked = true
         commitWordInternal(word)
         if (outranked && lastCommitLearned == word.lowercase()) {
-            learnWord(word, KineticaConstants.PICK_LEARN_UNITS - 1, lastLearnedWordLang ?: languageOf(word))
+            learnWord(word, KineticaConstants.PICK_LEARN_UNITS - 1, takeBack.wordLanguage ?: languageOf(word))
         }
         // Tidy spaces holds a pick's space as it holds the autospace: a word picked in front of
         // `!` gains no space before it.
@@ -5637,8 +5614,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
             DecodeTrace.log { "  autocorrect reverted word=$current typed=$replacement src=strip" }
             acceptTypedLetters(replacement)
         }
-        lastLearnedWord = replacement.lowercase()
-        lastLearnedWordLang = replacementLang
+        takeBack.learnedWord(replacement, replacementLang)
     }
 
     // ---------------------------------------------------------- word state
@@ -6196,8 +6172,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         val p = prev.lowercase()
         if (!WORD_RE.matches(w) || !WORD_RE.matches(p)) return
         if (w.length > KineticaConstants.MAX_WORD_LEN || p.length > KineticaConstants.MAX_WORD_LEN) return
-        lastLearnedPair = p to w
-        lastLearnedPairLang = lang
+        takeBack.learnedPair(p, w, lang)
         pairsFor(lang).compute(pairKey(p, w)) { _, v -> (v ?: 0) + 1 }
         val now = System.currentTimeMillis()
         learnedStore.addPair(p, w, lang, 1, now, "phrase learn failed")
@@ -6230,10 +6205,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
 
     /** Takes back the pair [learnPair] last recorded: the retype says that commit was wrong. */
     private fun unlearnLastPair() {
-        val pair = lastLearnedPair ?: return
-        val lang = lastLearnedPairLang ?: return
-        lastLearnedPair = null
-        lastLearnedPairLang = null
+        val (pair, lang) = takeBack.takePair() ?: return
         val key = pairKey(pair.first, pair.second)
         pairsFor(lang).computeIfPresent(key) { _, v -> (v - 1).coerceAtLeast(0) }
         val now = System.currentTimeMillis()
@@ -6245,7 +6217,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         if (editorState.teachesNothing) return
         val w = word.lowercase()
         if (w.length > KineticaConstants.MAX_WORD_LEN || !WORD_RE.matches(w)) return
-        val lang = lastLearnedWordLang?.takeIf { w == lastLearnedWord } ?: languageOf(word)
+        val lang = takeBack.languageOf(w) ?: languageOf(word)
         countsFor(lang).computeIfPresent(w) { _, v -> (v - 1).coerceAtLeast(0) }
         sessionWords.remove(w)
         applySessionWords()
@@ -6268,12 +6240,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // candidates, then the literal tap string (the way back from a wrong autocorrect).
         val corrections = correctionOptions(word, lastCandidates.map { it.word }, lastLiteral, blockedSpellings, ::displayWord)
         val options = corrections.options
-        val typed = corrections.typed
         val lang = languageOf(word)
         if (word.isNotEmpty()) {
-            val alts = options.drop(1).let { o -> if (typed == null) o else listOf(typed) + (o - typed) }
-            val langs = candidateLanguages + (typed?.let { mapOf(it.lowercase() to lang) } ?: emptyMap())
-            commitHistory.record(cursorExpected() - word.length, word, alts, langs)
+            commitHistory.record(cursorExpected() - word.length, word, corrections.alternatives(), corrections.languages(candidateLanguages, lang))
         }
         // Read before the candidates go: what the keyboard proposed for these letters, and the
         // text before the word (the editor holds the word, so it is cut off the read).
@@ -6288,22 +6257,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // Read before composer.commitWord empties the tokens and before the candidates go.
         val reviseTokens = if (decoder().previousWordFix) composer?.tokensSnapshot() else null
         val reviseNext = lastCandidates
-        val revisePrev = revisable
-        revisable = if (decoder().previousWordFix && !lastCommitDeliberate && word.isNotEmpty() &&
-            lastCandidates.firstOrNull()?.word.equals(word, ignoreCase = true)
-        ) {
-            Revisable(word.lowercase(), lastCandidates.map { PreviousWordFix.Reading(it.word, it.score) })
-        } else {
-            null
-        }
-        reviseGeneration++
-        if (word.isNotEmpty()) {
-            val decoded = !lastCommitDeliberate && lastCandidates.firstOrNull()?.word.equals(word, ignoreCase = true)
-            sentenceWords.add(
-                SentenceFix.Word(word, if (decoded) lastCandidates.map { PreviousWordFix.Reading(it.word, it.score) } else emptyList()),
-            )
-            if (sentenceWords.size > SENTENCE_WORDS_KEPT) sentenceWords.removeAt(0)
-        }
+        val revisePrev = revision.onCommit(word, lastCandidates, lastCommitDeliberate, decoder().previousWordFix)
         composer?.commitWord(word.lowercase())
         grammarFix = null
         if (!previousDeliberate) fixPreviousWord(word)
@@ -6339,8 +6293,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
                     word, filed,
                     caseVote(word, proposal, held, textBefore, casesFor(filed)[word.lowercase()]?.display, filed, commonWord(word, filed)),
                 )
-                lastLearnedWord = word.lowercase()
-                lastLearnedWordLang = filed
+                takeBack.learnedWord(word, filed)
                 // The pair is learned from the same evidence as the word, under the same
                 // guards. composer.commitWord has already pushed, so the predecessor is the
                 // second-from-last context entry; lastCommit is emptied on every field change.
@@ -6355,8 +6308,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         // The letters as typed lead a corrected word's column: the strip's way back from a wrong
         // autocorrect, which the recent column replaces when it is on.
         if (word.isNotEmpty()) {
-            val alts = options.drop(1).let { o -> if (typed == null) o else listOf(typed) + (o - typed) }
-            recentWords.onCommit(word, alts, correctionLanguages + (typed?.let { mapOf(it.lowercase() to lang) } ?: emptyMap()))
+            recentWords.onCommit(word, corrections.alternatives(), corrections.languages(correctionLanguages, lang))
         }
         backspaceTarget = null
         if (strip) {
@@ -6450,9 +6402,7 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         expectAfter(span, undo.shown.length)
         autospaceInserted = false
         undo.context?.let { composer?.restoreContext(it) }
-        rejectedAutoFixes.remove(undo.shown.lowercase())
-        rejectedAutoFixes.add(undo.shown.lowercase())
-        while (rejectedAutoFixes.size > REJECTED_CORRECTIONS_MAX) rejectedAutoFixes.remove(rejectedAutoFixes.first())
+        rejectedAutoFixes.add(undo.shown)
         DecodeTrace.log { "  grammar autofix undo fixed=${undo.fixed} back=${undo.shown}" }
         updateAutoShift()
         return true
@@ -6853,7 +6803,6 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         const val TOUCH_MODEL_KEY = Prefs.TOUCH_MODEL_KEY
 
         /** Commits kept with their readings for the "fix this sentence" action. */
-        const val SENTENCE_WORDS_KEPT = 24
 
         /** Text read before the cursor to find the sentence to fix. */
         const val SENTENCE_TAIL_CHARS = 300

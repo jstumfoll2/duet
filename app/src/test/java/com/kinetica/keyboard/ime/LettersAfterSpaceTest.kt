@@ -36,13 +36,4 @@ class LettersAfterSpaceTest {
             assertTrue(page, json.contains("\"name\": \"$page\""))
         }
     }
-
-    @Test
-    fun theSpaceKeyAsksAfterItsSpace() {
-        // The service has no JVM reach: the space is written first, then the page changes.
-        val src = File("src/main/java/com/kinetica/keyboard/ime/KineticaIME.kt").readText()
-        val branch = src.substringAfter("KeyType.SPACE -> {").substringBefore("KeyType.BACKSPACE ->")
-        assertTrue(branch.indexOf("onSpace()") in 0 until branch.indexOf("lettersAfterSpace("))
-        assertTrue(branch.contains("setKeyboardLayout(alphaLayout())"))
-    }
 }

@@ -37,4 +37,18 @@ class CorrectionOptionsTest {
         assertEquals(listOf("ok"), c.options)
         assertNull(c.typed)
     }
+
+    @Test
+    fun theColumnPutsTheTypedLettersFirstAndFilesThemUnderTheWordsLanguage() {
+        val c = correctionOptions("tino", listOf("tino", "tin", "tine"), "tion", emptySet(), asIs)
+        assertEquals(listOf("tion", "tin", "tine"), c.alternatives())
+        assertEquals(mapOf("tin" to "en", "tion" to "es"), c.languages(mapOf("tin" to "en"), "es"))
+    }
+
+    @Test
+    fun withNoTypedLettersTheColumnIsTheOtherOptions() {
+        val c = correctionOptions("the", listOf("the", "then"), "the", emptySet(), asIs)
+        assertEquals(listOf("then"), c.alternatives())
+        assertEquals(mapOf("then" to "en"), c.languages(mapOf("then" to "en"), "es"))
+    }
 }
