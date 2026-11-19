@@ -65,7 +65,9 @@ jobs:
             adb install -r -g app/build/outputs/apk/debug/*.apk
             adb install -r -g app/build/outputs/apk/androidTest/debug/*.apk
             adb shell am instrument -w -e class com.kinetica.keyboard.SiteMediaTour io.github.jstumfoll2.duet.dev.test/androidx.test.runner.AndroidJUnitRunner || true
-            adb logcat -d -s SiteMediaTour:* AndroidRuntime:E TestRunner:* > tour-log.txt || true
+            adb logcat -d -s SiteMediaTour:* AndroidRuntime:E TestRunner:* KineticaIME:* > tour-log.txt || true
+            adb shell dumpsys input_method > ime-dump.txt || true
+            head -40 ime-dump.txt || true
             mkdir -p raw && adb pull /sdcard/Download/site/. raw/ || true
             ls -la raw
 
@@ -83,11 +85,12 @@ jobs:
             n=$(basename "$f" .mp4)
             ffmpeg -loglevel error -y -i "$f" -vf "scale=540:-2,fps=30" -c:v libx264 -crf 27 -preset slow \
               -pix_fmt yuv420p -an -movflags +faststart "out/$n.mp4"
-            ffmpeg -loglevel error -y -ss 2 -i "out/$n.mp4" -frames:v 1 "raw/$n-poster.png"
+            ffmpeg -loglevel error -y -sseof -1 -i "out/$n.mp4" -frames:v 1 -update 1 "raw/$n-poster.png" || true
             p=${n#duet-}
-            cwebp -quiet -q 80 "raw/$n-poster.png" -o "out/$p-poster.webp"
+            [ -e "raw/$n-poster.png" ] && cwebp -quiet -q 80 "raw/$n-poster.png" -o "out/$p-poster.webp" || true
           done
           cp tour-log.txt out/ || true
+          cat tour-log.txt || true
           ls -la out
 
       - uses: actions/upload-artifact@v4

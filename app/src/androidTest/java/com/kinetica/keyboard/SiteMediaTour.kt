@@ -40,6 +40,8 @@ class SiteMediaTour {
         val ime = "${app.packageName}/com.kinetica.keyboard.ime.KineticaIME"
         sh("ime enable $ime")
         sh("ime set $ime")
+        // The emulator has a hardware keyboard, which hides soft keyboards unless this is on.
+        sh("settings put secure show_ime_with_hard_keyboard 1")
         statusBarDemoMode()
         prefs {
             putBoolean(Prefs.SETUP_DONE, true)
@@ -155,6 +157,11 @@ class SiteMediaTour {
             pause(200)
         }
         pause(600)
+        val n = keys().size
+        Log.i(TAG, "open($title): ${n} keys on screen")
+        if (n == 0) {
+            shot("debug-no-keyboard")
+        }
     }
 
     private fun setText(text: String) {
@@ -235,6 +242,10 @@ class SiteMediaTour {
             val side = if (c in LEFT) 0 else 1
             if (runs.isNotEmpty() && runs.last().first == side) runs.last().second.add(p)
             else runs.add(side to mutableListOf(p))
+        }
+        if (runs.isEmpty()) {
+            Log.w(TAG, "typeWord($word): no keys")
+            return
         }
         val strokes = ArrayList<Stroke>()
         var t = 0L
