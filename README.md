@@ -8,14 +8,21 @@
 [![No internet permission](https://img.shields.io/badge/internet%20permission-none-success)](#permissions-and-what-duet-reaches-beyond-kinetica)
 [![Fork of Kinetica](https://img.shields.io/badge/fork%20of-Kinetica-informational)](https://github.com/EZ-eta/kinetica)
 
+**Website: [jstumfoll2.github.io/duet](https://jstumfoll2.github.io/duet/)**
+
 Duet is an Android keyboard for **two thumbs at once**. Each thumb swipes or taps on its own, at
 the same time as the other, and both streams become one word. The goal is the accuracy and feel of
 Keymonk and Nintype.
 
 Duet is a fork of [Kinetica](https://github.com/EZ-eta/kinetica) by Elia Zanella (EZ-eta), and
-keeps its GPL-3.0-or-later licence. Kinetica wrote the keyboard: the gesture engine, the decoder,
-the settings and nearly every feature listed below. Duet adds a two-thumb decoder of its own, a
-way to measure accuracy from real typing, and a set of English and everyday features on top. It
+keeps its GPL-3.0-or-later licence. Duet is built on Kinetica's keyboard: its gesture engine,
+layouts, settings and the features listed under [Features from Kinetica](#features-from-kinetica).
+Duet's default decoder (from v3.0) is its own: probability-based scoring that weighs word breaks in
+one search, two neural models trained for this keyboard, the interleaved two-thumb reader, touch
+repair and learned aim points. It still finds candidates with Kinetica's trie search and DTW shape
+matching, and Kinetica's classic decoder stays one switch away. Duet also adds a way to measure
+accuracy from real typing and the English and everyday features under
+[What Duet adds](#what-duet-adds-to-kinetica). It
 has its own name, app id and icon, as Kinetica asks of forks. Report Duet bugs
 [here](https://github.com/jstumfoll2/duet/issues), not upstream.
 

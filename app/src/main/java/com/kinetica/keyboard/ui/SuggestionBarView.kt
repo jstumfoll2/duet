@@ -529,6 +529,11 @@ class SuggestionBarView @JvmOverloads constructor(
             invalidate()
         }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        ViewProbe.bar = java.lang.ref.WeakReference(this)
+    }
+
     init {
         applyThemePaints()
     }

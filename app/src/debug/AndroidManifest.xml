@@ -22,6 +22,12 @@
             android:exported="false"
             android:label="@string/prose_title"
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <!-- A plain note field for the website's instrumented screenshot tour (androidTest). -->
+        <activity
+            android:name=".ime.SiteDemoActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
     </application>
 
 </manifest>
