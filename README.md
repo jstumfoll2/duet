@@ -8,6 +8,8 @@
 [![No internet permission](https://img.shields.io/badge/internet%20permission-none-success)](#permissions-and-what-duet-reaches-beyond-kinetica)
 [![Fork of Kinetica](https://img.shields.io/badge/fork%20of-Kinetica-informational)](https://github.com/EZ-eta/kinetica)
 
+**Website: [jstumfoll2.github.io/duet](https://jstumfoll2.github.io/duet/)**
+
 Duet is an Android keyboard for **two thumbs at once**. Each thumb swipes or taps on its own, at
 the same time as the other, and both streams become one word. The goal is the accuracy and feel of
 Keymonk and Nintype.
