@@ -54,42 +54,22 @@ class SiteMediaTour {
         open("Notes")
         pause(25_000)
 
-        scene("two-thumbs") {
+        // Synthetic two-thumb swipes decode poorly on the emulator (it is far slower than a
+        // phone), so the stills set their text directly and show the keyboard itself; videos of
+        // real typing come from a phone.
+        scene("keyboard") {
             open("Notes")
-            typeWords("we can type")
-            // Hold both thumbs down mid-word so both trails are on screen.
-            typeWord("something", pauseAtFraction = 0.72) { shot("two-thumbs") }
-            tapKey("space")
-        }
-
-        scene("duet-demo") {
-            open("Notes")
-            startRecording("duet-demo")
-            pause(900)
-            typeWords("this keyboard reads both thumbs at the same time and it feels like magic")
-            pause(1500)
-            stopRecording()
-        }
-
-        scene("duet-spacing") {
-            prefs { putBoolean(Prefs.AUTOSPACE, true) }
-            open("Notes")
-            startRecording("duet-spacing")
-            pause(900)
-            // A pecked word, then a swipe straight after with no space: two words.
-            tapWord("to"); pause(120); typeWord("help"); pause(700)
-            typeWord("you"); pause(700)
-            typeWord("today"); pause(1800)
-            stopRecording()
-            prefs { putBoolean(Prefs.AUTOSPACE, false) }
+            setText("Two thumbs, one word at a time. ")
+            pause(800)
+            shot("keyboard")
         }
 
         for (theme in listOf("preset_ocean", "preset_sunset", "preset_paper", "preset_lavender", "preset_forest")) {
             scene("theme-$theme") {
                 prefs { putString(Prefs.THEME_MODE, theme) }
                 open("Notes")
-                typeWords("pick a look that suits you")
-                pause(600)
+                setText("Pick a look that suits you. ")
+                pause(800)
                 shot("themes-${theme.removePrefix("preset_")}")
             }
         }
@@ -98,9 +78,8 @@ class SiteMediaTour {
         scene("grammar") {
             prefs { putBoolean(Prefs.HARPER_GRAMMAR, true) }
             open("Notes")
-            setText("This is a example of the ")
-            typeWords("grammar")
-            pause(1500)
+            setText("This is a example of the grammar check. ")
+            pause(2500)
             shot("grammar")
             prefs { putBoolean(Prefs.HARPER_GRAMMAR, false) }
         }
@@ -113,19 +92,6 @@ class SiteMediaTour {
             }
             pause(1200)
             shot("clipboard")
-        }
-
-        scene("word-menu") {
-            open("Notes")
-            typeWords("see you")
-            typeWord("there")
-            pause(500)
-            val bar = onMain { ViewProbe.bar?.get()?.let { v -> IntArray(2).also { v.getLocationOnScreen(it) } to (v.width to v.height) } }
-            if (bar != null) {
-                val (loc, size) = bar
-                val p = PointF(loc[0] + size.first * 0.25f, loc[1] + size.second / 2f)
-                hold(p, 2600) { shot("word-menu") }
-            }
         }
 
         activity?.finish()
