@@ -546,3 +546,40 @@ internal fun casedLike(like: String, word: String): String = when {
     like.firstOrNull()?.isUpperCase() == true -> word.replaceFirstChar { it.uppercaseChar() }
     else -> word
 }
+
+/** A committed word's correction options and the letters as typed, when they differ ([correctionOptions]). */
+internal class CorrectionOptions(val options: MutableList<String>, val typed: String?)
+
+/**
+ * The correction options for committing [word] (split out of commitWordInternal, #184): the word
+ * itself first, then the other ranked [candidates] and the letters as typed ([literal]), each
+ * shown as it would be written ([display]) and each once. The typed letters, when they are not
+ * the word, come straight after it: at the end of ten candidates they fell off the strip. A
+ * [blocked] spelling is never offered back, though the word itself always stays first.
+ */
+internal fun correctionOptions(
+    word: String,
+    candidates: List<String>,
+    literal: String,
+    blocked: Set<String>,
+    display: (String) -> String,
+): CorrectionOptions {
+    val options = ArrayList<String>(candidates.size + 2)
+    options.add(word)
+    for (c in candidates) {
+        val d = display(c)
+        if (!options.contains(d)) options.add(d)
+    }
+    var typed: String? = null
+    if (literal.isNotEmpty()) {
+        val d = display(literal)
+        if (!options.contains(d)) options.add(d)
+        if (!d.equals(word, ignoreCase = true)) typed = d
+    }
+    if (blocked.isNotEmpty()) {
+        options.subList(1, options.size).removeAll { it.lowercase() in blocked }
+        if (typed?.lowercase() in blocked) typed = null
+    }
+    typed?.let { moveTypedSecond(options, it) }
+    return CorrectionOptions(options, typed)
+}

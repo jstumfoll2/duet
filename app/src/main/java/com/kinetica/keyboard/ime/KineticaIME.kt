@@ -6266,26 +6266,9 @@ class KineticaIME : InputMethodService(), GestureEngine.Listener, WordComposer.C
         noteLanguageMomentum(word)
         // Correction options, each a tappable zone: the committed word, the other ranked
         // candidates, then the literal tap string (the way back from a wrong autocorrect).
-        val options = ArrayList<String>(KineticaConstants.TOP_K + 1)
-        options.add(word)
-        for (c in lastCandidates) {
-            val d = displayWord(c.word)
-            if (!options.contains(d)) options.add(d)
-        }
-        var typed: String? = null
-        if (lastLiteral.isNotEmpty()) {
-            val d = displayWord(lastLiteral)
-            if (!options.contains(d)) options.add(d)
-            if (!d.equals(word, ignoreCase = true)) typed = d
-        }
-        // The word itself stays first; a blocked one among the others is never offered back.
-        if (blockedSpellings.isNotEmpty()) {
-            options.subList(1, options.size).removeAll { it.lowercase() in blockedSpellings }
-            if (typed?.lowercase() in blockedSpellings) typed = null
-        }
-        // The letters as typed come straight after the word, one tap from a wrong correction:
-        // at the end of ten candidates they fell off the strip.
-        typed?.let { moveTypedSecond(options, it) }
+        val corrections = correctionOptions(word, lastCandidates.map { it.word }, lastLiteral, blockedSpellings, ::displayWord)
+        val options = corrections.options
+        val typed = corrections.typed
         val lang = languageOf(word)
         if (word.isNotEmpty()) {
             val alts = options.drop(1).let { o -> if (typed == null) o else listOf(typed) + (o - typed) }
