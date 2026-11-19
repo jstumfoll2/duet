@@ -60,11 +60,16 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
+          cores: 4
+          ram-size: 4096M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
             adb install -r -g app/build/outputs/apk/debug/*.apk
             adb install -r -g app/build/outputs/apk/androidTest/debug/*.apk
             adb shell pm disable-user --user 0 com.google.android.inputmethod.latin || true
+            adb shell pm disable-user --user 0 com.google.android.apps.nexuslauncher || true
+            adb shell device_config put systemui clipboard_overlay_enabled false || true
+            adb shell settings put global hide_error_dialogs 1 || true
             sleep 8
             adb shell ime list -a -s || true
             adb shell ime enable io.github.jstumfoll2.duet.dev/com.kinetica.keyboard.ime.KineticaIME || true

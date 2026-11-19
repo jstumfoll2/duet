@@ -150,7 +150,14 @@ class SiteMediaTour {
         val intent = Intent(app, SiteDemoActivity::class.java)
             .putExtra(SiteDemoActivity.EXTRA_TITLE, title)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        activity = inst.startActivitySync(intent) as SiteDemoActivity
+        val a = inst.startActivitySync(intent) as SiteDemoActivity
+        activity = a
+        pause(800)
+        onMain {
+            a.field.requestFocus()
+            a.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                .showSoftInput(a.field, 0)
+        }
         // Wait for the keyboard to lay out its keys.
         val deadline = SystemClock.uptimeMillis() + 10_000
         while (SystemClock.uptimeMillis() < deadline) {
